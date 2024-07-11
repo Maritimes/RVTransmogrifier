@@ -1,0 +1,31 @@
+Package: RVTransmogrifier
+Title: A package for reformatting the DFO Maritimes Groundfish Survey Data
+Version: 2024.05.07
+Authors@R: c( person("Mike", "McMahon", email="Mike.McMahon@dfo-mpo.gc.ca", role=c("aut", "cre")) )
+Maintainer: Mike McMahon <Mike.McMahon@dfo-mpo.gc.ca>
+Description: This package works with the RVSurveyData package to query and reformat that data as needed by different partners.
+Depends:
+    R (>= 3.5.0),
+    RVSurveyData
+Imports:
+  dplyr,
+  ggplot2,
+  lubridate,
+  Mar.utils,
+  tidyr,
+  reshape2,
+  stats,
+  sf
+Suggests:
+  utils
+Remotes:
+  Maritimes/Mar.utils,
+  Maritimes/RVSurveyData
+VignetteBuilder: 
+  utils
+Encoding: UTF-8
+License: MIT + file LICENSE
+LazyData: true
+LazyDataCompression: xz
+URL: https://github.com/Maritimes/RVTransmogrifier/
+RoxygenNote: 7.2.3
