@@ -69,21 +69,8 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     }
     
     results   <- list()
-    # browser()
+
     #Make a version of GSINF that has OBIS fields that would otherwise need to be calculated repeatedly
-    # setsPreProcessed <- data$GSINF %>%
-    #   dplyr::mutate(time = formatC(TIME, width = 4, flag=0),
-    #                 starttime = sub("(\\d{2})$", ":\\1", time),
-    #                 # eventDate1 = paste(SDATE,"T",starttime,sep=""),
-    #                 dst = lubridate::dst(lubridate::ymd_hm(SDATE, tz = "America/Halifax")),
-    #                 tz = ifelse(dst == "TRUE", "-0300", "-0400"),
-    #                 eventDate1 = paste(SDATE,tz,sep=""),
-    #                 #DMIN_M and friends from DMIN
-    #                 theSet = paste(MISSION, formatC(SETNO, width = 3, flag=0), sep=":"),
-    #                 id = MISSION) %>%
-    #   # dplyr::select(-c(MISSION, SETNO, SDATE, TIME, REMARKS, time, starttime, dst, tz, eventDate1))%>%
-    #   as.data.frame()
-    
     setsPreProcessed <- data$GSINF %>%
       dplyr::mutate(eventDate = lubridate::with_tz(SDATE, "America/Halifax"),
                     theSet = paste(MISSION, formatC(SETNO, width = 3, flag=0), sep=":"), 

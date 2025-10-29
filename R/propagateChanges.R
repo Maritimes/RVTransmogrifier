@@ -32,18 +32,17 @@ propagateChanges<-function(tblList = NULL, ...){
     message(thisFun, ": started")
   }
   recdTables <- names(tblList)
-  # essentialTables <- c("GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSCURNT","GSFORCE","GSHOWOBT","GSSTRATUM","GSGEAR","GSSEX","GSSPECIES","GSWARPOUT","GSAUX","GSMATURITY","dataDETS","dataLF")
   essentialTables <- c("GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSSTRATUM","GSWARPOUT","GSSPECIES_NEW","dataDETS","dataLF")
-  # "GSCURNT","GSFORCE","GSHOWOBT","GSGEAR","GSSEX","GSSPECIES","GSMATURITY","GSAUX",
   if (length(setdiff(essentialTables,recdTables))>0) stop("Missing the following tables from your tblList object: ",paste(setdiff(essentialTables,recdTables), collapse=", "))
   tblList      <- filterSpecies(tblList = tblList, ...)
   LOOPAGAIN <- T
   if (all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSSPECIES_NEW) & !all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT)))){
     if(args$debug) message("\tdetected TAXA_ and TAXARANK_ fields in GSSPECIES_NEW - adding to all tables")
     # use opportunity to also filter GSCAT dataLF and datDETS by the requested taxa
+
     tblList$GSCAT    <- merge(tblList$GSCAT, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    tblList$dataLF   <- merge(tblList$dataLF, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
     tblList$dataDETS <- merge(tblList$dataDETS, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
+    tblList$dataLF   <- merge(tblList$dataLF, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
     
     if(length(unique(tblList$GSSPECIES_NEW$TAXA_))==1 & length(unique(tblList$GSSPECIES_NEW$SCI_NAME))>1 & !args$taxaAgg){
       if(args$debug) message("\tAGGREGATING POSSIBLE BUT  NOT REQUESTED")
@@ -78,21 +77,21 @@ propagateChanges<-function(tblList = NULL, ...){
   }
   
   while (LOOPAGAIN){
-    
     precnt = sum(sapply(tblList, NROW))
     tblList$GSINF      <- merge(tblList$GSINF,        unique(tblList$GSCAT[,c("MISSION","SETNO")]), all.x=args$keep_nullsets )
     tblList$GSINF      <- merge(tblList$GSINF,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]))
     tblList$GSXTYPE    <- merge(tblList$GSXTYPE,      unique(tblList$GSINF[,"TYPE",drop=F]),by.x="XTYPE", by.y="TYPE")
+    tblList$GSSTRATUM  <- merge(tblList$GSSTRATUM,    unique(tblList$GSINF[,"STRAT",drop=F]))
+    tblList$GSMISSIONS <- merge(tblList$GSMISSIONS,   unique(tblList$GSINF[,"MISSION",drop=F]))
+    tblList$GSWARPOUT  <- merge(tblList$GSWARPOUT,    unique(tblList$GSINF[,c("MISSION","SETNO")]))
+    tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
+    tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]), by="MISSION")
+    tblList$dataDETS   <- merge(tblList$dataDETS,     unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
+    tblList$dataLF     <- merge(tblList$dataLF,       unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
     # tblList$GSCURNT    <- merge(tblList$GSCURNT,      unique(tblList$GSINF[,"CURNT",drop=F]))
     # tblList$GSFORCE    <- merge(tblList$GSFORCE,      unique(tblList$GSINF[,"FORCE",drop=F]))
     # tblList$GSAUX      <- merge(tblList$GSAUX,        unique(tblList$GSINF[,"AUX",drop=F]))
-    tblList$GSSTRATUM  <- merge(tblList$GSSTRATUM,    unique(tblList$GSINF[,"STRAT",drop=F]))
     # tblList$GSGEAR     <- merge(tblList$GSGEAR,       unique(tblList$GSINF[,"GEAR",drop=F]))
-    tblList$GSMISSIONS <- merge(tblList$GSMISSIONS,   unique(tblList$GSINF[,"MISSION",drop=F]))
-    tblList$GSWARPOUT  <- merge(tblList$GSWARPOUT,    unique(tblList$GSINF[,c("MISSION","SETNO")]))
-    tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets )
-    tblList$dataDETS   <- merge(tblList$dataDETS,     unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
-    tblList$dataLF     <- merge(tblList$dataLF,       unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
     # tblList$GSMATURITY <- merge(tblList$GSMATURITY, unique(tblList$dataDETS[,"FMAT",drop=F]), by.x="CODE", by.y="FMAT")
     # tblList$GSSEX      <- merge(tblList$GSSEX,      unique(tblList$dataDETS[,"FSEX",drop=F]), by.x="CODE", by.y="FSEX")
     # tblList$GSHOWOBT   <- tblList$GSHOWOBT[which(tblList$GSHOWOBT$HOWOBT %in% c(unique(tblList$GSINF$HOWD),unique(tblList$GSINF$HOWS))) ,]

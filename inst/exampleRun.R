@@ -11,8 +11,11 @@ data$GSSPECIES_NEW<- data$GSSPECIES[which(data$GSSPECIES_NEW$CLASS == "POLYCHAET
 data <- propagateChanges(data, keep_nullsets = F)
 
 data <- loadRVData()
-cod_2016_transmogrified <- getSurvey("SUMMER_ALL", years = 2016, code=10)
+cod_1970_transmogrified <- getSurvey("SUMMER_ALL", years = 1970, code=10)
 codPlot_transmogrified <- plotRV(cod_2016_transmogrified, plotSets = "TOTWGT",plotBathy=NULL)
 codPlot_transmogrified
 
-tt <- getSurvey("SUMMER_ALL", years = 2016, code=10)
+tt <- getSurvey("SUMMER_ALL", years = 2016)
+
+
+polychaetes_2016_transmogrified <- getSurvey("SUMMER_ALL", years = 2016, taxa="POLYCHAETA")

@@ -101,7 +101,7 @@ filterSpecies <- function(tblList = NULL, ...){
   if (!is.null(args$taxa) && nrow(req_Spp_Taxa)>0){
     if(args$taxaAgg) tblList <- aggregateByTaxa(tblList=tblList, ...)
   }
-  # tblList <- propagateChanges(tblList, ...)
+
   if (inherits(tblList,"numeric")){
     stop("Filter resulted in 0 records.")
   }

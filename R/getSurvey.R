@@ -25,7 +25,7 @@
 #' specified survey and years
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-getSurvey<-function(survey = NULL, years=NULL, ...){
+getSurvey<-function(survey = NULL, years = NULL, missions = NULL, ...){
   argsFn <- as.list(environment())
   argsFn[["tblList"]] <- NULL
   argsUser <- list(...)
@@ -43,8 +43,12 @@ getSurvey<-function(survey = NULL, years=NULL, ...){
   if (!is.null(years)){
     tblList$GSMISSIONS <- tblList$GSMISSIONS[which(tblList$GSMISSIONS$YEAR %in% c(years)),]
   }
+  if (!is.null(missions)){
+    tblList$GSMISSIONS <- tblList$GSMISSIONS[which(tblList$GSMISSIONS$MISSION %in% c(missions)),]
+  }
   if (survey %in% c("4VSW", "4X", "GEORGES", "SPRING")){
     tblList$GSINF <- tblList$GSINF[which(lubridate::month(tblList$GSINF$SDATE) %in% c(1,2,3,4)),]
+    tblList$GSMISSIONS <- tblList$GSMISSIONS[tblList$GSMISSIONS$SEASON == "SPRING",]
     if(survey == "4VSW"){
       tblList$GSINF <- tblList$GSINF[tblList$GSINF$STRAT %in% c('396','397', '398', '399', '400', 
                                                                 '401', '402', '403', '404', '405', '406', '407', 
@@ -74,6 +78,7 @@ getSurvey<-function(survey = NULL, years=NULL, ...){
     }
   }else if (survey=="SUMMER"){
     tblList$GSINF <- tblList$GSINF[which(lubridate::month(tblList$GSINF$SDATE) %in% c(5,6,7,8)),]
+    tblList$GSMISSIONS <- tblList$GSMISSIONS[tblList$GSMISSIONS$SEASON == "SUMMER",]
     tblList$GSINF <- tblList$GSINF[tblList$GSINF$STRAT %in% c(
       "440", "441", "442", "443", "444", "445", "446", "447", "448", "449", "450", 
       "451", "452", "453", "454", "455", "456", "457", "458", "459", "460", "461", 
@@ -82,6 +87,7 @@ getSurvey<-function(survey = NULL, years=NULL, ...){
       "492", "493", "494", "495"),]
   }else if (survey=="SUMMER_ALL"){
     tblList$GSINF <- tblList$GSINF[which(lubridate::month(tblList$GSINF$SDATE) %in% c(5,6,7,8)),]
+    tblList$GSMISSIONS <- tblList$GSMISSIONS[tblList$GSMISSIONS$SEASON == "SUMMER",]
     tblList$GSINF <- tblList$GSINF[tblList$GSINF$STRAT %in% c("434", "436", "437", "438", "439", #1971 only, Gulf region
                                                               "440", "441", "442", "443", "444", "445", "446", "447", "448", "449", "450", 
                                                               "451", "452", "453", "454", "455", "456", "457", "458", "459", "460", "461", 
@@ -92,12 +98,12 @@ getSurvey<-function(survey = NULL, years=NULL, ...){
                                                               "5Z8", "5Z9"),]
   }else if (survey== "FALL"){
     tblList$GSINF <- tblList$GSINF[which(lubridate::month(tblList$GSINF$SDATE) %in% c(9,10,11,12)),]
-    
+    tblList$GSMISSIONS <- tblList$GSMISSIONS[tblList$GSMISSIONS$SEASON == "FALL",]
   }
-  tblList<-propagateChanges(tblList = tblList, taxaAgg=F,...)
-  
-  if (nrow(tblList$GSMISSIONS)<1 | nrow(tblList$GSINF)<1) stop("The selected survey does not appear to have data for any of the selected years")
   tblList <- filterSpecies(tblList = tblList, ...)
+  tblList<-propagateChanges(tblList = tblList, taxaAgg=args$taxaAgg, debug=T,...)
+  if (nrow(tblList$GSMISSIONS)<1 | nrow(tblList$GSINF)<1) stop("The selected survey does not appear to have data for any of the selected years")
+
   
   if(args$debug) message(thisFun, ": completed (",round( difftime(Sys.time(),startTime,units = "secs"),0),"s)")
   return(tblList)
