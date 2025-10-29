@@ -5,8 +5,7 @@ Authors@R: c( person("Mike", "McMahon", email="Mike.McMahon@dfo-mpo.gc.ca", role
 Maintainer: Mike McMahon <Mike.McMahon@dfo-mpo.gc.ca>
 Description: This package works with the RVSurveyData package to query and reformat that data as needed by different partners.
 Depends:
-    R (>= 3.5.0),
-    RVSurveyData
+    R (>= 4.1.0)
 Imports:
   dplyr,
   ggplot2,
@@ -20,7 +19,7 @@ Suggests:
   utils
 Remotes:
   Maritimes/Mar.utils,
-  Maritimes/RVSurveyData
+  Maritimes/Mar.data
 VignetteBuilder: 
   utils
 Encoding: UTF-8
@@ -28,4 +27,4 @@ License: MIT + file LICENSE
 LazyData: true
 LazyDataCompression: xz
 URL: https://github.com/Maritimes/RVTransmogrifier/
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.3

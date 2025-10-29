@@ -4,7 +4,7 @@
 \alias{extractOBIS}
 \title{extractOBIS}
 \usage{
-extractOBIS(survey = NULL, years = NULL, ...)
+extractOBIS(username = NULL, password = NULL, survey = NULL, years = NULL, ...)
 }
 \arguments{
 \item{survey}{the default is \code{NULL}. Valid values are "SPRING", "SUMMER", "FALL", and "4VSW".}

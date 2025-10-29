@@ -19,29 +19,19 @@
 ## @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 ## @export
 ## @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
-filterSpecies <- function(tblList = NULL, ...){
-  argsFn <- as.list(environment())
-  argsFn[["tblList"]] <- NULL
-  argsUser <- list(...)
-  args <- do.call(set_defaults, list(argsFn=argsFn, argsUser=argsUser))
-  if(args$debug){
-    startTime <- Sys.time()
-    thisFun <- where_now()
-    message(thisFun, ": started")
-  }
-  #if nothing is to be filtered, skip.
-  # if (all(is.null(args$code), is.null(args$aphiaid), is.null(args$taxa))) return(tblList)
-  if (!is.null(args$aphiaid)) {
-    if (!is.null(args$taxa)){
+filterSpecies <- function(tblList = NULL, code = NULL, aphiaid = NULL, taxa = NULL, debug = FALSE){
+
+  if (!is.null(aphiaid)) {
+    if (!is.null(taxa)){
       message("Only one filter type  (i.e. code, taxa, aphiaid) can be done at once. Only 'aphiaid' will be used.")
     }
-    req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$APHIA_ID %in% args$aphiaid),]
-    req_Spp[,"TAXA_"]<- req_Spp[, "SPEC"]
-    req_Spp[,"TAXARANK_"]<- req_Spp[, "RANK"]
-    if (length(args$aphiaid[!(args$aphiaid %in% tblList$GSSPECIES_NEW$APHIA_ID)])>0){
-      message("No species with the following aphiaids could be found: ",paste0(args$aphiaid[!(args$aphiaid %in% tblList$GSSPECIES_NEW$APHIA_ID)], collapse = ", "))
+    req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$APHIA_ID %in% aphiaid),]
+    req_Spp$TAXA_<- req_Spp$SPEC
+    req_Spp$TAXARANK_<- req_Spp$RANK
+    if (length(aphiaid[!(aphiaid %in% tblList$GSSPECIES_NEW$APHIA_ID)])>0){
+      message("No species with the following aphiaids could be found: ",paste0(aphiaid[!(aphiaid %in% tblList$GSSPECIES_NEW$APHIA_ID)], collapse = ", "))
     }
-  } else if (!is.null(args$taxa))    {
+  } else if (!is.null(taxa))    {
     #taxa search is more complicated - must check all columns for matching strings, so I do them one at a time, and build a resultset
     req_Spp <- tblList$GSSPECIES_NEW[FALSE,]
     req_Spp$TAXA_ <- character()
@@ -50,14 +40,14 @@ filterSpecies <- function(tblList = NULL, ...){
     req_Spp_AphiaID <- req_Spp[FALSE,]
     req_Spp_Taxa <- req_Spp[FALSE,]
     #Taxa filter must capture all spec within the taxa, as well as the rank of the taxa (e.g. "FAMILY")
-    for (t in 1:length(args$taxa)){
-      these <- tblList$GSSPECIES_NEW[which(apply(tblList$GSSPECIES_NEW[,c("SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS")], 1, function(r) any(r %in% args$taxa[t]))), ]
+    for (t in 1:length(taxa)){
+      these <- tblList$GSSPECIES_NEW[which(apply(tblList$GSSPECIES_NEW[,c("SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS")], 1, function(r) any(r %in% taxa[t]))), ]
       if (nrow(these)==0){
-        message("No species with a taxa of ",args$taxa[t]," were found. Taxa are names, like 'GADUS'.  \nCheck the RVSurveyData::GSSPECIES_NEW for an exhaustive selection of available taxa names for this data set")
+        message("No species with a taxa of ",taxa[t]," were found. Taxa are names, like 'GADUS'.  \nCheck the GSSPECIES_NEW for an exhaustive selection of available taxa names for this data set")
         next
       }
-      these$TAXA_ <- args$taxa[t]
-      rankCheck <- which(apply(these[,!names(these) %in% c("COMMENTS","TAXA_")], 2, function(b) any(grepl(args$taxa[t], b))))
+      these$TAXA_ <- taxa[t]
+      rankCheck <- which(apply(these[,!names(these) %in% c("COMMENTS","TAXA_")], 2, function(b) any(grepl(taxa[t], b))))
       rankCheck <- utils::stack(rankCheck)
       rankCheck$ind <- as.character(rankCheck$ind)
       if (nrow(rankCheck)==1){
@@ -73,39 +63,34 @@ filterSpecies <- function(tblList = NULL, ...){
       req_Spp_Taxa <- rbind.data.frame(req_Spp_Taxa, these)
     }
     req_Spp<-req_Spp_Taxa
-  }else if (!is.null(args$code)){
-    req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$CODE %in% args$code),]
-    req_Spp[,"TAXA_"]<- req_Spp[, "SPEC"]
-    req_Spp[,"TAXARANK_"]<- req_Spp[, "RANK"]
-    if (length(args$code[!(args$code %in% tblList$GSSPECIES_NEW$CODE)])>0){
-      message("No species with the following codes could be found: ",paste0(args$code[!(args$code %in% tblList$GSSPECIES_NEW$CODE)], collapse = ", "))
+  }else if (!is.null(code)){
+    req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$CODE %in% code),]
+    req_Spp$TAXA_<- req_Spp$SPEC
+    req_Spp$TAXARANK_<- req_Spp$RANK
+    if (length(code[!(code %in% tblList$GSSPECIES_NEW$CODE)])>0){
+      message("No species with the following codes could be found: ",paste0(code[!(code %in% tblList$GSSPECIES_NEW$CODE)], collapse = ", "))
     }
+
   }else{
     #if no code/aphia/taxa sent, still need to add taxa and taxarank to the data for other functions
     req_Spp <- tblList$GSSPECIES_NEW
-    req_Spp[,"TAXA_"]<- req_Spp[, "SPEC"]
-    req_Spp[,"TAXARANK_"]<- req_Spp[, "RANK"]
-  }
-  if (nrow(req_Spp) > 0 & nrow(req_Spp) < nrow(tblList$GSSPECIES_NEW)){
-    tblList$GSSPECIES_NEW <- req_Spp
-    if(args$debug)message("\tlimited species table")
-    # tblList <- propagateChanges(tblList, ...)
-  } else if (nrow(req_Spp)==0){
-    message("Species filter resulted in zero species remaining - cancelling")
-    return(-1)
-  } else if (nrow(req_Spp) == nrow(tblList$GSSPECIES_NEW)){
-    #   message("Species filter would not remove any species - cancelling")
-    tblList$GSSPECIES_NEW <- req_Spp
-    return(tblList)
-  }
-  if (!is.null(args$taxa) && nrow(req_Spp_Taxa)>0){
-    if(args$taxaAgg) tblList <- aggregateByTaxa(tblList=tblList, ...)
-  }
-
-  if (inherits(tblList,"numeric")){
-    stop("Filter resulted in 0 records.")
+    req_Spp$TAXA_<- req_Spp$SPEC
+    req_Spp$TAXARANK_<- req_Spp$RANK
   }
   
-  if(args$debug) message(thisFun, ": completed (",round( difftime(Sys.time(),startTime,units = "secs"),0),"s)")
+  if (nrow(req_Spp) > 0){
+    if (nrow(req_Spp) < nrow(tblList$GSSPECIES_NEW) && debug) message("\tLimited species table")
+    if (nrow(req_Spp) == nrow(tblList$GSSPECIES_NEW) && debug)message("\tSpecies filter did not remove any species")
+  }else{
+    warning("Species filter resulted in zero species remaining - cancelling")
+    return(tblList)
+  }
+  tblList$GSSPECIES_NEW <- req_Spp
+  if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
+    tblList$GSCAT    <- merge(tblList$GSCAT, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
+    tblList$GSDET_DETS <- merge(tblList$GSDET_DETS, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
+    tblList$GSDET_LF   <- merge(tblList$GSDET_LF, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
+    tblList$GSDET      <- merge(tblList$GSDET, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
+  }
   return(tblList)
 }

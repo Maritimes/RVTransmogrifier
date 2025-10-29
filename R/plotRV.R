@@ -33,28 +33,26 @@ plotRV <- function(tblList = NULL,
                    plotBathy = "FILL", bathyIntervals=200,
                    plotNAFO=FALSE, labelNAFO = FALSE, ...){
   args <- list(...)
-  # if(is.null(args))args<- list()
-  # if(!is.null(args$code)) args$code <- newArgs$code
-  # if(!is.null(args$aphiaid)) args$aphiaid <- newArgs$aphiaid
-  # if(!is.null(args$taxa)) args$taxa <- newArgs$taxa
+  if (dev.cur() == 0) png(filename = "temp.png", width = 800, height = 600)
+
   debug <- ifelse(is.null(args$debug), F, args$debug) 
   quiet <- ifelse(is.null(args$quiet), F, args$quiet)
   
   if(!is.null(args$taxa)|!is.null(args$code)|!is.null(args$aphiaid)){
-    tblList      <- filterSpecies(tblList, keep_nullsets = T,
+    tblList      <- filterSpecies(tblList,
                                   taxa = args$taxa,
                                   code = args$code,
                                   aphiaid = args$aphiaid)
     if (inherits(tblList,"numeric"))stop("Requested filter removed all species")
     tblList      <- aggregateByTaxa(tblList = tblList,
-                                    taxa = args$taxa,
-                                    code = args$code,
-                                    aphiaid = args$aphiaid)
+                                    code = args$code)
   }
+  
   if (!is.null(tblList) & !is.null(plotSets)) {
     #strata are used to set plot bounds (filtered to sampled strata (from GSINF))
     limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
   }
+  
   if (!is.null(catchStrataData)) {
     if (inherits(catchStrataData,"list") & length(catchStrataData)>1){
       message("catchStrataData can contain multiple data frames, but only the first of these will be plotted (i.e.",names(catchStrataData[1]),").  To plot a different one, please set catchStrataData to the specific data frame you want to plot")
@@ -82,48 +80,50 @@ plotRV <- function(tblList = NULL,
   # ggItems[["bathy"]]      <- ggBathy(plotBathy=plotBathy, bathyIntervals=bathyIntervals)
   ggItems[["bkgdStrata"]] <- suppressWarnings({ggStrata(plotStrata=plotStrata, plotLabels=labelStrata, filter=unique(tblList$GSINF$STRAT))})
    ggItems[["bkgdNAFO"]]   <- suppressWarnings({ggNAFO(plotNAFO=plotNAFO, plotLabels=labelNAFO, filter=NULL)})
-  if (!is.null(catchStrataData) & plotCatchStrata %in% c("TOTNO", "TOTWGT", "MEAN_WGT", "MEAN_NO", "BIOMASS", "BIOMASS_T", "ABUND")){
-    if (plotCatchStrata == "BIOMASS")plotCatchStrata="BIOMASS_T"
+  if (!is.null(catchStrataData) & plotCatchStrata %in% c("TOTNO", "TOTWGT", "MEAN_WGT", "MEAN_NO", "BIOMASS",  "ABUNDANCE")){
+    #if (plotCatchStrata == "BIOMASS")plotCatchStrata="BIOMASS_T"
     #   #can't plot bkgrd strata if the strata are to be plotted by catch
     ggItems[["bkgdStrata"]] <- NULL
     ggItems[["gg_stratData"]] <- suppressWarnings({ggStrataData(catchStrataData = catchStrataData, plotField = plotCatchStrata, filter=unique(tblList$GSINF$STRAT))})
   }else{
     ggItems[["gg_stratData"]]<- NULL
   } 
-  
+
   #ensure specified variables are plottable
   if (is.null(plotSets)){
     #don't plot sets
     catLeg<- NULL
   }else if(!is.null(plotSets) & plotSets %in% c("TOTNO", "TOTWGT", "ALL")){
-    if("GSCAT_agg" %in% names(tblList)){
-      catches <- tblList$GSCAT_agg
-    }else{
-      catches <- tblList$GSCAT
-      catches <- merge(catches, tblList$GSSPECIES[, c("CODE", "SPEC","APHIA_ID")], by.x="SPEC", by.y="CODE")
-    }
-    catches <- merge(catches, tblList$GSINF[,c("MISSION", "SETNO",'SLONG_DD', 'SLAT_DD')], by=c("MISSION", "SETNO"),all.y=T)
-    if ("TAXA_" %in% names(catches)){
-      t_field <- "TAXA_"
+    catches <- tblList$GSCAT
+    if ("SPEC" %in% names(catches)){
+      catches <- merge(catches, tblList$GSSPECIES_NEW[,c("CODE","SPEC", "COMM", "APHIA_ID")], by.x="SPEC", by.y="CODE")
+      colnames(catches)[colnames(catches)=="SPEC.y"] <- "SCI"
+      t_field <- c("SCI", "SPEC")
     }else{
       #if 2 fields sent, the format will be "t_field1 (t_field2)"
-      t_field <- c("SPEC", "APHIA_ID")
+      t_field <- "TAXA_"
     }
+
+    catches <- merge(catches, tblList$GSINF[,c("MISSION", "SETNO",'SLONG_DD', 'SLAT_DD')], by=c("MISSION", "SETNO"),all.y=T)
+
+    
     if (plotSets %in% c("TOTNO", "TOTWGT")) {
       catLeg <- ifelse(plotSets == "TOTWGT", "Total Weight (kgs)","Total Number")
       ggItems[["catchPts"]] <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar=plotSets, colourVar = t_field, return="CATCHES")})
-      if (plotNullSets)  ggItems[["nullSets"]]   <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar="TOTNO", colourVar = t_field, return="NULLSETS")})
+      if (plotNullSets)  ggItems[["nullSets"]]   <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar="TOTNO", colourVar = t_field[1], return="NULLSETS")})
       
     }else if (plotSets == "ALL"){
       catLeg <- NULL
       ggItems[["allPts"]] <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar="TOTNO", colourVar = NULL, return="ALLSETS")})
     }
-    ggItems[["catchLabels"]] <- ggplot2::guides(color = ggplot2::guide_legend(title = "Taxa",order=1), size = ggplot2::guide_legend(title = catLeg,order=2))
+     ggItems[["catchLabels"]] <- ggplot2::guides(color = ggplot2::guide_legend(title = "Taxa", order=1), size = ggplot2::guide_legend(title = catLeg, order=2))
   }
   
-  ggItems[["land"]]   <- ggplot2::geom_sf(data = RVSurveyData::maritimesCoast_sf, fill = "darkgrey", color = NA)
+  ggItems[["land"]]   <- ggplot2::geom_sf(data = Mar.data::coast_lores_sf, fill = "darkgrey", color = NA)
   ggItems[["extent"]] <- ggplot2::coord_sf(xlim = c(limits[1],limits[2]), ylim = c(limits[3], limits[4]))
   ggItems[["labels"]] <- suppressWarnings({ggplot2::labs(x="Longitude", y="Latitude")})
   p<-p+ggItems
-  return(p)
+  if (exists("temp_device")) dev.off()
+  print(p)
+  invisible(p)
 }

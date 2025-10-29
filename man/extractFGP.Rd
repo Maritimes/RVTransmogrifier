@@ -4,7 +4,14 @@
 \alias{extractFGP}
 \title{extractFGP}
 \usage{
-extractFGP(survey = NULL, years = NULL, path = NULL)
+extractFGP(
+  username = NULL,
+  password = NULL,
+  survey = NULL,
+  years = NULL,
+  path = NULL,
+  ...
+)
 }
 \arguments{
 \item{survey}{the default is \code{NULL}. This specifies which survey should be extracted.  Valid
@@ -14,6 +21,8 @@ generated for all 4 different surveys.}
 \item{years}{the default is \code{NULL}. This parameter allows you to generate datasets for one or
 more specific years.  A value of NULL will result in products being generated for all years for
 which data exists, and a vector of years will result in dataset that include the specified years.}
+
+\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet')}
 }
 \description{
 This function generates the products (i.e. csvs and shapefiles)used by the FGP

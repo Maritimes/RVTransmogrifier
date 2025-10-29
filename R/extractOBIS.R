@@ -7,17 +7,10 @@
 #' @returns a dataframe
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca} \cr Heidi van Vliet
 #' \email{Heidi.vanVliet@@dfo-mpo.gc.ca}
-#' @importFrom magrittr %>%
 #' @export
-extractOBIS <- function(survey = NULL, years = NULL, ...){
-  args <- list(...)
-  debug <- ifelse(is.null(args$debug), F, args$debug) 
-  quiet <- ifelse(is.null(args$quiet), T, args$quiet) 
-  
+extractOBIS <- function(cxn = NULL, survey = NULL, years = NULL, path =NULL, debug = FALSE){
+
   results <- list()
-  
-  
-  
   #all of the generic information about the rights of the data and which org produced it
   dataInfo <- function(thisSurv = NULL){
     infoBlock <- data.frame(rightsHolder = 'His Majesty the King in right of Canada, as represented by the Minister of Fisheries and Oceans',
@@ -31,7 +24,7 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
   }
   #generate taxonomic df
   
-  doOBIS <- function(data = NULL, thisSurv = NULL, thisYear = NULL, ...){
+  doOBIS <- function(data = NULL, thisSurv = NULL, thisYear = NULL, debug = F){
 
     taxonomicInfo <- function(data = NULL,SPEC = NULL,...){
       species_taxa <- data[data$CODE %in% SPEC &
@@ -71,71 +64,70 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     results   <- list()
 
     #Make a version of GSINF that has OBIS fields that would otherwise need to be calculated repeatedly
-    setsPreProcessed <- data$GSINF %>%
+    setsPreProcessed <- data$GSINF |>
       dplyr::mutate(eventDate = lubridate::with_tz(SDATE, "America/Halifax"),
                     theSet = paste(MISSION, formatC(SETNO, width = 3, flag=0), sep=":"), 
                     id = MISSION,
-                    DMIN_M = ifelse(!is.na(DMIN), DMIN * 1.8288, NA), 
-                    DMAX_M = ifelse(!is.na(DMAX), DMAX * 1.8288, NA), 
-                    DEPTH_M = ifelse(!is.na(DEPTH), DEPTH * 1.8288, NA), 
-                    START_DEPTH_M = ifelse(!is.na(START_DEPTH), START_DEPTH * 1.8288, NA), 
-                    END_DEPTH_M = ifelse(!is.na(END_DEPTH), END_DEPTH * 1.8288, NA))  %>% 
-      dplyr::select(-c(MISSION, SETNO, SDATE, TIME, REMARKS, DMIN, DMAX,DEPTH,START_DEPTH, END_DEPTH))%>%
+                    DMIN_M = fathomsToMeters(DMIN), 
+                    DMAX_M = fathomsToMeters(DMAX), 
+                    DEPTH_M = fathomsToMeters(DEPTH), 
+                    START_DEPTH_M = fathomsToMeters(START_DEPTH), 
+                    END_DEPTH_M = fathomsToMeters(END_DEPTH))  |> 
+      dplyr::select(-c(MISSION, SETNO, SDATE, TIME, REMARKS, DMIN, DMAX,DEPTH,START_DEPTH, END_DEPTH))|>
       as.data.frame() 
     
     #Make a version of GSCAT that has OBIS fields that would otherwise need to be calculated repeatedly
-    catPreProcessed <- data$GSCAT %>%
+    catPreProcessed <- data$GSCAT |>
       dplyr::mutate(theCatch = paste(MISSION,
                                      formatC(SETNO, width = 3, flag=0),
                                      formatC(SPEC, width = 4, flag=0),sep = ":"),
                     theSet = paste(MISSION,
-                                   formatC(SETNO, width = 3, flag=0),sep = ":")) %>%
-      dplyr::select(-c(MISSION, SETNO,SPEC)) %>%
+                                   formatC(SETNO, width = 3, flag=0),sep = ":")) |>
+      dplyr::select(-c(MISSION, SETNO,SPEC)) |>
       as.data.frame()
     catPreProcessed <- merge(catPreProcessed, setsPreProcessed[,c("theSet","DIST")])
     
-    catPreProcessed <- catPreProcessed %>%
-      dplyr::rename(TOTNO_RAW = TOTNO, TOTWGT_RAW = TOTWGT) %>%
+    catPreProcessed <- catPreProcessed |>
+      dplyr::rename(TOTNO_RAW = TOTNO, TOTWGT_RAW = TOTWGT) |>
       dplyr::mutate(TOTWGT = TOTWGT_RAW * (1.75 / DIST),
-                    TOTNO = TOTNO_RAW * (1.75 / DIST)) %>%
+                    TOTNO = TOTNO_RAW * (1.75 / DIST)) |>
       dplyr::select(-c(DIST))
     
     #Make a version of dataDETS that has OBIS fields that would otherwise need to be calculated repeatedly
     #was going to use FSHNO and/or SPECIMEN_ID as a unique ID, but both fields have blanks
     #instead, will make ID using rowId but sorting carefully first
-    
-    detPreProcessed <- data$dataDETS %>%
+    detPreProcessed <- data$GSDET_DETS |>
       dplyr::mutate(theSet = paste(MISSION,
                                    formatC(SETNO, width = 3, flag=0),sep = ":"),
                     theCatch = paste(MISSION,
                                      formatC(SETNO, width = 3, flag=0),
                                      formatC(SPEC, width = 4, flag=0),sep = ":")
-      ) %>%
-      dplyr::select(-c(MISSION, SETNO,SPEC)) %>%
-      dplyr::arrange(theCatch, FSHNO, SPECIMEN_ID) %>%
-      dplyr::mutate(detID = dplyr::row_number()) %>% 
+      ) |>
+      dplyr::select(-c(MISSION, SETNO,SPEC)) |>
+      dplyr::arrange(theCatch, FSHNO, SPECIMEN_ID) |>
+      dplyr::mutate(detID = dplyr::row_number()) |> 
       as.data.frame()
     #figure out how to add an id at this stage - maybe just a rowid
     
     #make BBOX for each mission
-    missionWKT <-  setsPreProcessed[,c("id","SLAT_DD", "SLONG_DD")] %>%
-      sf::st_as_sf(coords=c('SLONG_DD','SLAT_DD'),crs=4326) %>%
-      dplyr::group_by(id) %>%
-      dplyr::summarize(footprintWKT = sf::st_as_text(sf::st_as_sfc(sf::st_bbox(geometry)), crs = 4326)) %>%
-      sf::st_drop_geometry() %>%
-      dplyr::mutate(footprintSRS = "epsg:4326") %>%
+    missionWKT <-  setsPreProcessed[,c("id","SLAT_DD", "SLONG_DD")] |>
+      sf::st_as_sf(coords=c('SLONG_DD','SLAT_DD'),crs=4326) |>
+      dplyr::group_by(id) |>
+      dplyr::summarize(footprintWKT = sf::st_as_text(sf::st_as_sfc(sf::st_bbox(geometry)), crs = 4326)) |>
+      sf::st_drop_geometry() |>
+      dplyr::mutate(footprintSRS = "epsg:4326") |>
       as.data.frame()
     
     #make WKT for each set
-    setWKT <-  setsPreProcessed[,c("theSet","SLAT_DD", "SLONG_DD", "ELAT_DD", "ELONG_DD")] %>%
+    setWKT <-  setsPreProcessed[,c("theSet","SLAT_DD", "SLONG_DD", "ELAT_DD", "ELONG_DD")] |>
       dplyr::mutate(footprintSRS = "epsg:4326",
                     footprintWKT = ifelse(!is.na(ELAT_DD) & !is.na(ELONG_DD),
-                                          paste("POLYLINE(",SLONG_DD," ",SLAT_DD,", ",ELONG_DD," ",ELAT_DD,")",sep=""),
-                                          paste("POINT(",SLONG_DD," ",SLAT_DD,")",sep=""))) %>%
-      dplyr::select(theSet, footprintSRS, footprintWKT) %>%
+                                          paste("LINESTRING(",SLONG_DD," ",SLAT_DD,", ",ELONG_DD," ",ELAT_DD,")",sep=""),
+                                          paste("POINT(",SLONG_DD," ",SLAT_DD,")",sep=""))) |>
+      dplyr::select(theSet, footprintSRS, footprintWKT) |>
       as.data.frame()
     #get the earliest eventDate for each mission
-    missionEvents <- setsPreProcessed %>%
+    missionEvents <- setsPreProcessed |>
       dplyr::mutate(type= "Mission level information",
                     eventID = id,
                     parentEventID = NA,
@@ -145,7 +137,7 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
                     sampleSizeValue = NA,
                     sampleSizeUnit = NA,
                     decimalLatitude = NA,
-                    decimalLongitude = NA) %>%
+                    decimalLongitude = NA) |>
       dplyr::group_by(id, type, eventID, 
                       parentEventID, 
                       eventRemarks, 
@@ -153,12 +145,12 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
                       sampleSizeValue, 
                       sampleSizeUnit, 
                       coordinateUncertaintyInMeters, 
-                      decimalLatitude, decimalLongitude) %>%
+                      decimalLatitude, decimalLongitude) |>
       dplyr::summarize(.groups = "keep", eventDate = min(eventDate, na.rm=TRUE),
                        # decimalLatitude = round(mean(SLAT_DD),6),
                        # decimalLongitude = round(mean(SLONG_DD),6),
                        minimumDepthInMeters = min(DMIN_M),
-                       maximumDepthInMeters = max(DMAX_M)) %>%
+                       maximumDepthInMeters = max(DMAX_M)) |>
       as.data.frame()
     missionEvents <- merge(missionEvents, missionWKT)
     # missionEvents$decimalLongitude = wellknown::wkt_centroid(missionEvents$footprintWKT)[[1]]
@@ -171,14 +163,14 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     
     rm("missionWKT")
     
-    missionEMOF <- missionEvents[,c("eventID"), FALSE] %>%
+    missionEMOF <- missionEvents[,c("eventID"), FALSE] |>
       dplyr::mutate(emofID=eventID,
                     # occurrenceID = NA,
                     measurementType = "Vessel name",
                     measurementRemarks= NA,
                     measurementUnit= NA,
-                    measurementValue = substr(missionEvents$eventID,1,3)) %>%
-      dplyr::select(c("emofID","measurementType","measurementValue", "measurementRemarks","measurementUnit")) %>%  #,"measurementRemarks")) %>%
+                    measurementValue = substr(missionEvents$eventID,1,3)) |>
+      dplyr::select(c("emofID","measurementType","measurementValue", "measurementRemarks","measurementUnit")) |>  #,"measurementRemarks")) |>
       as.data.frame()
 
     missionEMOF$measurementValue <- ifelse(missionEMOF$measurementValue=="CAB","JOHN CABOT",
@@ -190,8 +182,8 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
                                                                               ifelse(missionEMOF$measurementValue=="ATC","A. T. Cameron",
                                                                                      ifelse(missionEMOF$measurementValue=="HAM","LADY HAMMOND","ERROR"))))))))
 
-    gearDets <- setsPreProcessed %>%
-      dplyr::distinct(id, GEAR) %>%
+    gearDets <- setsPreProcessed |>
+      dplyr::distinct(id, GEAR) |>
       as.data.frame()
     # gearDets <- merge(gearDets, data$GSGEAR)
     gearDets$WSPREAD <-NA
@@ -202,16 +194,16 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     gearDets[gearDets$GEAR ==  3,"GEARDESC"] <- "Yankee" #36 otter trawl  
     gearDets[gearDets$GEAR ==  9,"GEARDESC"] <- "Western IIA trawl"  
     gearDets[gearDets$GEAR == 15,"GEARDESC"] <- "US 4 seam 3 bridle survey trawl"   
-    setArea <- setsPreProcessed %>%
-      dplyr::distinct(id, theSet, DIST) %>%
+    setArea <- setsPreProcessed |>
+      dplyr::distinct(id, theSet, DIST) |>
       as.data.frame()
 
     setArea <- merge(setArea, gearDets[,c("id","GEAR", "WSPREAD")], by="id")
     setArea$AREA_M2 <- round((setArea$DIST*1852) * setArea$WSPREAD,4)  #convert nm to m
     setArea$GEAR <- setArea$DIST <- setArea$id <- NULL
     
-    setEvents <- setsPreProcessed %>%
-      dplyr::rename(parentEventID=id) %>%
+    setEvents <- setsPreProcessed |>
+      dplyr::rename(parentEventID=id) |>
       dplyr::mutate(type = "Trawl level information",
                     id= theSet,
                     eventID= theSet,
@@ -220,11 +212,11 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
                     HOWD	 = HOWD,
                     sampleSizeUnit = paste0("square metres"),
                     decimalLatitude = SLAT_DD,
-                    decimalLongitude = SLONG_DD)%>%
-      dplyr::group_by(id, type, eventID, parentEventID, eventRemarks, locationRemarks, sampleSizeUnit, HOWD, decimalLatitude, decimalLongitude) %>%
+                    decimalLongitude = SLONG_DD)|>
+      dplyr::group_by(id, type, eventID, parentEventID, eventRemarks, locationRemarks, sampleSizeUnit, HOWD, decimalLatitude, decimalLongitude) |>
       dplyr::summarize(.groups = "keep", eventDate = min(eventDate, na.rm=TRUE),
                        minimumDepthInMeters = min(DMIN_M),
-                       maximumDepthInMeters = max(DMAX_M)) %>%
+                       maximumDepthInMeters = max(DMAX_M)) |>
       as.data.frame()
     setEvents$coordinateUncertaintyInMeters <- NA
     # setEvents[setEvents$HOWD== 0, "coordinateUncertaintyInMeters"] <- 100
@@ -238,7 +230,7 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     # setEvents[setEvents$HOWD== 9,"coordinateUncertaintyInMeters"] <- NA # # calculated
     setEvents$HOWD <- NULL                        
     
-    setEvents <- merge(setEvents, setArea, by.x="id", by.y="theSet") %>%
+    setEvents <- merge(setEvents, setArea, by.x="id", by.y="theSet") |>
       dplyr::rename(sampleSizeValue = AREA_M2)
     setEvents$WSPREAD <- NULL
     setEvents <- merge(setEvents, setWKT, by.x="eventID", by.y="theSet")
@@ -246,16 +238,16 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     
     gearDets$gearType <- "trawl"
 
-    gearEMOF <- gearDets[,c("id", "gearType", "GEARDESC", "WSPREAD")] %>%
+    gearEMOF <- gearDets[,c("id", "gearType", "GEARDESC", "WSPREAD")] |>
       tidyr::pivot_longer(c(GEARDESC,WSPREAD, gearType),
                           names_to = "measurementType",
                           values_to = "measurementValue",
                           values_transform = as.character,
-                          values_drop_na = T) %>%
+                          values_drop_na = T) |>
       dplyr::mutate(measurementType =NA,
                     measurementUnit =NA,
-                    measurementRemarks =NA) %>% 
-      dplyr::rename(emofID = id) %>% 
+                    measurementRemarks =NA) |> 
+      dplyr::rename(emofID = id) |> 
       as.data.frame()
     gearEMOF[gearEMOF$measurementValue %in% gearDets$GEARDESC,c("measurementType","measurementUnit","measurementRemarks")] <- as.data.frame(t(as.matrix(c("trawl name", NA, "Name of fishing gear deployed" ))))                                       
     gearEMOF[gearEMOF$measurementValue %in% gearDets$gearType,c("measurementType","measurementUnit","measurementRemarks")] <- as.data.frame(t(as.matrix(c("Sampling protocol", NA, "Type of fishing gear deployed"))))
@@ -271,16 +263,16 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
                                                                  "ELAT_DD","ELONG_DD",
                                                                  "AUX","HOWD", "HOWS",
                                                                  "STATION", "START_DEPTH_M",
-                                                                 "END_DEPTH_M","STRAT", "TYPE", "AREA_M2")] %>%
+                                                                 "END_DEPTH_M","STRAT", "TYPE", "AREA_M2")] |>
       tidyr::pivot_longer(c(BOTTOM_SALINITY,BOTTOM_TEMPERATURE,DIST,
                             DMAX_M,DMIN_M,DEPTH_M, DUR,
                             SPEED, SURFACE_TEMPERATURE),
                           names_to = "measurementType",
                           values_to = "measurementValue",
                           values_transform = as.character,
-                          values_drop_na = T) %>%
-      dplyr::mutate(measurementRemarks = NA) %>% 
-      dplyr::rename(emofID=theSet) %>%
+                          values_drop_na = T) |>
+      dplyr::mutate(measurementRemarks = NA) |> 
+      dplyr::rename(emofID=theSet) |>
       as.data.frame()
     setEMOF[setEMOF$measurementType == "DIST",    c("measurementType", "measurementUnit")] <- as.data.frame(t(as.matrix(c("length of sampling track","nautical miles"))))
     setEMOF[setEMOF$measurementType == "DMAX_M",  c("measurementType", "measurementUnit")] <- as.data.frame(t(as.matrix(c("maximum (deepest) bottom depth observed during a tow","metres"))))
@@ -289,7 +281,7 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     setEMOF[setEMOF$measurementType == "SPEED",   c("measurementType", "measurementUnit")] <- as.data.frame(t(as.matrix(c("average tow speed","knots"))))
     setEMOF$WSPREAD <- NULL
 
-    catchBiomassEmof <- catPreProcessed %>%
+    catchBiomassEmof <- catPreProcessed |>
       dplyr::mutate(#eventID = theSet,
         #occurrenceID = theCatch,
         #id= theSet,
@@ -298,42 +290,42 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
         measurementUnit = "kilograms",
         measurementValue = TOTWGT,
         measurementRemarks = "This weight has been adjusted to be representative of a standard 1.75NM tow",
-        measurementRemarksSupplemental = ifelse(TOTWGT==0,"Small catches can appear as 0 (they were rounded to the nearest kg)", NA)) %>%
-      dplyr::select(-c("TOTNO_RAW", "TOTWGT_RAW","TOTNO", "TOTWGT","theSet", "theCatch")) %>%
+        measurementRemarksSupplemental = ifelse(TOTWGT==0,"Small catches can appear as 0 (they were rounded to the nearest kg)", NA)) |>
+      dplyr::select(-c("TOTNO_RAW", "TOTWGT_RAW","TOTNO", "TOTWGT","theSet", "theCatch")) |>
       as.data.frame()
     
-    catchAbundanceEmof <- catPreProcessed %>%
+    catchAbundanceEmof <- catPreProcessed |>
       dplyr::mutate(emofID = theCatch,
                     measurementType = "individualCount",
                     measurementUnit = NA,
                     measurementValue = TOTNO,
                     measurementRemarks = "This count has been adjusted to be representative of a standard 1.75NM tow",
-                    measurementRemarksSupplemental = NA) %>%
-      dplyr::select(-c("TOTNO_RAW", "TOTWGT_RAW","TOTNO", "TOTWGT","theSet", "theCatch")) %>%
+                    measurementRemarksSupplemental = NA) |>
+      dplyr::select(-c("TOTNO_RAW", "TOTWGT_RAW","TOTNO", "TOTWGT","theSet", "theCatch")) |>
       as.data.frame()
     catchEMOF <- rbind.data.frame(catchBiomassEmof, catchAbundanceEmof)
     rm(list=c("catchAbundanceEmof", "catchBiomassEmof"))
     
     catchEMOF$measurementRemarks <- apply(catchEMOF[, c("measurementRemarks", "measurementRemarksSupplemental")], 1,
-                                          function(i){ paste(na.omit(i), collapse = "; ") })
+                                          function(i){ paste(stats::na.omit(i), collapse = "; ") })
     catchEMOF$measurementRemarksSupplemental <- NULL
     
     detPad<- nchar(max(detPreProcessed$detID))
-    detEMOF <- detPreProcessed[,!names(detPreProcessed) %in% c("AGMAT")] %>%
+    detEMOF <- detPreProcessed[,!names(detPreProcessed) %in% c("AGMAT")] |>
       tidyr::pivot_longer(c(FSEX, FWT, FLEN, FMAT, AGE),
                           names_to = "measurement",
                           values_to = "measurementValue",
                           values_transform = as.character,
-                          values_drop_na = T) %>%
+                          values_drop_na = T) |>
       dplyr::mutate(SPEC = as.numeric(substr(theCatch, 16, 19),
                                       measurementType = NA,
                                       measurementUnit = NA),
                     measurementRemarks = NA
-      ) %>%
-      dplyr::arrange(theCatch, FSHNO, SPECIMEN_ID, measurement, measurementValue) %>% 
+      ) |>
+      dplyr::arrange(theCatch, FSHNO, SPECIMEN_ID, measurement, measurementValue) |> 
       dplyr::mutate(emofID = paste(theCatch,
-                                   formatC(detID, width = detPad, flag=0),sep = ":")) %>% 
-      dplyr::select(-c("theSet", "FSHNO", "SPECIMEN_ID","theCatch","detID")) %>%
+                                   formatC(detID, width = detPad, flag=0),sep = ":")) |> 
+      dplyr::select(-c("theSet", "FSHNO", "SPECIMEN_ID","theCatch","detID")) |>
       as.data.frame()
     detEMOF[detEMOF$measurement == "FWT",c("measurementType",  "measurementUnit")] <- as.data.frame(t(as.matrix(c("round weight of the specimen","grams"))))
     detEMOF[detEMOF$measurement == "AGE",c("measurementType",  "measurementUnit")] <- as.data.frame(t(as.matrix(c("age", "years"))))
@@ -371,28 +363,28 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
     detEMOF[detEMOF$SPEC %in% c(409:414,416, 1269, 1270, 998) & detEMOF$measurement == "FLEN", c("measurementRemarks")] <- "Some grenadier species are now measured using pre-anal instead of fork-length."
     detEMOF$SPEC <- detEMOF$measurement <- NULL
 
-    sppOccurrence <-   catPreProcessed %>%
+    sppOccurrence <-   catPreProcessed |>
       dplyr::rename(occurrenceID = theCatch,
                     # parentEvent = theSet,
                     individualCount = TOTNO,
                     organismQuantity = TOTWGT
-      ) %>%
+      ) |>
       dplyr::mutate(SPEC = as.numeric(substr(occurrenceID,16,19)),
                     occurrenceStatus= "present",
                     individualCount = ifelse(individualCount>0,individualCount,NA),
                     organismQuantity = ifelse(organismQuantity>0,organismQuantity,NA),
                     basisOfRecord = "HumanObservation",
                     organismQuantityType = "Kilograms",
-                    occurrenceRemarks = "The values for individualCount and organismQuantity have been adjusted to be representative of a standard 1.75NM tow") %>%
-      dplyr::select(-c(TOTNO_RAW, TOTWGT_RAW,theSet, CALWT, SAMPWGT, TAXA_, TAXARANK_)) %>% 
+                    occurrenceRemarks = "The values for individualCount and organismQuantity have been adjusted to be representative of a standard 1.75NM tow") |>
+      dplyr::select(-c(TOTNO_RAW, TOTWGT_RAW,theSet, CALWT, SAMPWGT)) |> 
       as.data.frame()
     
     species_taxa <- taxonomicInfo(data = this$GSSPECIES, SPEC = unique(sppOccurrence$SPEC))
     
     occurrence<- merge(sppOccurrence, species_taxa[,!names(species_taxa) %in% c("AphiaID", "SPEC")])
     rm(list=c("sppOccurrence", "species_taxa"))
-
     setEvents$footprintWKT_sf <- sf::st_as_sfc(setEvents$footprintWKT)
+
     setEvents$centroid <- sf::st_centroid(setEvents$footprintWKT_sf)
     
     eventCore <- rbind.data.frame(missionEvents, setEvents)
@@ -420,7 +412,7 @@ extractOBIS <- function(survey = NULL, years = NULL, ...){
   for (s in 1:length(survey)){
     for (y in 1:length(years)){
       message("Working on  ",survey[s],": ",years[y])
-      this <- getSurvey(survey=survey[s], years = years[y], type1TowsOnly = T,  ...)
+      this <- loadRVData(cxn = cxn, survey = survey[s], years = years[y], types = 1, debug = debug)
       if (is.numeric(this)){
         message("No data found for ",survey[s],": ",years[y])
         next

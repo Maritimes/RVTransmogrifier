@@ -4,18 +4,46 @@
 \alias{propagateChanges}
 \title{propagateChanges}
 \usage{
-propagateChanges(tblList = NULL, ...)
+propagateChanges(
+  tblList = NULL,
+  keep_nullsets = T,
+  years = NULL,
+  months = NULL,
+  seasons = NULL,
+  missions = NULL,
+  strata = NULL,
+  types = NULL,
+  ...
+)
 }
 \arguments{
 \item{tblList}{the default is \code{NULL}. This is a list populated with all RV dataframes that
 should have filtering applied to them.}
 
-\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet')}
-
 \item{keep_nullsets}{the default is \code{FALSE}. This is used to control whether or not the 
 presence/absence of species changes the returned set locations. If \code{FALSE}, the only 
 returned records will be directly linkable to the user-filtered records. If \code{TRUE}, set 
 locations will still be returned, even if a particular species was not caught there.}
+
+\item{years}{the default is \code{NULL}. A vector of 1 or more years can be passed to this function, and the data 
+will be filtered to only that/those years  (via GSMISSIONS$YEAR).}
+
+\item{months}{the default is \code{NULL}. A vector of 1 or more months can be passed to this function, and the data 
+will be filtered to only that/those months (via GSINF$SDATE).}
+
+\item{seasons}{the default is \code{NULL}. A vector of 1 or more seasons can be passed to this function, and the data 
+will be filtered to only that/those seasons (via GSMISSIONS$SEASON).}
+
+\item{missions}{the default is \code{NULL}. A vector of 1 or more missions can be passed to this function, and the 
+data will be filtered to only that/those missions (via GSMISSIONS$MISSION)}
+
+\item{strata}{the default is \code{NULL}. A vector of 1 or more strata can be passed to this function, and the 
+data will be filtered to only that/those strata (via GSSTRATUM$STRAT)}
+
+\item{types}{the default is \code{NULL}. A vector of 1 or more set "types" can be passed to this function, and the 
+data will be filtered to only that/those set types (via GSINF$TYPE)}
+
+\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet').}
 }
 \value{
 a list of filtered versions of the dataframes passed as \code{tblList}. If the
@@ -30,7 +58,8 @@ to all of the other known RV data objects. For example, if GSSPECIES is filtered
 the point where they relate directly to haddock. All remaining GSINF records would be sets that
 caught haddock, all GSCAT records would be limited to haddock, all GSDET records would be limited
 to haddock, etc. Filtering is not limited to species, but any value that exists in any field in
-any of the tables present in RVSurveyData package.
+any of the tables used by this package (i.e."GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSSTRATUM",
+"GSWARPOUT","GSSPECIES_NEW","dataDETS","dataLF").
 }
 \note{
 GSWARPOUT, GSCRUISELIST and GSSPEC can NOT be used to filter the other tables.

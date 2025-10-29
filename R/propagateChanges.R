@@ -5,14 +5,27 @@
 #' the point where they relate directly to haddock. All remaining GSINF records would be sets that
 #' caught haddock, all GSCAT records would be limited to haddock, all GSDET records would be limited
 #' to haddock, etc. Filtering is not limited to species, but any value that exists in any field in
-#' any of the tables present in RVSurveyData package.
+#' any of the tables used by this package (i.e."GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSSTRATUM",
+#' "GSWARPOUT","GSSPECIES_NEW","GSDET_DETS","GSDET_LF").
 #' @param tblList the default is \code{NULL}. This is a list populated with all RV dataframes that
 #' should have filtering applied to them.
+#' @param years the default is \code{NULL}. A vector of 1 or more years can be passed to this function, and the data 
+#' will be filtered to only that/those years  (via GSMISSIONS$YEAR).
+#' @param months the default is \code{NULL}. A vector of 1 or more months can be passed to this function, and the data 
+#' will be filtered to only that/those months (via GSINF$SDATE).
+#' @param missions the default is \code{NULL}. A vector of 1 or more missions can be passed to this function, and the 
+#' data will be filtered to only that/those missions (via GSMISSIONS$MISSION)
+#' @param strata the default is \code{NULL}. A vector of 1 or more strata can be passed to this function, and the 
+#' data will be filtered to only that/those strata (via GSSTRATUM$STRAT)
+#' @param types the default is \code{NULL}. A vector of 1 or more set "types" can be passed to this function, and the 
+#' data will be filtered to only that/those set types (via GSINF$TYPE)
+#' @param areas the default is \code{NULL}. A vector of 1 or more areas can be passed to this function, and the 
+#' data will be filtered to only that/those set types (via GSINF$AREA)
 #' @param keep_nullsets the default is \code{FALSE}. This is used to control whether or not the 
 #' presence/absence of species changes the returned set locations. If \code{FALSE}, the only 
 #' returned records will be directly linkable to the user-filtered records. If \code{TRUE}, set 
 #' locations will still be returned, even if a particular species was not caught there.
-#' @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
+#' @param ... other arguments passed to methods (i.e. 'debug' and 'quiet').
 #' @returns a list of filtered versions of the dataframes passed as \code{tblList}. If the
 #' filtering fails, a value of -1 will be returned. For example, if data is filtered for a year
 #' where data was not collected, a strata that doesn't exist, or a species that was not observed
@@ -20,115 +33,114 @@
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @note GSWARPOUT, GSCRUISELIST and GSSPEC can NOT be used to filter the other tables.
 #' @export
-propagateChanges<-function(tblList = NULL, ...){
+propagateChanges<-function(tblList = NULL, keep_nullsets=T, 
+                           survey = NULL, years = NULL, months = NULL, 
+                           missions = NULL,strata = NULL, types = 1, areas = NULL,
+                           code=NULL,aphiaid = NULL, taxa= NULL, debug=F){
+  if (!is.null(code)|!is.null(aphiaid)|!is.null(taxa)) tblList <- filterSpecies(tblList = tblList, code = code, aphiaid = aphiaid, taxa = taxa, debug=debug)
   
-  argsFn <- as.list(environment())
-  argsFn[["tblList"]] <- NULL
-  argsUser <- list(...)
-  args <- do.call(set_defaults, list(argsFn=argsFn, argsUser=argsUser))
-  if(args$debug){
-    startTime <- Sys.time()
-    thisFun <- where_now()
-    message(thisFun, ": started")
+  if (!is.null(missions)) missions <- toupper(missions)
+  if (!is.null(survey)) survey <- toupper(survey)
+  if (!is.null(taxa)) taxa <- toupper(taxa)
+  
+  user_months <- months
+  user_strata <- strata
+  user_years <- years
+  
+  ### do some filtering
+  if (!is.null(survey) && survey %in% c("SUMMER")){
+    months <- c(5,6,7,8)
+  } else if(!is.null(survey) && survey %in% c("FALL")){
+    months <- c(9,10,11,12)
+  }else if(!is.null(survey) && survey %in% c("4VSW", "GEORGES", "SPRING")){
+    months <- c(1,2,3,4)
+    if (survey == "4VSW"){
+      strata = c('396','397', '398', '399', '400', 
+                 '401', '402', '403', '404', '405', '406', '407', 
+                 '408', '409', '410', '411')
+    }else if(survey %in% c("GEORGES", "SPRING")){
+      years <- c(1978:lubridate::year(Sys.Date()))
+      strata <-  tblList$GSSTRATUM[!(tblList$GSSTRATUM$STRAT %in% c('477','480','481','551','552','553','554','555','556','557',
+                                                                    '516','517','518','519','520','521','522')),"STRAT"]
+    } 
   }
-  recdTables <- names(tblList)
-  essentialTables <- c("GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSSTRATUM","GSWARPOUT","GSSPECIES_NEW","dataDETS","dataLF")
-  if (length(setdiff(essentialTables,recdTables))>0) stop("Missing the following tables from your tblList object: ",paste(setdiff(essentialTables,recdTables), collapse=", "))
-  tblList      <- filterSpecies(tblList = tblList, ...)
-  LOOPAGAIN <- T
-  if (all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSSPECIES_NEW) & !all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT)))){
-    if(args$debug) message("\tdetected TAXA_ and TAXARANK_ fields in GSSPECIES_NEW - adding to all tables")
-    # use opportunity to also filter GSCAT dataLF and datDETS by the requested taxa
-
-    tblList$GSCAT    <- merge(tblList$GSCAT, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    tblList$dataDETS <- merge(tblList$dataDETS, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    tblList$dataLF   <- merge(tblList$dataLF, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    
-    if(length(unique(tblList$GSSPECIES_NEW$TAXA_))==1 & length(unique(tblList$GSSPECIES_NEW$SCI_NAME))>1 & !args$taxaAgg){
-      if(args$debug) message("\tAGGREGATING POSSIBLE BUT  NOT REQUESTED")
-    } else if (length(unique(tblList$GSSPECIES_NEW$TAXA_))==1 & length(unique(tblList$GSSPECIES_NEW$SCI_NAME))>1 & args$taxaAgg){
-      if(args$debug) message("\tAGGREGATING POSSIBLE AND REQUESTED")
-      message("")
-      #If there's one taxa and multiple sci_names, we need to agg - ie remove taxa fields
-      tblList$GSCAT$SPEC <- tblList$dataLF$SPEC <- tblList$dataDETS$SPEC <- NULL
-      tblList$GSCAT$APHIA_ID <- tblList$dataLF$APHIA_ID <- tblList$dataDETS$APHIA_ID <- NULL
-      tblList$GSCAT$SCI_NAME <- tblList$dataLF$SCI_NAME <- tblList$dataDETS$SCI_NAME <- NULL
-      tblList$GSCAT$TOTNO_RAW <- tblList$GSCAT$TOTWGT_RAW <- NULL
-      if (args$useBins){
-        args$useBins <- F
-        message("\tuseBins has been set to FALSE (since taxa are being combined).  All lengths will be to 1 cm")
-      }
-      tblList$GSCAT <- tblList$GSCAT %>%
-        dplyr::group_by(dplyr::across(c(-TOTNO, -TOTWGT))) %>%
-        dplyr::summarise(TOTNO=sum(TOTNO),
-                         TOTWGT=sum(TOTWGT),
-                         .groups = "keep")%>%
-        as.data.frame()
-      
-      tblList$dataLF <- tblList$dataLF %>%
-        dplyr::group_by(dplyr::across(c(-CLEN))) %>%
-        dplyr::summarise(CLEN=sum(CLEN),
-                         .groups = "keep")%>%
-        as.data.frame()
-    }else{
-      if (args$debug)message("\tAGGREGATING UNNECESSARY")
+  
+  if (!is.null(user_months) && !is.null(survey)) {
+    survey_months <- months
+    if (length(intersect(user_months, survey_months)) == 0) {
+      warning("User-provided months (", paste(user_months, collapse=", "),") do not overlap with survey '", survey, "' months (",paste(survey_months, collapse=", "), "). Using user-provided values.")
     }
-    
   }
   
+  if (!is.null(user_strata) && !is.null(survey)) {
+    survey_strata <- strata
+    if (length(intersect(user_strata, survey_strata)) == 0) {
+      warning("User-provided strata (", paste(user_strata, collapse=", "),") do not overlap with survey '", survey, "' strata (",paste(survey_strata, collapse=", "), "). Using user-provided values.")
+    }
+  }
+  
+  if (!is.null(user_months)) months <- user_months
+  if (!is.null(user_strata)) strata <- user_strata
+  if (!is.null(user_years)) years <- user_years
+  
+  
+  if (!is.null(years)) tblList$GSMISSIONS<- tblList$GSMISSIONS[tblList$GSMISSIONS$YEAR %in% years,]
+  if (!is.null(missions)) tblList$GSMISSIONS<- tblList$GSMISSIONS[tblList$GSMISSIONS$MISSION %in% missions,]
+  if (!is.null(months)) tblList$GSINF <- tblList$GSINF[lubridate::month(tblList$GSINF$SDATE) %in% months,]
+  if (!is.null(types)) tblList$GSINF<- tblList$GSINF[tblList$GSINF$TYPE %in% types,]
+  if (!is.null(strata)) tblList$GSSTRATUM  <- tblList$GSSTRATUM[tblList$GSSTRATUM$STRAT %in% strata,]
+  if (!is.null(areas)) tblList$GSINF  <- tblList$GSINF[tblList$GSINF$AREA %in% areas,]
+  
+  LOOPAGAIN <- T
   while (LOOPAGAIN){
     precnt = sum(sapply(tblList, NROW))
-    tblList$GSINF      <- merge(tblList$GSINF,        unique(tblList$GSCAT[,c("MISSION","SETNO")]), all.x=args$keep_nullsets )
+    
+    tblList$GSINF      <- merge(tblList$GSINF,        unique(tblList$GSCAT[,c("MISSION","SETNO")]), all.x=keep_nullsets )
     tblList$GSINF      <- merge(tblList$GSINF,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]))
+    tblList$GSINF      <- merge(tblList$GSINF,        unique(tblList$GSSTRATUM[,"STRAT",drop=F]))
     tblList$GSXTYPE    <- merge(tblList$GSXTYPE,      unique(tblList$GSINF[,"TYPE",drop=F]),by.x="XTYPE", by.y="TYPE")
     tblList$GSSTRATUM  <- merge(tblList$GSSTRATUM,    unique(tblList$GSINF[,"STRAT",drop=F]))
     tblList$GSMISSIONS <- merge(tblList$GSMISSIONS,   unique(tblList$GSINF[,"MISSION",drop=F]))
     tblList$GSWARPOUT  <- merge(tblList$GSWARPOUT,    unique(tblList$GSINF[,c("MISSION","SETNO")]))
-    tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
+    tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
     tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]), by="MISSION")
-    tblList$dataDETS   <- merge(tblList$dataDETS,     unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
-    tblList$dataLF     <- merge(tblList$dataLF,       unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=args$keep_nullsets)
-    # tblList$GSCURNT    <- merge(tblList$GSCURNT,      unique(tblList$GSINF[,"CURNT",drop=F]))
-    # tblList$GSFORCE    <- merge(tblList$GSFORCE,      unique(tblList$GSINF[,"FORCE",drop=F]))
-    # tblList$GSAUX      <- merge(tblList$GSAUX,        unique(tblList$GSINF[,"AUX",drop=F]))
-    # tblList$GSGEAR     <- merge(tblList$GSGEAR,       unique(tblList$GSINF[,"GEAR",drop=F]))
-    # tblList$GSMATURITY <- merge(tblList$GSMATURITY, unique(tblList$dataDETS[,"FMAT",drop=F]), by.x="CODE", by.y="FMAT")
-    # tblList$GSSEX      <- merge(tblList$GSSEX,      unique(tblList$dataDETS[,"FSEX",drop=F]), by.x="CODE", by.y="FSEX")
-    # tblList$GSHOWOBT   <- tblList$GSHOWOBT[which(tblList$GSHOWOBT$HOWOBT %in% c(unique(tblList$GSINF$HOWD),unique(tblList$GSINF$HOWS))) ,]
-    # if(!args$taxaAgg){
-    
+    tblList$GSDET_DETS <- merge(tblList$GSDET_DETS,   unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
+    tblList$GSDET_LF   <- merge(tblList$GSDET_LF,     unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
+    tblList$GSDET      <- merge(tblList$GSDET,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
     if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
       #this will only be used when no species filtering has been done.  As soon as species filtering 
       #is done, taxa_ and taxarank_ will exist
-      tblList$GSCAT      <- merge(tblList$GSCAT,      unique(tblList$GSSPECIES_NEW[,"CODE",drop=F]), by.x="SPEC", by.y  ="CODE")
-      tblList$dataDETS   <- merge(tblList$dataDETS,   unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
-      tblList$dataLF     <- merge(tblList$dataLF,     unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
-      tblList$dataLF     <- merge(tblList$dataLF,     unique(tblList$dataDETS[,c("MISSION","SETNO", "SPEC")]))
-      tblList$dataDETS   <- merge(tblList$dataDETS,   unique(tblList$dataLF[,c("MISSION","SETNO", "SPEC")]))
+      tblList$GSCAT        <- merge(tblList$GSCAT,        unique(tblList$GSSPECIES_NEW[,"CODE",drop=F]), by.x="SPEC", by.y  ="CODE")
+      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
+      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
+      tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
+      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSDET_LF[,c("MISSION","SETNO", "SPEC")]))
+      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSDET_DETS[,c("MISSION","SETNO", "SPEC")]))
+      tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSDET[,c("MISSION","SETNO", "SPEC")]))
       tblList$GSSPECIES_NEW  <- merge(tblList$GSSPECIES_NEW,  unique(tblList$GSCAT[,"SPEC",drop=F]), by.x="CODE", by.y="SPEC")
     }else{
-      tblList$GSCAT      <- merge(tblList$GSCAT,      unique(tblList$GSSPECIES_NEW[,c("TAXA_", "TAXARANK_")]))
-      tblList$dataDETS   <- merge(tblList$dataDETS,   unique(tblList$GSCAT[,c("MISSION","SETNO","TAXA_", "TAXARANK_")])) 
-      tblList$dataLF     <- merge(tblList$dataLF,     unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
-      tblList$dataLF     <- merge(tblList$dataLF,     unique(tblList$dataDETS[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
-      tblList$dataDETS   <- merge(tblList$dataDETS,   unique(tblList$dataLF[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$GSCAT        <- merge(tblList$GSCAT,        unique(tblList$GSSPECIES_NEW[,c("TAXA_", "TAXARANK_")]))
+      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSCAT[,c("MISSION","SETNO","TAXA_", "TAXARANK_")])) 
+      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSDET_LF[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSDET_DETS[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$GSDET     <- merge(tblList$GSDET,     unique(tblList$GSDET[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
       tblList$GSSPECIES_NEW  <- merge(tblList$GSSPECIES_NEW,  unique(tblList$GSCAT[,c("TAXA_", "TAXARANK_")]))
     }
     
     postcnt = sum(sapply(tblList, NROW))
     
     if(nrow(tblList$GSCAT)==0 | nrow(tblList$GSINF)==0){
-      # message("Filtered out all catches and/or sets")
-      # return(-1)
-      stop("Filtered out all catches and/or sets")
+      warning("Filtered out all catches and/or sets")
+      return(tblList)
     }
     if(postcnt==precnt) {
       LOOPAGAIN=FALSE
     } else{
-      if (args$debug) print(sapply(tblList, NROW))
+      if (debug) print(sapply(tblList, NROW))
     }
   }
   
-  if(args$debug) message(thisFun, ": completed (",round( difftime(Sys.time(),startTime,units = "secs"),0),"s)")
   return(tblList)
 }
