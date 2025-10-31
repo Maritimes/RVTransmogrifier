@@ -406,6 +406,11 @@ extractOBIS <- function(cxn = NULL, survey = NULL, years = NULL, path =NULL, deb
     
     # EMOF <- EMOF[with(EMOF,order(eventID, measurementType, measurementValue)),]
     results$EMOF <- EMOF
+    
+    utils::write.csv(results$eventCore, file = file.path(path,paste0(thisYear,"_",thisSurv,"_eventCore.csv")), row.names = F)
+    utils::write.csv(results$occurrence, file = file.path(path,paste0(thisYear,"_",thisSurv,"_occurrence.csv")), row.names = F)
+    utils::write.csv(results$EMOF, file = file.path(path,paste0(thisYear,"_",thisSurv,"_EMOF.csv")), row.names = F)
+    
     return(results)
   }
   
