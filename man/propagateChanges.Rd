@@ -7,13 +7,17 @@
 propagateChanges(
   tblList = NULL,
   keep_nullsets = T,
+  survey = NULL,
   years = NULL,
   months = NULL,
-  seasons = NULL,
   missions = NULL,
   strata = NULL,
-  types = NULL,
-  ...
+  types = 1,
+  areas = NULL,
+  code = NULL,
+  aphiaid = NULL,
+  taxa = NULL,
+  debug = F
 )
 }
 \arguments{
@@ -31,9 +35,6 @@ will be filtered to only that/those years  (via GSMISSIONS$YEAR).}
 \item{months}{the default is \code{NULL}. A vector of 1 or more months can be passed to this function, and the data 
 will be filtered to only that/those months (via GSINF$SDATE).}
 
-\item{seasons}{the default is \code{NULL}. A vector of 1 or more seasons can be passed to this function, and the data 
-will be filtered to only that/those seasons (via GSMISSIONS$SEASON).}
-
 \item{missions}{the default is \code{NULL}. A vector of 1 or more missions can be passed to this function, and the 
 data will be filtered to only that/those missions (via GSMISSIONS$MISSION)}
 
@@ -42,6 +43,9 @@ data will be filtered to only that/those strata (via GSSTRATUM$STRAT)}
 
 \item{types}{the default is \code{NULL}. A vector of 1 or more set "types" can be passed to this function, and the 
 data will be filtered to only that/those set types (via GSINF$TYPE)}
+
+\item{areas}{the default is \code{NULL}. A vector of 1 or more areas can be passed to this function, and the 
+data will be filtered to only that/those set types (via GSINF$AREA)}
 
 \item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet').}
 }
@@ -59,7 +63,7 @@ the point where they relate directly to haddock. All remaining GSINF records wou
 caught haddock, all GSCAT records would be limited to haddock, all GSDET records would be limited
 to haddock, etc. Filtering is not limited to species, but any value that exists in any field in
 any of the tables used by this package (i.e."GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSSTRATUM",
-"GSWARPOUT","GSSPECIES_NEW","dataDETS","dataLF").
+"GSWARPOUT","GSSPECIES_NEW","GSDET").
 }
 \note{
 GSWARPOUT, GSCRUISELIST and GSSPEC can NOT be used to filter the other tables.

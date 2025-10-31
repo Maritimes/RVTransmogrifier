@@ -135,7 +135,7 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
     df = merge(df, unique(scratch_env$GSWARPOUT), all.x=T, by = c("MISSION","SETNO"))
     df = df[with(df,order(SDATE)),]
     df$haulno <- seq(1:nrow(df))
-    #' drop unneeded fields, and make original cols lowercase - finals will be uppercase
+    # drop unneeded fields, and make original cols lowercase - finals will be uppercase
     df = df[,c("MISSION","BOTTOM_SALINITY","BOTTOM_TEMPERATURE","SDATE",
                "DEPTH","DMIN", "DMAX", "DIST","GEAR","DUR","SETNO","TYPE","SLAT_DD",
                "SLONG_DD", "ELAT_DD", "ELONG_DD", "STRAT", "CURNT",
@@ -211,12 +211,12 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       }
       processCurrents<-function(df=NULL){
         # CURNT/SurCurDir - transformation ----------------------------------------
-        #' we record the direction of the current relative to the ship (eg to bow,
-        #' to starboard, etc), but ICES wants it in a compass direction.
-        #' I use the tow direction (determined above) combined with the
-        #' value stored in GSINF.CURNT  to derive the value.
-        #' For example, if the tow was found to be West to East (90deg), and the CURNT value was
-        #' "to starboard", the combined angle would be 90+90 = 180 (or South)
+        # we record the direction of the current relative to the ship (eg to bow,
+        # to starboard, etc), but ICES wants it in a compass direction.
+        # I use the tow direction (determined above) combined with the
+        # value stored in GSINF.CURNT  to derive the value.
+        # For example, if the tow was found to be West to East (90deg), and the CURNT value was
+        # "to starboard", the combined angle would be 90+90 = 180 (or South)
         df$SURCURDIR<-NA
         df$SURCURDIR <- ifelse(df$curnt == 1, 0,
                                ifelse(df$curnt == 2, 90,
@@ -263,12 +263,12 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       return(df)
     }
     addPlatformDets <- function(df=NULL){
-      #' A = AT CAMERON
-      #' H = Lady Hammond
-      #' N = Needler
-      #' S = Teleost
-      #' V = Venture
-      #' T = Templeman
+      # A = AT CAMERON
+      # H = Lady Hammond
+      # N = Needler
+      # S = Teleost
+      # V = Venture
+      # T = Templeman
       addGearDets<-function(df=NULL){
 
         # Add Gear details --------------------------------------------------------

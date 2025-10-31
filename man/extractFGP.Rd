@@ -4,14 +4,7 @@
 \alias{extractFGP}
 \title{extractFGP}
 \usage{
-extractFGP(
-  username = NULL,
-  password = NULL,
-  survey = NULL,
-  years = NULL,
-  path = NULL,
-  ...
-)
+extractFGP(cxn = NULL, survey = NULL, years = NULL, path = NULL, debug = FALSE)
 }
 \arguments{
 \item{survey}{the default is \code{NULL}. This specifies which survey should be extracted.  Valid

@@ -6,7 +6,7 @@
 #' caught haddock, all GSCAT records would be limited to haddock, all GSDET records would be limited
 #' to haddock, etc. Filtering is not limited to species, but any value that exists in any field in
 #' any of the tables used by this package (i.e."GSINF","GSCAT","GSMISSIONS","GSXTYPE","GSSTRATUM",
-#' "GSWARPOUT","GSSPECIES_NEW","GSDET_DETS","GSDET_LF").
+#' "GSWARPOUT","GSSPECIES_NEW","GSDET").
 #' @param tblList the default is \code{NULL}. This is a list populated with all RV dataframes that
 #' should have filtering applied to them.
 #' @param years the default is \code{NULL}. A vector of 1 or more years can be passed to this function, and the data 
@@ -104,27 +104,17 @@ propagateChanges<-function(tblList = NULL, keep_nullsets=T,
     tblList$GSWARPOUT  <- merge(tblList$GSWARPOUT,    unique(tblList$GSINF[,c("MISSION","SETNO")]))
     tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
     tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]), by="MISSION")
-    tblList$GSDET_DETS <- merge(tblList$GSDET_DETS,   unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
-    tblList$GSDET_LF   <- merge(tblList$GSDET_LF,     unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
     tblList$GSDET      <- merge(tblList$GSDET,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
     if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
       #this will only be used when no species filtering has been done.  As soon as species filtering 
       #is done, taxa_ and taxarank_ will exist
       tblList$GSCAT        <- merge(tblList$GSCAT,        unique(tblList$GSSPECIES_NEW[,"CODE",drop=F]), by.x="SPEC", by.y  ="CODE")
-      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
-      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
       tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
-      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSDET_LF[,c("MISSION","SETNO", "SPEC")]))
-      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSDET_DETS[,c("MISSION","SETNO", "SPEC")]))
       tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSDET[,c("MISSION","SETNO", "SPEC")]))
       tblList$GSSPECIES_NEW  <- merge(tblList$GSSPECIES_NEW,  unique(tblList$GSCAT[,"SPEC",drop=F]), by.x="CODE", by.y="SPEC")
     }else{
       tblList$GSCAT        <- merge(tblList$GSCAT,        unique(tblList$GSSPECIES_NEW[,c("TAXA_", "TAXARANK_")]))
-      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSCAT[,c("MISSION","SETNO","TAXA_", "TAXARANK_")])) 
-      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
       tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
-      tblList$GSDET_DETS   <- merge(tblList$GSDET_DETS,   unique(tblList$GSDET_LF[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
-      tblList$GSDET_LF     <- merge(tblList$GSDET_LF,     unique(tblList$GSDET_DETS[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
       tblList$GSDET     <- merge(tblList$GSDET,     unique(tblList$GSDET[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
       tblList$GSSPECIES_NEW  <- merge(tblList$GSSPECIES_NEW,  unique(tblList$GSCAT[,c("TAXA_", "TAXARANK_")]))
     }

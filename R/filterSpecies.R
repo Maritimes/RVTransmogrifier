@@ -88,8 +88,6 @@ filterSpecies <- function(tblList = NULL, code = NULL, aphiaid = NULL, taxa = NU
   tblList$GSSPECIES_NEW <- req_Spp
   if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
     tblList$GSCAT    <- merge(tblList$GSCAT, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    tblList$GSDET_DETS <- merge(tblList$GSDET_DETS, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    tblList$GSDET_LF   <- merge(tblList$GSDET_LF, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
     tblList$GSDET      <- merge(tblList$GSDET, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
   }
   return(tblList)

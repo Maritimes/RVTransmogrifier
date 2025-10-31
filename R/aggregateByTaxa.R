@@ -12,7 +12,7 @@ aggregateByTaxa <- function(tblList = NULL, code = NULL, useBins = NULL){
     useBins <- F
     message("\tuseBins has been set to FALSE (since taxa are being combined).  All lengths will be to 1 cm")
   }
-  tblList$GSCAT$SPEC <- tblList$GSDET_LF$SPEC <- NULL
+  tblList$GSCAT$SPEC <- tblList$GSDET$SPEC <- NULL
   tblList$GSCAT <- tblList$GSCAT |>
     dplyr::group_by(dplyr::across(c(-TOTNO, -TOTWGT))) |>
     dplyr::summarise(TOTWGT=sum(TOTWGT),
@@ -20,7 +20,7 @@ aggregateByTaxa <- function(tblList = NULL, code = NULL, useBins = NULL){
                      .groups = "keep")|>
     as.data.frame()
 
-  tblList$GSDET_LF <- tblList$GSDET_LF |>
+  tblList$GSDET <- tblList$GSDET |>
     dplyr::group_by(dplyr::across(c(-CLEN))) |>
     dplyr::summarise(CLEN=sum(CLEN),
                      .groups = "keep")|>

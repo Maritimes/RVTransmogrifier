@@ -96,7 +96,7 @@ extractOBIS <- function(cxn = NULL, survey = NULL, years = NULL, path =NULL, deb
     #Make a version of dataDETS that has OBIS fields that would otherwise need to be calculated repeatedly
     #was going to use FSHNO and/or SPECIMEN_ID as a unique ID, but both fields have blanks
     #instead, will make ID using rowId but sorting carefully first
-    detPreProcessed <- data$GSDET_DETS |>
+    detPreProcessed <- data$GSDET |>
       dplyr::mutate(theSet = paste(MISSION,
                                    formatC(SETNO, width = 3, flag=0),sep = ":"),
                     theCatch = paste(MISSION,

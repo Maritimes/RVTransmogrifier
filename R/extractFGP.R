@@ -40,12 +40,12 @@ extractFGP <- function(cxn=NULL, survey = NULL, years=NULL, path =NULL, debug = 
     this$GSINF$GEAR <- NULL
     
     # replace maturity code with maturity desc
-    this$GSDET_DETS <- merge(this$GSDET_DETS, this$GSMATURITY, all.x = T, by.x="FMAT", by.y="CODE")
-    colnames(this$GSDET_DETS)[colnames(this$GSDET_DETS)=="DESCRIPTION"] <- "MATURITY"
+    this$GSDET <- merge(this$GSDET, this$GSMATURITY, all.x = T, by.x="FMAT", by.y="CODE")
+    colnames(this$GSDET)[colnames(this$GSDET)=="DESCRIPTION"] <- "MATURITY"
     
     # replace sex code with sex desc
-    this$GSDET_DETS <- merge(this$GSDET_DETS, this$GSSEX, all.x = T, by.x="FSEX", by.y="CODE")
-    colnames(this$GSDET_DETS)[colnames(this$GSDET_DETS)=="DESCRIPTION"] <- "SEX"
+    this$GSDET <- merge(this$GSDET, this$GSSEX, all.x = T, by.x="FSEX", by.y="CODE")
+    colnames(this$GSDET)[colnames(this$GSDET)=="DESCRIPTION"] <- "SEX"
     
     #grab the depths (in fathoms).  if no value for DEPTH, average dmin and dmax, take the result, and convert to meters
     this$GSINF$DEPTH_M <- NA
@@ -74,14 +74,8 @@ extractFGP <- function(cxn=NULL, survey = NULL, years=NULL, path =NULL, debug = 
       dplyr::select(MISSION,	SETNO,	SPEC,	TOTWGT,	TOTNO) |> 
       dplyr::arrange(MISSION,	SETNO)
     
-    this$GSDET_LF <- this$GSDET_LF |> 
-      dplyr::select(MISSION, SETNO, SPEC, FSEX, FLEN, CLEN) |> 
-      dplyr::arrange(MISSION, SETNO)
-    
-    this$GSDET_DETS      <- this$GSDET_DETS |> 
-      dplyr::select(MISSION, SETNO, SPEC, FLEN, FWT, MATURITY, SEX, AGE, SPECIMEN_ID) |> 
-      dplyr::arrange(MISSION, SETNO)
-    
+    this$GSDET      <- this$GSDET |> 
+      dplyr::arrange(MISSION, SETNO, SPEC, FLEN)
     
     this$GSSPECIES_NEW  <- this$GSSPECIES_NEW |> 
       dplyr::rename(SCI_NAME = SPEC) |> 
@@ -96,8 +90,7 @@ extractFGP <- function(cxn=NULL, survey = NULL, years=NULL, path =NULL, debug = 
     utils::write.csv(this$GSMISSIONS, file = file.path(path,paste0(fn,"_GSMISSIONS.csv")), row.names = F)
     utils::write.csv(this$GSINF, file = file.path(path,paste0(fn,"_GSINF.csv")), row.names = F)
     utils::write.csv(this$GSCAT, file = file.path(path,paste0(fn,"_GSCAT.csv")), row.names = F)
-    utils::write.csv(this$GSDET_LF, file = file.path(path,paste0(fn,"_LF.csv")), row.names = F)
-    utils::write.csv(this$GSDET_DETS, file = file.path(path,paste0(fn,"_DETS.csv")), row.names = F)
+    utils::write.csv(this$GSDET, file = file.path(path,paste0(fn,"_GS_DET.csv")), row.names = F)
     utils::write.csv(this$GSSPECIES_NEW, file = file.path(path,paste0(fn,"_GSSPECIES.csv")), row.names = F)
   }
   return(this)

@@ -13,7 +13,7 @@ utils::globalVariables(c('TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO',
                          'TOTWGT_sqkm','TOTNO_sqkm','BIOMASS_set','ABUNDANCE_set','TOTWGT_sqkm_strat_mean','TOTNO_sqkm_strat_mean'))
 
 rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPEC", "GSSPECIES", "GSSPECIES_ANDES", "GSSPECIES_CHANGES", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
-coreTables <- c("GSCAT", "GSDET", "GSDET_DETS", "GSDET_LF", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL", "GSWARPOUT", "GSXTYPE")
+coreTables <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL", "GSWARPOUT", "GSXTYPE") 
 get_pesd_rvt_dir <- function() {
   dir_path <- file.path("C:", "DFO-MPO", "PESDData","RVTransmogrifier")
   if (!dir.exists(dir_path)) {
@@ -91,7 +91,6 @@ binSizes <- function(bin, value){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 makeGSSPECIES_NEW <- function(GSSPECIES_ANDES_=NULL, GSSPECIES_ = NULL, GSSPEC_=NULL, GSSPECIES_CHANGES_=NULL){
-  
   # Step 1: Resolve redirects in GSSPECIES_CHANGES_
   resolve_redirects <- function(df) {
     redirects <- df[!is.na(df$REDIRECT_CODE), c("CODE", "REDIRECT_CODE")]
@@ -166,72 +165,6 @@ fixHerringLengths <-function(GSDET_ = NULL){
   return(GSDET_)
 }
 
-#' @title disentangleGSDET
-#' @description Separates GSDET data into two components: length frequency data (GSDET_LF) and 
-#' individual fish detail data (GSDET_DETS). The function corrects length counts for size classes, 
-#' total weight, sample weight, and tow distance, then aggregates length frequencies while 
-#' preserving individual fish measurements such as maturity, weight, and age data.
-#' @param GSDET_ the default is \code{NULL}. Original GSDET object containing individual fish measurements
-#' @param GSCAT_ the default is \code{NULL}. Original GSCAT object containing catch totals by size class
-#' @param GSINF_ the default is \code{NULL}. Original GSINF object containing set information including tow distance
-#' @return A list containing two dataframes: \code{GSDET_LF} with corrected length frequencies and 
-#' \code{GSDET_DETS} with individual fish detail measurements
-#' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @noRd
-disentangleGSDET <-function(GSDET_=NULL, GSCAT_= NULL, GSINF_ = NULL){
-  # 1 create table from GSDET with CLEN for each MISSION SETNO SPEC FLEN FSEX.
-  #  - need to correct CLEN for size_class 1st
-  #  - each set will be reduced to 1 record each combination of SPEC, FLEN and FSEX.
-  suppressPackageStartupMessages(requireNamespace("dplyr", quietly = TRUE))
-  
-  CLEN <- FLEN <- FSEX <- MISSION <- SETNO <- SIZE_CLASS <- SPEC <- NULL
-  res<- list()
-  #if sex is na, it's fair to say we don't know it.
-  GSDET_[is.na(GSDET_$FSEX), "FSEX"] <- 0
-  GSDET_<- fixHerringLengths(GSDET_)
-  GSDET_LF <- GSDET_
-  GSDET_DETS <- GSDET_
-  
-  GSDET_LF <- GSDET_LF[!is.na(GSDET_LF$FLEN), c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FSEX","FLEN", "CLEN")]
-  GSDET_LF <- GSDET_LF |>
-    dplyr::group_by(MISSION, SETNO, SPEC, SIZE_CLASS, FSEX, FLEN) |>
-    dplyr::summarise(CLEN_RAW = sum(CLEN), .groups = "keep") |>
-    as.data.frame()
-  #get the totwgt and sampwgt for every mission/set/spec/size_class combo, and use them to create
-  #a ratio, and apply it to existing CLEN
-  GSDET_LF <- merge(GSDET_LF, 
-                  GSCAT_[,c("MISSION", "SETNO", "SPEC", "SIZE_CLASS","SAMPWGT","TOTWGT")],
-                  all.x = T, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS"))
-  GSDET_LF$CLEN_new <- GSDET_LF$CLEN_RAW
-  GSDET_LF[!is.na(GSDET_LF$TOTWGT) & !is.na(GSDET_LF$SAMPWGT) & (GSDET_LF$SAMPWGT> 0) & (GSDET_LF$TOTWGT>0),"CLEN_new"] <- (GSDET_LF[!is.na(GSDET_LF$TOTWGT) & !is.na(GSDET_LF$SAMPWGT) & (GSDET_LF$SAMPWGT> 0) & (GSDET_LF$TOTWGT>0),"TOTWGT"]/GSDET_LF[!is.na(GSDET_LF$TOTWGT) & !is.na(GSDET_LF$SAMPWGT)  & (GSDET_LF$SAMPWGT> 0) & (GSDET_LF$TOTWGT>0),"SAMPWGT"])*GSDET_LF[!is.na(GSDET_LF$TOTWGT) & !is.na(GSDET_LF$SAMPWGT) & (GSDET_LF$SAMPWGT> 0) & (GSDET_LF$TOTWGT>0),"CLEN_RAW"]
-  
-  #need to bump up CLEN by TOW dist!
-  GSDET_LF <- merge(GSDET_LF, GSINF_[,c("MISSION", "SETNO", "DIST")],all.x = T, by = c("MISSION", "SETNO"))
-  #force NA dists to 1.75
-  GSDET_LF <- correctForTowDist(df = GSDET_LF, col = "CLEN_new", towDist = 1.75)
-  GSDET_LF$CLEN <- GSDET_LF$CLEN_new
-  GSDET_LF$DIST <- GSDET_LF$SAMPWGT <- GSDET_LF$TOTWGT <- GSDET_LF$CLEN_new <- GSDET_LF$CLEN_RAW <- NULL
-  
-  #now that we have correct numbers at length for all lengths, we can drop add them (and drop size classes)
-  GSDET_LF <- GSDET_LF |>
-    dplyr::group_by(MISSION, SETNO, SPEC, FSEX, FLEN) |>
-    dplyr::summarise(CLEN = sum(CLEN), .groups = "keep") |>
-    as.data.frame()
-  
-  res$GSDET_LF <- GSDET_LF
-  
-  # 2 capture the other material from GSDET that is focused on individual measurements - e.g. FSHNO, 
-  #   SPECIMEN_ID, FMAT, FLEN, FSEX, FWT, AGE ...
-  #  - multiple internal, age-related fields are being dropped
-  
-  
-  GSDET_DETS <- GSDET_DETS[,c("MISSION", "SETNO", "SPEC", "FSHNO", "SPECIMEN_ID", "FLEN", "FSEX", "FMAT",  "FWT", "AGMAT", "AGE")]
-  # keep only informative records
-  GSDET_DETS <- GSDET_DETS[!is.na(GSDET_DETS$FLEN) |  !is.na(GSDET_DETS$FMAT)| !is.na(GSDET_DETS$FWT)| !is.na(GSDET_DETS$AGE),]
-  
-  res$GSDET_DETS <- GSDET_DETS
-  return(res)
-}
 
 #' @title rmSizeClasses
 #' @description Aggregates catch data by removing size class distinctions, summing calculated weight, 
