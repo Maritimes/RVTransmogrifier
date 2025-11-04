@@ -23,11 +23,20 @@ get_pesd_rvt_dir <- function() {
 }
 
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
-  theFields<-c("MISSION", "SETNO","SPEC", "CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
+
+  theFields<-c("MISSION", "SETNO","CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
+  if ("SPEC" %in% names(tblList$GSCAT)){
+    tblList$GSCAT$SPEC[is.na(tblList$GSCAT$SPEC)] <- unique(tblList$GSCAT$SPEC[!is.na(tblList$GSCAT$SPEC)])
+    theFields <- c(theFields,"SPEC")
+  } else if ("TAXA_" %in% names(tblList$GSCAT)){
+    tblList$GSCAT$TAXA_[is.na(tblList$GSCAT$TAXA_)] <- unique(tblList$GSCAT$TAXA_[!is.na(tblList$GSCAT$TAXA_)])
+    tblList$GSCAT$TAXARANK_[is.na(tblList$GSCAT$TAXARANK_)] <- unique(tblList$GSCAT$TAXARANK_[!is.na(tblList$GSCAT$TAXARANK_)])
+    theFields <- c(theFields,"TAXA_")
+  }
+  
   this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD" )], 
                 tblList$GSCAT[, theFields], by=c("MISSION", "SETNO"), all.x=keep_nullsets)
-  this <- merge(this, 
-                tblList$GSSTRATUM[, c("STRAT", "AREA")], by=c("STRAT"), all.x=T)
+  this <- merge(this, tblList$GSSTRATUM[, c("STRAT", "AREA")], by=c("STRAT"), all.x=T)
   return(this)
 }
 
@@ -256,8 +265,14 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   return(res)
 }
 
-calcTotalSE <- function(theDataByStrat = NULL, valueField = NULL){
-  res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
+# calcTotalSE <- function(theDataByStrat = NULL, valueField = NULL){
+#   res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
+#   return(res)
+# }
+calcTotalSE <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
+  totArea <- sum(theDataByStrat[[areaField]])
+  res <- sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2))
+  res <- round(res, 5)
   return(res)
 }
 
@@ -269,7 +284,7 @@ calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = 
 
 calcTotalCI <- function(theDataByStrat = NULL, meanField = NULL, seField = NULL, areaField = NULL, level = 0.95){
   mean_val <- calcTotalMean(theDataByStrat, meanField, areaField)
-  se_val <- calcTotalSE(theDataByStrat, seField)
+  se_val <- calcTotalSE(theDataByStrat, seField, areaField)
   
   z_score <- qnorm(1 - (1 - level) / 2)
   
@@ -279,7 +294,7 @@ calcTotalCI <- function(theDataByStrat = NULL, meanField = NULL, seField = NULL,
   return(c(lower_ci = lower_ci, upper_ci = upper_ci))
 }
 
-calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, panel.category = NULL, ts.name = NULL, level = 0.95, is_mean = TRUE){
+calcYearSummaryMarea <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, panel.category = NULL, ts.name = NULL, level = 0.95, is_mean = TRUE){
   
   if(is_mean){
     value <- calcTotalMean(theDataByStrat, valueField, areaField)
@@ -287,7 +302,7 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
     value <- round(sum(theDataByStrat[[valueField]]), 5)
   }
   
-  se_val <- calcTotalSE(theDataByStrat, seField)
+  se_val <- calcTotalSE(theDataByStrat, seField, areaField)
   z_score <- qnorm(1 - (1 - level) / 2)
   
   lower_ci <- round(value - (z_score * se_val), 5)
@@ -298,6 +313,28 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
     year = year,
     ts.name = ts.name,
     value = value,
+    low = lower_ci,
+    high = upper_ci
+  )
+  
+  return(result)
+}
+calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
+  if(is_mean){
+    value <- calcTotalMean(theDataByStrat, valueField, areaField)
+  } else {
+    value <- round(sum(theDataByStrat[[valueField]], na.rm = T), 5)
+  }
+
+  se_val <- calcTotalSE(theDataByStrat, seField, areaField)
+  z_score <- qnorm(1 - (1 - level) / 2)
+  
+  lower_ci <- round(value - (z_score * se_val), 5)
+  upper_ci <- round(value + (z_score * se_val), 5)
+  
+  result <- data.frame(
+    value = value,
+    se = se_val,
     low = lower_ci,
     high = upper_ci
   )

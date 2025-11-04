@@ -3,6 +3,8 @@ cleantheGarbage()
 devtools::load_all()
 Mar.utils::debugMode(enable = T,  package_path = "C:/git/Maritimes/RVTransmogrifier/" )
 
+cxn <- ROracle::dbConnect(DBI::dbDriver("Oracle"), "BRUNSDONE", "<password>", "PTRAN")
+
 #### LOADING ####
 ## unfiltered
 data <- loadRVData(cxn = getCxn())
@@ -40,7 +42,7 @@ for (y in years){
   thisData_plot <- plotRV(thisData, plotSets = "TOTNO", plotBathy=NULL)
 }
 
-### WORKING WITH TAXONOMIC GROUPS ###
+#### WORKING WITH TAXONOMIC GROUPS ####
 # beyond species codes, we can now filter the data by any taxonomic group.  We can use these groups to simply facilitate
 # extractions of multiple species, or we can aggregate the data together and consider the group as a whole
 
@@ -122,12 +124,21 @@ tt<-extractDATRAS(years=2025, survey = "SUMMER", cxn = getCxn(),data.dir="C:/DFO
 #### do whatever STRATISFY does ####
 devtools::load_all()
 Mar.utils::debugMode(enable = T,  package_path = "C:/git/Maritimes/RVTransmogrifier/" )
-stranalTest <- loadRVData(years=2024, code=10, survey= "SUMMER", cxn = getCxn(),data.dir="C:/DFO-MPO/")
+SHake_2016 <- loadRVData(cxn = getCxn(), code = 14, years= "2016", survey="SUMMER", strata=c(440:495), types=1)
+
+# stratify using tblList
+SHake_2016_post_strat  <- stratify(tblList = SHake_2016)
+
+# stratify using df
+SHake_2016_flat <- easyFlatten(SHake_2016)
+SHake_2016_flat <- SHake_2016_flat[SHake_2016_flat$TYPE ==1,]  #shouldn't be run on anything other than type 1
+SHake_2016_flat_post_strat  <- stratify(df = SHake_2016_flat)
 
 #### work on Conversion Factors
 devtools::load_all()
 data_GEORGES_1999 <- loadRVData(cxn = getCxn(), code = 14, survey="GEORGES", years=1999)
 
 tt <- applyConversionFactors(data_GEORGES_1999)
-tt$AREA <- tt$AREA_KM2 / 3.429904
-tt1 <- stratify_simple(tt)
+
+
+
