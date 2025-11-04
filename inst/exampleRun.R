@@ -22,7 +22,7 @@ data_northern_cod <- loadRVData(cxn = getCxn(), code = 10, years=c(2020:2025), s
 data_northern_cod$GSSEX <- subset(data_northern_cod$GSSEX, CODE ==2 )
 data_northern_cod$GSMATURITY <- subset(data_northern_cod$GSMATURITY, CODE %in% c(3,4,5,6) )
 # 2) filtering the data (via square brackets)
-data_northern_cod$GSDET_LF <- data_northern_cod$GSDET_LF[data_northern_cod$GSDET_LF$FLEN>=40,]
+data_northern_cod$GSDET <- data_northern_cod$GSDET_LF[data_northern_cod$GSDET$FLEN>=40,]
 # propagating the changes
 data_northern_large_mature_female_cod <- propagateChanges(data_northern_cod)
 
@@ -45,7 +45,7 @@ for (y in years){
 # extractions of multiple species, or we can aggregate the data together and consider the group as a whole
 
 # Here we extract SUMMER 2016 echinoderms
-echinoderms_summer_2016 <- loadRVData(cxn = cxn, survey = "SUMMER", years = 2016, taxa="ECHINODERMATA")
+echinoderms_summer_2016 <- loadRVData(cxn = getCxn(), survey = "SUMMER", years = 2016, taxa="ECHINODERMATA")
 
 #Now we have all of the echinoderms, and we can handle them by species, if we choose...
 plotRV(echinoderms_summer_2016)
@@ -107,12 +107,12 @@ polychaetes_2016_transmogrified_agg_stratified$BIOMASS
 survey_GEORGES  <- extractFGP(cxn = getCxn(), survey = "GEORGES", path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/20251023")
 survey_4VSW  <- extractFGP(cxn = getCxn(), survey = "4VSW", path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/20251023")
 survey_FALL  <- extractFGP(cxn = getCxn(), survey = "FALL", path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/20251023")
-survey_SUMMER <- extractFGP(cxn = getCxn(), survey = "SUMMER", path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/20251023")
+survey_SUMMER <- extractFGP(cxn = getCxn(), years= 2025, survey = "SUMMER", path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/20251031")
 
 #### generate datasets for OBIS ####
 devtools::load_all()
 Mar.utils::debugMode(enable = T,  package_path = "C:/git/Maritimes/RVTransmogrifier/" )
-obis_survey_GEORGES_2025  <- extractOBIS(cxn = getCxn(), survey = "GEORGES", years= 2025, path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/OBIS/20251023")
+obis_survey_GEORGES_2025  <- extractOBIS(cxn = getCxn(), survey = "GEORGES", years= 2025, path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/OBIS/20251031")
 
 #### generate datasets for DATRAS ####
 devtools::load_all()
@@ -123,3 +123,11 @@ tt<-extractDATRAS(years=2025, survey = "SUMMER", cxn = getCxn(),data.dir="C:/DFO
 devtools::load_all()
 Mar.utils::debugMode(enable = T,  package_path = "C:/git/Maritimes/RVTransmogrifier/" )
 stranalTest <- loadRVData(years=2024, code=10, survey= "SUMMER", cxn = getCxn(),data.dir="C:/DFO-MPO/")
+
+#### work on Conversion Factors
+devtools::load_all()
+data_GEORGES_1999 <- loadRVData(cxn = getCxn(), code = 14, survey="GEORGES", years=1999)
+
+tt <- applyConversionFactors(data_GEORGES_1999)
+tt$AREA <- tt$AREA_KM2 / 3.429904
+tt1 <- stratify_simple(tt)

@@ -23,10 +23,11 @@ get_pesd_rvt_dir <- function() {
 }
 
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
-  theFields<-c(SPEC, CALWT, SAMPWGT, TOTWGT, TOTNO)
-  theFields<-c(SPEC, CALWT, SAMPWGT, TOTWGT, TOTNO)
+  theFields<-c("MISSION", "SETNO","SPEC", "CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
   this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD" )], 
                 tblList$GSCAT[, theFields], by=c("MISSION", "SETNO"), all.x=keep_nullsets)
+  this <- merge(this, 
+                tblList$GSSTRATUM[, c("STRAT", "AREA")], by=c("STRAT"), all.x=T)
   return(this)
 }
 
