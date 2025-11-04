@@ -265,11 +265,12 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   return(res)
 }
 
-# calcTotalSE <- function(theDataByStrat = NULL, valueField = NULL){
-#   res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
-#   return(res)
-# }
-calcTotalSE <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
+calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
+  res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
+  return(res)
+}
+
+calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
   totArea <- sum(theDataByStrat[[areaField]])
   res <- sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2))
   res <- round(res, 5)
@@ -294,39 +295,42 @@ calcTotalCI <- function(theDataByStrat = NULL, meanField = NULL, seField = NULL,
   return(c(lower_ci = lower_ci, upper_ci = upper_ci))
 }
 
-calcYearSummaryMarea <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, panel.category = NULL, ts.name = NULL, level = 0.95, is_mean = TRUE){
-  
-  if(is_mean){
-    value <- calcTotalMean(theDataByStrat, valueField, areaField)
-  } else {
-    value <- round(sum(theDataByStrat[[valueField]]), 5)
-  }
-  
-  se_val <- calcTotalSE(theDataByStrat, seField, areaField)
-  z_score <- qnorm(1 - (1 - level) / 2)
-  
-  lower_ci <- round(value - (z_score * se_val), 5)
-  upper_ci <- round(value + (z_score * se_val), 5)
-  
-  result <- data.frame(
-    panel.category = panel.category,
-    year = year,
-    ts.name = ts.name,
-    value = value,
-    low = lower_ci,
-    high = upper_ci
-  )
-  
-  return(result)
-}
+# calcYearSummaryMarea <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, panel.category = NULL, ts.name = NULL, level = 0.95, is_mean = TRUE){
+#   
+#   if(is_mean){
+#     value <- calcTotalMean(theDataByStrat, valueField, areaField)
+#     se_val <- calcTotalSE_stratified(theDataByStrat, seField, areaField)
+#   } else {
+#     value <- round(sum(theDataByStrat[[valueField]]), 5)
+#     se_val <- calcTotalSE_unstratified(theDataByStrat, seField)
+#   }
+#   
+#   se_val <- calcTotalSE(theDataByStrat, seField, areaField)
+#   z_score <- qnorm(1 - (1 - level) / 2)
+#   
+#   lower_ci <- round(value - (z_score * se_val), 5)
+#   upper_ci <- round(value + (z_score * se_val), 5)
+#   
+#   result <- data.frame(
+#     panel.category = panel.category,
+#     year = year,
+#     ts.name = ts.name,
+#     value = value,
+#     low = lower_ci,
+#     high = upper_ci
+#   )
+#   
+#   return(result)
+# }
 calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
   if(is_mean){
     value <- calcTotalMean(theDataByStrat, valueField, areaField)
+    se_val <- calcTotalSE_stratified(theDataByStrat, seField, areaField)
   } else {
     value <- round(sum(theDataByStrat[[valueField]], na.rm = T), 5)
+    se_val <- calcTotalSE_unstratified(theDataByStrat, seField)
   }
 
-  se_val <- calcTotalSE(theDataByStrat, seField, areaField)
   z_score <- qnorm(1 - (1 - level) / 2)
   
   lower_ci <- round(value - (z_score * se_val), 5)
