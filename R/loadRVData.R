@@ -64,6 +64,11 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
     if("GSINF" %in% missingTables | force.extract) {
       newE$GSINF <- addDDCoords(newE$GSINF)
       newE$GSINF$SLAT <- newE$GSINF$SLONG <- newE$GSINF$ELAT <- newE$GSINF$ELONG  <- NULL
+      gearDets <- data.frame(
+        GEAR = c(9, 3, 15),
+        WINGSPREAD_FT = c(41, 35, 41)
+      )
+      newE$GSINF <- merge(newE$GSINF, gearDets, by="GEAR", all.x=T)
     }
     if ("GSSPECIES_NEW" %in% missingTables | force.extract){
       newE$GSSPECIES_NEW <- makeGSSPECIES_NEW(GSSPECIES_ANDES_ = newE$GSSPECIES_ANDES, 

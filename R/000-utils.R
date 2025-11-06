@@ -22,9 +22,10 @@ get_pesd_rvt_dir <- function() {
   return(dir_path)
 }
 
+
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
 
-  theFields<-c("MISSION", "SETNO","CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
+  theFields<-c("MISSION", "SETNO","SIZE_CLASS","CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
   if ("SPEC" %in% names(tblList$GSCAT)){
     tblList$GSCAT$SPEC[is.na(tblList$GSCAT$SPEC)] <- unique(tblList$GSCAT$SPEC[!is.na(tblList$GSCAT$SPEC)])
     theFields <- c(theFields,"SPEC")
@@ -37,19 +38,13 @@ easyFlatten <- function(tblList = NULL, keep_nullsets=T){
   this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD" )], 
                 tblList$GSCAT[, theFields], by=c("MISSION", "SETNO"), all.x=keep_nullsets)
   this <- merge(this, tblList$GSSTRATUM[, c("STRAT", "AREA")], by=c("STRAT"), all.x=T)
+  this[is.na(this$DIST), "DIST"] <- 1.75
+  this[is.na(this$TOTNO), "TOTNO"] <- 0
+  this[is.na(this$TOTWGT), "TOTWGT"] <- 0
+  
   return(this)
 }
 
-correctForTowDist <- function(df, col, towDist=1.75, distCol = "DIST"){
-  if (!distCol %in% names(df)) stop(sprintf("Column '%s' not found in data frame", distCol))
-  if (!col %in% names(df))     stop(sprintf("Column '%s' not found in data frame", col))
-  if (!is.numeric(df[[col]]))  stop(sprintf("Column '%s' must be numeric", col))
-  rawCol <- paste0(col,"_RAW")
-  df[[rawCol]] <- df[[col]]
-  df[[distCol]][is.na(df[[distCol]])] <- towDist
-  df[[col]] <- round(df[[rawCol]] * (towDist / df[[distCol]]), 7)
-  return(df)
-}
 
 #' @title fathomsToMeters
 #' @description Converts depth measurements from fathoms to meters
