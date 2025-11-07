@@ -3,7 +3,8 @@
 #' and "emof" objects for a given survey.
 #' @param survey the default is \code{NULL}. Valid values are "SPRING", "SUMMER", "FALL", and "4VSW". 
 #' @param years the default is \code{NULL}. Valid values range from 1970-present.
-#' @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
+#' @param path  the default is \code{NULL}. This is the path where you would like your output files created.
+#' @param debug  the default is \code{FALSE}. Toggles detailed output
 #' @returns a dataframe
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca} \cr Heidi van Vliet
 #' \email{Heidi.vanVliet@@dfo-mpo.gc.ca}

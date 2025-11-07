@@ -15,7 +15,9 @@ generated for all 4 different surveys.}
 more specific years.  A value of NULL will result in products being generated for all years for
 which data exists, and a vector of years will result in dataset that include the specified years.}
 
-\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet')}
+\item{path}{the default is \code{NULL}. This is the path where you would like your output files created.}
+
+\item{debug}{the default is \code{FALSE}. Toggles detailed output}
 }
 \description{
 This function generates the products (i.e. csvs and shapefiles)used by the FGP

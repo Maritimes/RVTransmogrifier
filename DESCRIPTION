@@ -12,16 +12,12 @@ Imports:
   lubridate,
   Mar.utils,
   tidyr,
-  reshape2,
   stats,
   sf
 Suggests:
   utils
 Remotes:
-  Maritimes/Mar.utils,
-  Maritimes/Mar.data
-VignetteBuilder: 
-  utils
+  Maritimes/Mar.utils
 Encoding: UTF-8
 License: MIT + file LICENSE
 LazyData: true

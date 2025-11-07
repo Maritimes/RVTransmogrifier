@@ -68,10 +68,10 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
         GEAR = c(9, 3, 15),
         WINGSPREAD_FT = c(41, 35, 41)
       )
-      newE$GSINF <- newE$GSINF %>%
-        left_join(gearDets, by="GEAR") %>%
-        left_join(newE$GSSTRATUM %>% 
-                    select(STRAT, AREA_KM2 = AREA) %>%
+      newE$GSINF <- newE$GSINF |> 
+        left_join(gearDets, by="GEAR") |> 
+        left_join(newE$GSSTRATUM |> 
+                    select(STRAT, AREA_KM2 = AREA)|> 
                     mutate(AREA_KM2 = sqNMToSqKm(AREA_KM2)),
                   by="STRAT")
     }

@@ -1,4 +1,10 @@
-utils::globalVariables(c('TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO', 'YEAR', 'SEASON', 'SDATE', 'SURFACE_TEMPERATURE', 
+utils::globalVariables(c('GSSPEC2','R2','GSCONVERSIONS','CF_VALUE','CF_METRIC','FROM_VESSEL','Remove','SAMPTOT_Ratio','TO_VESSEL',
+                         "NEDTEM_TO_TELVEN_ABUND", "TELVEN_TO_CARCAB_ABUND", "NEDTEM_TO_TELVEN_BMASS","TELVEN_TO_CARCAB_BMASS", 
+                         "SRC", "CF_USED", "AREA", "qnorm", "DATETIME", "slat_dd", "slong_dd", "tmp","SIZE_CLASS","dev.cur","png","dev.off",
+                         "WINGSPREAD_FT", "TYPE", "weight_ratio","CLEN_TOTAL", "CAGE", "CLEN_sqkm","CLEN_SQKM_TOTAL", "CAGE_sqkm",
+                         "CAGE_TOTAL", "CAGE_SQKM_TOTAL", "CLEN_values", "CLEN_SQKM_values", "CLEN_SQKM_MEAN", "CAGE_values", "CAGE_SQKM_values",
+                         "CAGE_SQKM_MEAN", "TOTWGT_SQKM_STRAT_MEAN", "TOTNO_SQKM_STRAT_MEAN",
+                         'TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO', 'YEAR', 'SEASON', 'SDATE', 'SURFACE_TEMPERATURE', 
                          'BOTTOM_TEMPERATURE', 'BOTTOM_SALINITY', 'SETNO', 'TIME', 'STRAT', 'SLAT', 'SLONG', 'ELAT', 'ELONG', 'DUR', 
                          'DIST', 'SPEED', 'DEPTH_M', 'SURF_TEMP', 'BOTT_TEMP', 'BOTT_SAL', 'GEARDESC', 'SPEC', 'TOTWGT', 'TOTNO', 
                          'FSEX', 'FLEN', 'CLEN', 'FWT', 'MATURITY', 'SEX', 'AGE', 'SPECIMEN_ID', 'CODE', 'SCI_NAME', 'COMM', 'APHIA_ID', 
@@ -12,7 +18,7 @@ utils::globalVariables(c('TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO',
                          'SAMPWGT','TAXA_','TAXARANK_','SLONG_DD','SLAT_DD','NAFO','StrataID','STRAT','AREA_KM2','MISSION','TOTWGT','TOTNO',
                          'TOTWGT_sqkm','TOTNO_sqkm','BIOMASS_set','ABUNDANCE_set','TOTWGT_sqkm_strat_mean','TOTNO_sqkm_strat_mean','MINTRAWLDEPTH','MAXTRAWLDEPTH'))
 
-rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPEC", "GSSPECIES", "GSSPECIES_ANDES", "GSSPECIES_CHANGES", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
+rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
 coreTables <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL", "GSWARPOUT", "GSXTYPE") 
 #' @title get_pesd_rvt_dir
 #' @description Get or create the directory path for RVTransmogrifier data storage.
@@ -33,6 +39,7 @@ get_pesd_rvt_dir <- function() {
 #' @param keep_nullsets the default is \code{TRUE}. If TRUE, retains set information even when no catch occurred.
 #' @return A merged data frame containing set, catch, and stratum information with NA values filled appropriately.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom dplyr filter rename
 #' @export
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
 

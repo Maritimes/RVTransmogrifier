@@ -4,6 +4,7 @@
 #' @return A data frame containing standardized catch data with vessel conversion factors applied, including fields for raw and converted abundance (TOTNO) and biomass (TOTWGT), along with metadata indicating which conversion factors were used.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @note This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
+#' @importFrom dplyr filter select rename group_by ungroup mutate case_when left_join anti_join across
 #' @export
 applyConversionFactors <- function(tblList){
 
@@ -12,6 +13,7 @@ applyConversionFactors <- function(tblList){
   if (!season %in% c('SPRING','SUMMER'))stop("This function can only handle SUMMER or SPRING/GEORGES") 
   
   # get a few extra tables we'll need
+  message("Need to pass a cxn")
   Mar.utils::get_data_tables('groundfish', cxn=getCxn(), data.dir = get_pesd_rvt_dir(), 
                              tables=c("GSCONVERSIONS", "GSSPEC2"),force.extract = F)
   
@@ -85,7 +87,7 @@ applyConversionFactors <- function(tblList){
   GSDET<-merge(GSDET,GSCAT_mrg[,c("MISSION", "SETNO", "SPEC","SAMPTOT_Ratio","SIZE_CLASS")],by=c("MISSION", "SETNO", "SPEC","SIZE_CLASS"))
   GSDET$CLEN<-GSDET$CLEN*GSDET$SAMPTOT_Ratio
   
-  GSDET<- GSDET %>% select(-c(Remove,SAMPTOT_Ratio))
+  GSDET<- GSDET  |>  select(-c(Remove,SAMPTOT_Ratio))
   
   
   ########################################################################################
@@ -205,7 +207,7 @@ applyConversionFactors <- function(tblList){
   LF_Data_All<-merge(LF_Data_All,TELVEN_ABUND_CONV,by=c("SPEC","FLEN"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,NEDTEM_BMASS_CONV,by=c("SPEC","FLEN"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,TELVEN_BMASS_CONV,by=c("SPEC","FLEN"),all.x=TRUE)
-  LF_Data_All <- LF_Data_All %>%
+  LF_Data_All <- LF_Data_All  |> 
     mutate(across(c("FWT", "CLEN"), ~ ifelse(is.na(.), 0, .)),
            across(c("NEDTEM_TO_TELVEN_ABUND", "TELVEN_TO_CARCAB_ABUND", "NEDTEM_TO_TELVEN_BMASS", "TELVEN_TO_CARCAB_BMASS"), ~ ifelse(is.na(.), 1, .)),
            TOTNO_RAW = CLEN,
@@ -226,7 +228,7 @@ applyConversionFactors <- function(tblList){
     )
   
   
-  LF_Data_All <- LF_Data_All %>%
+  LF_Data_All <- LF_Data_All |> 
     mutate(
       # Intermediate variables for conditions
       neither_condition =   (NEDTEM_TO_TELVEN_ABUND * TELVEN_TO_CARCAB_ABUND == 1) & (NEDTEM_TO_TELVEN_BMASS * TELVEN_TO_CARCAB_BMASS == 1),

@@ -5,13 +5,10 @@
 #' @param ... other arguments passed to methods (e.g. 'debug' and 'quiet')
 #' @returns #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-aggregateByTaxa <- function(tblList = NULL, code = NULL, useBins = NULL){
+aggregateByTaxa <- function(tblList = NULL,...){
+  args <- list(...)
   # #All data arranged by code, so no need to aggregate if code was specified
-  if(!is.null(code))return(tblList)
-  if (!is.null(useBins) && useBins){
-    useBins <- F
-    message("\tuseBins has been set to FALSE (since taxa are being combined).  All lengths will be to 1 cm")
-  }
+  if(!is.null(args$code))return(tblList)
   tblList$GSCAT$SPEC <- tblList$GSDET$SPEC <- NULL
   tblList$GSCAT <- tblList$GSCAT |>
     dplyr::group_by(dplyr::across(c(-TOTNO, -TOTWGT))) |>

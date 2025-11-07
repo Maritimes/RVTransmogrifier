@@ -4,7 +4,7 @@
 \alias{aggregateByTaxa}
 \title{aggregateByTaxa}
 \usage{
-aggregateByTaxa(tblList = NULL, code = NULL, useBins = NULL)
+aggregateByTaxa(tblList = NULL, ...)
 }
 \arguments{
 \item{tblList}{the default is \code{NULL}. This is a list populated with all RV dataframes that

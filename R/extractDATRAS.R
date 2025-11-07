@@ -23,7 +23,6 @@
 #' rdata files
 #' @param debug  The default is \code{F}. Setting this to TRUE will limit the 
 #' results to a single set for a single species. 
-#' @import Mar.datawrangling
 #' @return a list containing (named) objects - 1 for each generated HH file
 #' @family DATRAS
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
@@ -33,7 +32,9 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
                        cxn = NULL,
                        data.dir = NULL,
                        debug = F){
-  
+  stop(
+    "extractDATRAS has not yet been enabled"
+  )
   timestamp<-format(Sys.time(), "%Y%m%d_%H%M")
   Sys.setenv(TZ = "America/Halifax")
   scratch_env = new.env()
@@ -387,7 +388,6 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
                  'BOTCURDIR','BOTCURSPEED','WINDDIR','WINDSPEED','SWELLDIR',
                  'SWELLHEIGHT','SURTEMP','BOTTEMP','SURSAL','BOTSAL',
                  'THERMOCLINE','THCLINEDEPTH','mission')]
-      #'MINTRAWLDEPTH','MAXTRAWLDEPTH',
       df[is.na(df)]<- -9
       return(df)
     }

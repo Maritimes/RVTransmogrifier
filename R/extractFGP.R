@@ -7,7 +7,8 @@
 #' @param years the default is \code{NULL}. This parameter allows you to generate datasets for one or
 #' more specific years.  A value of NULL will result in products being generated for all years for
 #' which data exists, and a vector of years will result in dataset that include the specified years.
-#' @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
+#' @param path  the default is \code{NULL}. This is the path where you would like your output files created.
+#' @param debug  the default is \code{FALSE}. Toggles detailed output
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
 extractFGP <- function(cxn=NULL, survey = NULL, years=NULL, path =NULL, debug = FALSE){

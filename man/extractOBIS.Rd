@@ -17,7 +17,9 @@ extractOBIS(
 
 \item{years}{the default is \code{NULL}. Valid values range from 1970-present.}
 
-\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet')}
+\item{path}{the default is \code{NULL}. This is the path where you would like your output files created.}
+
+\item{debug}{the default is \code{FALSE}. Toggles detailed output}
 }
 \value{
 a dataframe
