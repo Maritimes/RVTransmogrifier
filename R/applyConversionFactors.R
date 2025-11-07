@@ -1,3 +1,10 @@
+#' @title applyConversionFactors
+#' @description Apply vessel conversion factors to standardize catch data across different research vessels. Merges GSDET and GSCAT data, applies length-weight relationships, calculates sample ratios, and applies vessel-specific conversion factors for abundance and biomass to standardize historical data to current vessel (CAR/CAB) equivalents.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.
+#' @return A data frame containing standardized catch data with vessel conversion factors applied, including fields for raw and converted abundance (TOTNO) and biomass (TOTWGT), along with metadata indicating which conversion factors were used.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @note This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
+#' @export
 applyConversionFactors <- function(tblList){
 
   season <- unique(tblList$GSMISSION$SEASON)

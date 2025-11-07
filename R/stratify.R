@@ -1,22 +1,51 @@
-
+#' @title calcTotalSE_unstratified
+#' @description Calculate the total standard error for unstratified data by taking the square root of the sum of squared standard errors.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param valueField the default is \code{NULL}. The name of the field containing standard error values to be summed.
+#' @return A numeric value representing the total standard error, rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
   res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
   return(res)
 }
-
+#' @title calcTotalSE_stratified
+#' @description Calculate the total standard error for stratified data using area-weighted standard errors.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param valueField the default is \code{NULL}. The name of the field containing standard error values.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @return A numeric value representing the stratified total standard error, rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
   totArea <- sum(theDataByStrat[[areaField]])
   res <- sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2))
   res <- round(res, 5)
   return(res)
 }
-
+#' @title calcTotalMean
+#' @description Calculate the area-weighted mean across strata.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param valueField the default is \code{NULL}. The name of the field containing values to be averaged.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @return A numeric value representing the area-weighted mean, rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
   totArea <- sum(theDataByStrat[[areaField]])
   res <- round(sum(theDataByStrat[[valueField]] * theDataByStrat[[areaField]] / totArea), 5)
   return(res)
 }
-
+#' @title calcTotalCI
+#' @description Calculate confidence intervals for a stratified mean using normal approximation.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param meanField the default is \code{NULL}. The name of the field containing mean values.
+#' @param seField the default is \code{NULL}. The name of the field containing standard error values.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @param level the default is \code{0.95}. The confidence level for the interval (e.g., 0.95 for 95% CI).
+#' @return A named numeric vector containing the lower and upper confidence interval bounds, both rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 calcTotalCI <- function(theDataByStrat = NULL, meanField = NULL, seField = NULL, areaField = NULL, level = 0.95){
   mean_val <- calcTotalMean(theDataByStrat, meanField, areaField)
   se_val <- calcTotalSE(theDataByStrat, seField, areaField)
@@ -28,7 +57,18 @@ calcTotalCI <- function(theDataByStrat = NULL, meanField = NULL, seField = NULL,
   
   return(c(lower_ci = lower_ci, upper_ci = upper_ci))
 }
-
+#' @title calcYearSummary
+#' @description Calculate annual summary statistics including value, standard error, and confidence intervals for either means or totals.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param year the default is \code{NULL}. The year for which summary statistics are being calculated.
+#' @param valueField the default is \code{NULL}. The name of the field containing values to be summarized.
+#' @param seField the default is \code{NULL}. The name of the field containing standard error values.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @param level the default is \code{0.95}. The confidence level for the interval (e.g., 0.95 for 95% CI).
+#' @param is_mean the default is \code{TRUE}. If TRUE, calculates stratified mean; if FALSE, calculates unstratified total.
+#' @return A data frame containing value, se, low (lower CI), and high (upper CI) columns.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
   if(is_mean){
     value <- calcTotalMean(theDataByStrat, valueField, areaField)
@@ -52,7 +92,14 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
   
   return(result)
 }
-
+#' @title standardize_catch_counts
+#' @description Standardize catch counts from detailed length/age data (GSDET) by applying weight ratios, correcting for tow distance, and calculating density per square kilometer. Returns standardized data at the individual level as well as aggregated totals by length and age.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSCAT, GSDET, and GSINF.
+#' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
+#' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
+#' @return A list containing three elements: standardized_data (individual-level records), length_total (aggregated by length), and age_total (aggregated by age). Returns NA for length_total or age_total if no length or age data exist.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   if(!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) stop("Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead")
   weight_data <- tblList$GSCAT |>
@@ -145,7 +192,18 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
     age_total = age_total
   ))
 }
-
+#' @title stratify_simple
+#' @description Calculate stratified estimates of biomass and abundance from RV survey data. This function handles taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with confidence intervals.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten.
+#' @param df the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.
+#' @param towDist_NM the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
+#' @param areaField the default is \code{"AREA_KM2"}. The name of the field containing area values.
+#' @param areaFieldUnits the default is \code{c("KM2","NM2")}. The units of the area field. Must be either "KM2" or "NM2".
+#' @param debug the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.
+#' @return A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level summaries), and OVERALL_SUMMARY (overall statistics with confidence intervals).
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @note This function should be used for taxa-level data or when GSDET has no records. For species-level data with length/age information, use stratify_detailed() instead.
+#' @export
 stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), debug=F){
 
   if(!is.null(tblList)){
@@ -281,7 +339,14 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
   results$OVERALL_SUMMARY <- overall
   return(results)
 }
-
+#' @title stratify_detailed
+#' @description Calculate detailed stratified estimates of biomass and abundance from RV survey data including length and age distributions. This function extends stratify_simple by incorporating detailed catch-at-length and catch-at-age data from GSDET, standardizing individual measurements, and generating stratified summaries by length and age classes.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSDET.
+#' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
+#' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
+#' @return A list containing up to seven elements: stratified_bySet, stratified_byStrat, OVERALL_SUMMARY (from stratify_simple), plus length_set, length_strat (length-based summaries), age_set, and age_strat (age-based summaries). Length and age elements are only included if corresponding data exist.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   
   results <- stratify_simple(tblList = tblList, towDist_NM = towDist)

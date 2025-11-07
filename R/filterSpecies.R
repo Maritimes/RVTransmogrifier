@@ -1,24 +1,24 @@
-### @title filterSpecies
-## @description This function facilitates filtering by species, and can filter by "code", "aphiaid", 
-## or "taxa". Only one of these filter types may be used at a time.  "code" is first priority, and 
-## if multiple filter types are sent, only "code" will be applied.  If "code" is not sent, "aphiaid"
-## will take priority over "taxa".
-## @param tblList the default is \code{NULL}. This is a list populated with all RV dataframes that
-## should have filtering applied to them.
-## @param code the default is \code{NULL}. If data should be limited to a particular species, enter 
-## the species code here
-## @param aphiaid the default is \code{NULL}. If data should be limited to a particular aphiaid, 
-## enter the aphiaid here.
-## @param taxa the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM", 
-## "PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})
-## @param keep_nullsets the default is \code{TRUE}.
-## @returns a list of filtered versions of the dataframes passed as \code{tblList}. If the
-## filtering fails, a value of -1 will be returned. For example, if data is filtered for a year
-## where data was not collected, a strata that doesn't exist, or a species that was not observed
-## would all result in a value of -1 being returned.
-## @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-## @export
-## @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
+#' @title filterSpecies
+#' @description This function facilitates filtering by species, and can filter by "code", "aphiaid",
+#' or "taxa". Only one of these filter types may be used at a time.  "code" is first priority, and
+#' if multiple filter types are sent, only "code" will be applied.  If "code" is not sent, "aphiaid"
+#' will take priority over "taxa".
+#' @param tblList the default is \code{NULL}. This is a list populated with all RV dataframes that
+#' should have filtering applied to them.
+#' @param code the default is \code{NULL}. If data should be limited to a particular species, enter
+#' the species code here
+#' @param aphiaid the default is \code{NULL}. If data should be limited to a particular aphiaid,
+#' enter the aphiaid here.
+#' @param taxa the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
+#' "PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})
+#' @param keep_nullsets the default is \code{TRUE}.
+#' @returns a list of filtered versions of the dataframes passed as \code{tblList}. If the
+#' filtering fails, a value of -1 will be returned. For example, if data is filtered for a year
+#' where data was not collected, a strata that doesn't exist, or a species that was not observed
+#' would all result in a value of -1 being returned.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
+#' @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
 filterSpecies <- function(tblList = NULL, code = NULL, aphiaid = NULL, taxa = NULL, debug = FALSE){
 
   if (!is.null(aphiaid)) {

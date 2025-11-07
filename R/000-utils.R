@@ -10,10 +10,15 @@ utils::globalVariables(c('TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO',
                          'WSPREAD', 'gearType', 'BOTTOM_SALINITY','BOTTOM_TEMPERATURE','DEPTH_M','DUR','SPEED','SURFACE_TEMPERATURE','FSEX','FWT',
                          'FLEN','FMAT','AGE','measurement','measurementValue','detID','occurrenceID','individualCount','organismQuantity','CALWT',
                          'SAMPWGT','TAXA_','TAXARANK_','SLONG_DD','SLAT_DD','NAFO','StrataID','STRAT','AREA_KM2','MISSION','TOTWGT','TOTNO',
-                         'TOTWGT_sqkm','TOTNO_sqkm','BIOMASS_set','ABUNDANCE_set','TOTWGT_sqkm_strat_mean','TOTNO_sqkm_strat_mean'))
+                         'TOTWGT_sqkm','TOTNO_sqkm','BIOMASS_set','ABUNDANCE_set','TOTWGT_sqkm_strat_mean','TOTNO_sqkm_strat_mean','MINTRAWLDEPTH','MAXTRAWLDEPTH'))
 
 rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPEC", "GSSPECIES", "GSSPECIES_ANDES", "GSSPECIES_CHANGES", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
 coreTables <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL", "GSWARPOUT", "GSXTYPE") 
+#' @title get_pesd_rvt_dir
+#' @description Get or create the directory path for RVTransmogrifier data storage.
+#' @return A character string representing the directory path "C:/DFO-MPO/PESDData/RVTransmogrifier". Creates the directory if it doesn't exist.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 get_pesd_rvt_dir <- function() {
   dir_path <- file.path("C:", "DFO-MPO", "PESDData","RVTransmogrifier")
   if (!dir.exists(dir_path)) {
@@ -22,7 +27,13 @@ get_pesd_rvt_dir <- function() {
   return(dir_path)
 }
 
-
+#' @title easyFlatten
+#' @description Merge GSINF, GSCAT, and GSSTRATUM tables into a single flat data frame for analysis. Handles both species-level (SPEC) and taxa-level (TAXA_) data.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSSTRATUM.
+#' @param keep_nullsets the default is \code{TRUE}. If TRUE, retains set information even when no catch occurred.
+#' @return A merged data frame containing set, catch, and stratum information with NA values filled appropriately.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
 
   theFields<-c("MISSION", "SETNO","SIZE_CLASS","CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
@@ -245,7 +256,14 @@ roundDD2Min<-function(x=NULL, how = "round", nearestMin = 1, digits=4){
   res <- round(res,digits)
   return(res)
 }
-
+#' @title valPerSqKm
+#' @description Convert catch values to density per square kilometer based on tow distance and net width.
+#' @param theData the default is \code{NULL}. A numeric vector of catch values. NA values are converted to 0.
+#' @param towDist_NM the default is \code{1.75}. The tow distance in nautical miles.
+#' @param netWidth_ft the default is \code{41}. The net width (wingspread) in feet.
+#' @return A numeric vector of densities per square kilometer, rounded to 4 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   #theData must include NAs (e.g. nullsets so that the means will include them)
   theData[is.na(theData)] <- 0
@@ -258,7 +276,15 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   res = round(res,4)
   return(res)
 }
-
+#' @title correctForTowDist
+#' @description Standardize catch values to a common tow distance. Creates a "_RAW" version of the original field and adjusts values proportionally to the standard tow distance.
+#' @param df the default is \code{NULL}. A data frame containing catch and distance data.
+#' @param col the default is \code{NULL}. The name of the column containing values to be standardized.
+#' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles.
+#' @param distCol the default is \code{"DIST"}. The name of the column containing actual tow distances.
+#' @return The input data frame with the specified column standardized and a new "_RAW" column containing original values.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
 correctForTowDist <- function(df, col, towDist=1.75, distCol = "DIST"){
   if (!distCol %in% names(df)) stop(sprintf("Column '%s' not found in data frame", distCol))
   if (!col %in% names(df))     stop(sprintf("Column '%s' not found in data frame", col))
