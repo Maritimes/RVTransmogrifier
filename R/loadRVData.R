@@ -47,7 +47,7 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
     }else{
       # identify the stuff we have that can just be loaded
       message("Extracting and processing missing tables - this will take a minute (subsequent loads will be WAY faster)")
-      allProcessTables <- c("GSINF","GSSPECIES_NEW")
+      allProcessTables <- c("GSINF") #GSSPECIES_NEW
       
       missingProcessTables <- intersect(missingTables, allProcessTables)
       haveTables <- setdiff(coreTables, missingProcessTables)
@@ -56,10 +56,10 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
       invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = haveTables, force.extract = force.extract,
                                            cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
     }
-    if("GSINF" %in% missingTables) invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = "GSINF", force.extract = force.extract,
+    if("GSINF" %in% missingTables) invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = c("GSINF","GSSTRATA"), force.extract = force.extract,
                                                                                cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
-    if ("GSSPECIES_NEW" %in% missingTables)  invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = c("GSSPECIES_CHANGES","GSSPECIES_ANDES","GSSPECIES", "GSSPEC"), force.extract = force.extract,
-                                                                                         cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
+    # if ("GSSPECIES_NEW" %in% missingTables)  invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = c("GSSPECIES_CHANGES","GSSPECIES_ANDES","GSSPECIES", "GSSPEC"), force.extract = force.extract,
+    #                                                                                      cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
     #general processing for specific tables
     if("GSINF" %in% missingTables | force.extract) {
       newE$GSINF <- addDDCoords(newE$GSINF)
@@ -68,22 +68,27 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
         GEAR = c(9, 3, 15),
         WINGSPREAD_FT = c(41, 35, 41)
       )
-      newE$GSINF <- merge(newE$GSINF, gearDets, by="GEAR", all.x=T)
+      newE$GSINF <- newE$GSINF %>%
+        left_join(gearDets, by="GEAR") %>%
+        left_join(newE$GSSTRATUM %>% 
+                    select(STRAT, AREA_KM2 = AREA) %>%
+                    mutate(AREA_KM2 = sqNMToSqKm(AREA_KM2)),
+                  by="STRAT")
     }
-    if ("GSSPECIES_NEW" %in% missingTables | force.extract){
-      newE$GSSPECIES_NEW <- makeGSSPECIES_NEW(GSSPECIES_ANDES_ = newE$GSSPECIES_ANDES, 
-                                              GSSPECIES_ = newE$GSSPECIES, 
-                                              GSSPEC_ = newE$GSSPEC,
-                                              GSSPECIES_CHANGES_ = newE$GSSPECIES_CHANGES)
-      assign("GSSPECIES_NEW", newE$GSSPECIES_NEW, envir = .GlobalEnv)
-      rm(list = c("GSSPEC", "GSSPECIES_ANDES", "GSSPECIES", "GSSPECIES_CHANGES"), envir = newE)
-      file.remove(file.path(get_pesd_rvt_dir(), c(
-        "GROUNDFISH.GSSPEC.RData",
-        "GROUNDFISH.GSSPECIES.RData",
-        "GROUNDFISH.GSSPECIES_ANDES.RData",
-        "GROUNDFISH.GSSPECIES_CHANGES.RData"
-      )))
-    }
+    # if ("GSSPECIES_NEW" %in% missingTables | force.extract){
+    #   newE$GSSPECIES_NEW <- makeGSSPECIES_NEW(GSSPECIES_ANDES_ = newE$GSSPECIES_ANDES, 
+    #                                           GSSPECIES_ = newE$GSSPECIES, 
+    #                                           GSSPEC_ = newE$GSSPEC,
+    #                                           GSSPECIES_CHANGES_ = newE$GSSPECIES_CHANGES)
+    #   assign("GSSPECIES_NEW", newE$GSSPECIES_NEW, envir = .GlobalEnv)
+    #   rm(list = c("GSSPEC", "GSSPECIES_ANDES", "GSSPECIES", "GSSPECIES_CHANGES"), envir = newE)
+    #   file.remove(file.path(get_pesd_rvt_dir(), c(
+    #     "GROUNDFISH.GSSPEC.RData",
+    #     "GROUNDFISH.GSSPECIES.RData",
+    #     "GROUNDFISH.GSSPECIES_ANDES.RData",
+    #     "GROUNDFISH.GSSPECIES_CHANGES.RData"
+    #   )))
+    # }
 
   lapply(names(newE), function(x) {
     Mar.utils::save_encrypted(

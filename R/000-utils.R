@@ -9,7 +9,7 @@ utils::globalVariables(c('TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO',
                          'decimalLatitude', 'decimalLongitude', 'eventDate', 'DMIN_M', 'DMAX_M', 'GEAR', 'STRAT', 'HOWD', 'AREA_M2', 'GEARDESC', 
                          'WSPREAD', 'gearType', 'BOTTOM_SALINITY','BOTTOM_TEMPERATURE','DEPTH_M','DUR','SPEED','SURFACE_TEMPERATURE','FSEX','FWT',
                          'FLEN','FMAT','AGE','measurement','measurementValue','detID','occurrenceID','individualCount','organismQuantity','CALWT',
-                         'SAMPWGT','TAXA_','TAXARANK_','SLONG_DD','SLAT_DD','NAFO','StrataID','STRAT','AREA_KM','MISSION','TOTWGT','TOTNO',
+                         'SAMPWGT','TAXA_','TAXARANK_','SLONG_DD','SLAT_DD','NAFO','StrataID','STRAT','AREA_KM2','MISSION','TOTWGT','TOTNO',
                          'TOTWGT_sqkm','TOTNO_sqkm','BIOMASS_set','ABUNDANCE_set','TOTWGT_sqkm_strat_mean','TOTNO_sqkm_strat_mean'))
 
 rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPEC", "GSSPECIES", "GSSPECIES_ANDES", "GSSPECIES_CHANGES", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
@@ -35,9 +35,8 @@ easyFlatten <- function(tblList = NULL, keep_nullsets=T){
     theFields <- c(theFields,"TAXA_")
   }
   
-  this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD" )], 
+  this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD","AREA_KM2","WINGSPREAD_FT" )], 
                 tblList$GSCAT[, theFields], by=c("MISSION", "SETNO"), all.x=keep_nullsets)
-  this <- merge(this, tblList$GSSTRATUM[, c("STRAT", "AREA")], by=c("STRAT"), all.x=T)
   this[is.na(this$DIST), "DIST"] <- 1.75
   this[is.na(this$TOTNO), "TOTNO"] <- 0
   this[is.na(this$TOTWGT), "TOTWGT"] <- 0
@@ -260,83 +259,13 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   return(res)
 }
 
-calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
-  res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
-  return(res)
-}
-
-calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
-  totArea <- sum(theDataByStrat[[areaField]])
-  res <- sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2))
-  res <- round(res, 5)
-  return(res)
-}
-
-calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
-  totArea <- sum(theDataByStrat[[areaField]])
-  res <- round(sum(theDataByStrat[[valueField]] * theDataByStrat[[areaField]] / totArea), 5)
-  return(res)
-}
-
-calcTotalCI <- function(theDataByStrat = NULL, meanField = NULL, seField = NULL, areaField = NULL, level = 0.95){
-  mean_val <- calcTotalMean(theDataByStrat, meanField, areaField)
-  se_val <- calcTotalSE(theDataByStrat, seField, areaField)
-  
-  z_score <- qnorm(1 - (1 - level) / 2)
-  
-  lower_ci <- round(mean_val - (z_score * se_val), 5)
-  upper_ci <- round(mean_val + (z_score * se_val), 5)
-  
-  return(c(lower_ci = lower_ci, upper_ci = upper_ci))
-}
-
-# calcYearSummaryMarea <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, panel.category = NULL, ts.name = NULL, level = 0.95, is_mean = TRUE){
-#   
-#   if(is_mean){
-#     value <- calcTotalMean(theDataByStrat, valueField, areaField)
-#     se_val <- calcTotalSE_stratified(theDataByStrat, seField, areaField)
-#   } else {
-#     value <- round(sum(theDataByStrat[[valueField]]), 5)
-#     se_val <- calcTotalSE_unstratified(theDataByStrat, seField)
-#   }
-#   
-#   se_val <- calcTotalSE(theDataByStrat, seField, areaField)
-#   z_score <- qnorm(1 - (1 - level) / 2)
-#   
-#   lower_ci <- round(value - (z_score * se_val), 5)
-#   upper_ci <- round(value + (z_score * se_val), 5)
-#   
-#   result <- data.frame(
-#     panel.category = panel.category,
-#     year = year,
-#     ts.name = ts.name,
-#     value = value,
-#     low = lower_ci,
-#     high = upper_ci
-#   )
-#   
-#   return(result)
-# }
-calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
-  if(is_mean){
-    value <- calcTotalMean(theDataByStrat, valueField, areaField)
-    se_val <- calcTotalSE_stratified(theDataByStrat, seField, areaField)
-  } else {
-    value <- round(sum(theDataByStrat[[valueField]], na.rm = T), 5)
-    se_val <- calcTotalSE_unstratified(theDataByStrat, seField)
-  }
-
-  z_score <- qnorm(1 - (1 - level) / 2)
-  
-  lower_ci <- round(value - (z_score * se_val), 5)
-  upper_ci <- round(value + (z_score * se_val), 5)
-  
-  result <- data.frame(
-    value = value,
-    se = se_val,
-    low = lower_ci,
-    high = upper_ci
-  )
-  
-  return(result)
+correctForTowDist <- function(df, col, towDist=1.75, distCol = "DIST"){
+  if (!distCol %in% names(df)) stop(sprintf("Column '%s' not found in data frame", distCol))
+  if (!col %in% names(df))     stop(sprintf("Column '%s' not found in data frame", col))
+  if (!is.numeric(df[[col]]))  stop(sprintf("Column '%s' must be numeric", col))
+  rawCol <- paste0(col,"_RAW")
+  df[[rawCol]] <- df[[col]]
+  df[[distCol]][is.na(df[[distCol]])] <- towDist
+  df[[col]] <- round(df[[rawCol]] * (towDist / df[[distCol]]), 7)
+  return(df)
 }

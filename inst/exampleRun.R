@@ -102,7 +102,7 @@ echinoderms_summer_2016_agg_stratified <- stratify(echinoderms_summer_2016_agg)
 plotRV(tblList = echinoderms_summer_2016_agg, catchStrataData = echinoderms_summer_2016_agg_stratified, plotCatchStrata = "ABUNDANCE", plotSets = NULL)
 plotRV(tblList = echinoderms_summer_2016_agg, catchStrataData = echinoderms_summer_2016_agg_stratified, plotCatchStrata = "BIOMASS", plotSets = NULL)
 
-calcTotalSE(theDataByStrat = polychaetes_2016_transmogrified_agg_stratified, valueField = "BIOMASS", areaField = "AREA_KM")
+calcTotalSE(theDataByStrat = polychaetes_2016_transmogrified_agg_stratified, valueField = "BIOMASS", areaField = "AREA_KM2")
 polychaetes_2016_transmogrified_agg_stratified$BIOMASS
 
 #### generate datasets for OpenData ####
