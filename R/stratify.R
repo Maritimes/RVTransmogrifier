@@ -85,7 +85,7 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
 #' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
 #' @return A list containing three elements: standardized_data (individual-level records), length_total (aggregated by length), and age_total (aggregated by age). Returns NA for length_total or age_total if no length or age data exist.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @importFrom dplyr select left_join mutate filter summarise cross_join if_else distinct all_of
+#' @importFrom dplyr select left_join mutate filter summarise cross_join if_else distinct all_of case_when
 #' @importFrom tidyr crossing
 #' @export
 
@@ -198,7 +198,6 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
 #' @export
 
 stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), debug=F){
-
   if(!is.null(tblList)){
     df <- easyFlatten(tblList)
     df <- df[df$TYPE==1,]

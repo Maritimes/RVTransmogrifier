@@ -1,20 +1,23 @@
 #' @title applyConversionFactors
 #' @description Apply vessel conversion factors to standardize catch data across different research vessels. Merges GSDET and GSCAT data, applies length-weight relationships, calculates sample ratios, and applies vessel-specific conversion factors for abundance and biomass to standardize historical data to current vessel (CAR/CAB) equivalents.
+#' @param cxn A valid Oracle connection object. This parameter allows you to 
+#' pass an existing connection, reducing the need to establish a new connection 
+#' within the function. If provided, it takes precedence over the connection-
+#' related parameters.
 #' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.
 #' @return A data frame containing standardized catch data with vessel conversion factors applied, including fields for raw and converted abundance (TOTNO) and biomass (TOTWGT), along with metadata indicating which conversion factors were used.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @note This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
 #' @importFrom dplyr filter select rename group_by ungroup mutate case_when left_join anti_join across
 #' @export
-applyConversionFactors <- function(tblList){
-
+applyConversionFactors <- function(cxn=NULL, tblList){
   season <- unique(tblList$GSMISSION$SEASON)
   if (length(season)>1)stop("The function can only handle a single season of data")
   if (!season %in% c('SPRING','SUMMER'))stop("This function can only handle SUMMER or SPRING/GEORGES") 
   
   # get a few extra tables we'll need
   message("Need to pass a cxn")
-  Mar.utils::get_data_tables('groundfish', cxn=getCxn(), data.dir = get_pesd_rvt_dir(), 
+  Mar.utils::get_data_tables('groundfish', cxn=cxn, data.dir = get_pesd_rvt_dir(), 
                              tables=c("GSCONVERSIONS", "GSSPEC2"),force.extract = F)
   
   # pull the As and Bs for summer (or all).  If multiple exist for the same SPEC/SEX, choose the higher R2 value
@@ -83,10 +86,8 @@ applyConversionFactors <- function(tblList){
   GSCAT_mrg$SAMPWGT<-ifelse(is.na(GSCAT_mrg$SAMPWGT),GSCAT_mrg$TOTWGT,GSCAT_mrg$SAMPWGT)
   GSCAT_mrg$SAMPTOT_Ratio<-GSCAT_mrg$TOTWGT/GSCAT_mrg$SAMPWGT
   GSCAT_mrg$SAMPTOT_Ratio<-ifelse(is.nan(GSCAT_mrg$SAMPTOT_Ratio),1,GSCAT_mrg$SAMPTOT_Ratio)#You also cant get ratios if total weight is 0. this sets it to one
-  
-  GSDET<-merge(GSDET,GSCAT_mrg[,c("MISSION", "SETNO", "SPEC","SAMPTOT_Ratio","SIZE_CLASS")],by=c("MISSION", "SETNO", "SPEC","SIZE_CLASS"))
   GSDET$CLEN<-GSDET$CLEN*GSDET$SAMPTOT_Ratio
-  
+
   GSDET<- GSDET  |>  select(-c(Remove,SAMPTOT_Ratio))
   
   
@@ -190,7 +191,7 @@ applyConversionFactors <- function(tblList){
     filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") &  FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
     select(SPEC, FLEN, CF_VALUE) |>
     rename(TELVEN_TO_CARCAB_BMASS = CF_VALUE)
-  
+
   ######################################################################################################################################
   #These are just the conversion factors for the few species for ATC/HAM to NED/TEM
   message("MMM 20251104 - in the code below, the first df is immediately overwritten by the 2nd, and neither is ever used?")

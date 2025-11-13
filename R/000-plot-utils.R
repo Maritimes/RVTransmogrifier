@@ -35,6 +35,7 @@ ggBathy<- function(plotBathy = "FILL", bathyIntervals = 100){
 #' @description Creates ggplot2 layer(s) for NAFO subunits
 #' @noRd
 ggNAFO <- function(plotNAFO = TRUE, plotLabels = TRUE, filter= NULL){
+
   ggItems<- list()
   nafo <- Mar.data::NAFOSubunits_sf
   nafo <- sf::st_transform(nafo, crs = 4326)
@@ -51,6 +52,7 @@ ggNAFO <- function(plotNAFO = TRUE, plotLabels = TRUE, filter= NULL){
 #' @description Creates ggplot2 layer(s) for Maritimes strata
 #' @noRd
 ggStrata <- function(plotStrata=TRUE, plotLabels=TRUE, filter=NULL){
+
   ggItems<- list()
   if(all(filter %in% c(396:411))){
     strata <- Mar.data::Strata_Mar_4VSW_sf 
@@ -74,6 +76,7 @@ ggStrata <- function(plotStrata=TRUE, plotLabels=TRUE, filter=NULL){
 #' @description Creates ggplot2 layer(s) for catch point data
 #' @noRd
 ggCatchPts <- function(catchdata = NULL, sizeVar=NULL, colourVar = NULL, return=NULL){
+
   ggItems<- list()
   if (return=="CATCHES"){
     if(length(colourVar)>1){

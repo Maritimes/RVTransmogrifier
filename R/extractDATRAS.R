@@ -26,6 +26,8 @@
 #' @return a list containing (named) objects - 1 for each generated HH file
 #' @family DATRAS
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom suncalc getSunlightTimes
+#' @importFrom geosphere bearingRhumb
 #' @export
 #'
 extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
@@ -182,10 +184,6 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       }
       processTowDets<-function(df=NULL){
         getTowDir <- function(df=NULL){
-          # df[,"latitude"] <- round(df[,"latitude"],4)
-          # df[,"longitude"] <- round(df[,"longitude"],4)
-          # df[!is.na(df$elatitude),"elatitude"] <- round(df[!is.na(df$elatitude),"elatitude"],4)
-          # df[!is.na(df$elongitude),"elongitude"] <- round(df[!is.na(df$elongitude),"elongitude"],4)
           df$TOWDIR<-NA
           df[which(!is.na(df$slat_dd) & !is.na(df$slong_dd) &
                      !is.na(df$elat_dd) &!is.na(df$elong_dd)) ,"TOWDIR"] <- round(geosphere::bearingRhumb(p1 = df[which(!is.na(df$slat_dd) & !is.na(df$slong_dd) &

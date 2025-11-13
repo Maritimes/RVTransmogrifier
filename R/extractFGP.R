@@ -1,6 +1,10 @@
 #' @title extractFGP
 #' @description This function generates the products (i.e. csvs and shapefiles)used by the FGP
 #' services related to https://open.canada.ca/data/en/dataset/8ddcaeea-b806-4958-a79f-ba9ab645f53b.
+#' @param cxn A valid Oracle connection object. This parameter allows you to 
+#' pass an existing connection, reducing the need to establish a new connection 
+#' within the function. If provided, it takes precedence over the connection-
+#' related parameters.
 #' @param survey the default is \code{NULL}. This specifies which survey should be extracted.  Valid
 #' values are "SPRING", "SUMMER", "FALL", and "4VSW".  A value of NULL will result in products being
 #' generated for all 4 different surveys.

@@ -6,6 +6,7 @@
 #' @returns #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
 aggregateByTaxa <- function(tblList = NULL,...){
+
   args <- list(...)
   # #All data arranged by code, so no need to aggregate if code was specified
   if(!is.null(args$code))return(tblList)

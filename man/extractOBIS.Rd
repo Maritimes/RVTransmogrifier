@@ -13,6 +13,11 @@ extractOBIS(
 )
 }
 \arguments{
+\item{cxn}{A valid Oracle connection object. This parameter allows you to 
+pass an existing connection, reducing the need to establish a new connection 
+within the function. If provided, it takes precedence over the connection-
+related parameters.}
+
 \item{survey}{the default is \code{NULL}. Valid values are "SPRING", "SUMMER", "FALL", and "4VSW".}
 
 \item{years}{the default is \code{NULL}. Valid values range from 1970-present.}

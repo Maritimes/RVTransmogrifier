@@ -1,6 +1,10 @@
 #' @title extractOBIS
 #' @description This function generates an OBIS-compliant dataset, including "core", "occurrences"
 #' and "emof" objects for a given survey.
+#' @param cxn A valid Oracle connection object. This parameter allows you to 
+#' pass an existing connection, reducing the need to establish a new connection 
+#' within the function. If provided, it takes precedence over the connection-
+#' related parameters.
 #' @param survey the default is \code{NULL}. Valid values are "SPRING", "SUMMER", "FALL", and "4VSW". 
 #' @param years the default is \code{NULL}. Valid values range from 1970-present.
 #' @param path  the default is \code{NULL}. This is the path where you would like your output files created.

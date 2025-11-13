@@ -1,22 +1,31 @@
-utils::globalVariables(c('GSSPEC2','R2','GSCONVERSIONS','CF_VALUE','CF_METRIC','FROM_VESSEL','Remove','SAMPTOT_Ratio','TO_VESSEL',
-                         "NEDTEM_TO_TELVEN_ABUND", "TELVEN_TO_CARCAB_ABUND", "NEDTEM_TO_TELVEN_BMASS","TELVEN_TO_CARCAB_BMASS", 
-                         "SRC", "CF_USED", "AREA", "qnorm", "DATETIME", "slat_dd", "slong_dd", "tmp","SIZE_CLASS","dev.cur","png","dev.off",
-                         "WINGSPREAD_FT", "TYPE", "weight_ratio","CLEN_TOTAL", "CAGE", "CLEN_sqkm","CLEN_SQKM_TOTAL", "CAGE_sqkm",
-                         "CAGE_TOTAL", "CAGE_SQKM_TOTAL", "CLEN_values", "CLEN_SQKM_values", "CLEN_SQKM_MEAN", "CAGE_values", "CAGE_SQKM_values",
-                         "CAGE_SQKM_MEAN", "TOTWGT_SQKM_STRAT_MEAN", "TOTNO_SQKM_STRAT_MEAN",
-                         'TOTNO', 'TOTWGT', 'CLEN', 'MISSION', 'VESEL', 'CRUNO', 'YEAR', 'SEASON', 'SDATE', 'SURFACE_TEMPERATURE', 
-                         'BOTTOM_TEMPERATURE', 'BOTTOM_SALINITY', 'SETNO', 'TIME', 'STRAT', 'SLAT', 'SLONG', 'ELAT', 'ELONG', 'DUR', 
-                         'DIST', 'SPEED', 'DEPTH_M', 'SURF_TEMP', 'BOTT_TEMP', 'BOTT_SAL', 'GEARDESC', 'SPEC', 'TOTWGT', 'TOTNO', 
-                         'FSEX', 'FLEN', 'CLEN', 'FWT', 'MATURITY', 'SEX', 'AGE', 'SPECIMEN_ID', 'CODE', 'SCI_NAME', 'COMM', 'APHIA_ID', 
-                         'SDATE', 'MISSION', 'SETNO', 'DMIN', 'DMAX', 'DEPTH', 'START_DEPTH', 'END_DEPTH', 'TIME', 'REMARKS', 'SPEC', 
-                         'TOTNO', 'TOTWGT', 'TOTWGT_RAW', 'DIST', 'TOTNO_RAW', 'theCatch', 'FSHNO', 'SPECIMEN_ID', 'id', 'geometry', 
-                         'ELAT_DD', 'ELONG_DD', 'SLONG_DD', 'SLAT_DD', 'theSet', 'footprintSRS', 'footprintWKT', 'type', 'eventID', 
-                         'parentEventID', 'eventRemarks', 'locationRemarks', 'sampleSizeValue', 'sampleSizeUnit', 'coordinateUncertaintyInMeters', 
-                         'decimalLatitude', 'decimalLongitude', 'eventDate', 'DMIN_M', 'DMAX_M', 'GEAR', 'STRAT', 'HOWD', 'AREA_M2', 'GEARDESC', 
-                         'WSPREAD', 'gearType', 'BOTTOM_SALINITY','BOTTOM_TEMPERATURE','DEPTH_M','DUR','SPEED','SURFACE_TEMPERATURE','FSEX','FWT',
-                         'FLEN','FMAT','AGE','measurement','measurementValue','detID','occurrenceID','individualCount','organismQuantity','CALWT',
-                         'SAMPWGT','TAXA_','TAXARANK_','SLONG_DD','SLAT_DD','NAFO','StrataID','STRAT','AREA_KM2','MISSION','TOTWGT','TOTNO',
-                         'TOTWGT_sqkm','TOTNO_sqkm','BIOMASS_set','ABUNDANCE_set','TOTWGT_sqkm_strat_mean','TOTNO_sqkm_strat_mean','MINTRAWLDEPTH','MAXTRAWLDEPTH'))
+#functions
+utils::globalVariables(c("dev.cur", "png", "dev.off","qnorm"))
+#aggregateByTaxa
+utils::globalVariables(c("TOTNO", "TOTWGT", "CLEN"))  
+#loadRVData
+utils::globalVariables(c("STRAT", "AREA", "AREA_KM2"))
+#standardize_catch_counts
+utils::globalVariables(c("SIZE_CLASS","WINGSPREAD_FT","TYPE","weight_ratio","CAGE","CLEN_sqkm","CLEN_TOTAL","CLEN_SQKM_TOTAL","CAGE_sqkm","CAGE_TOTAL","CAGE_SQKM_TOTAL"
+))
+#stratify_detailed
+utils::globalVariables(c("CLEN_TOTAL","CLEN_SQKM_TOTAL","CLEN_values","CLEN_SQKM_values","CLEN_SQKM_MEAN","CAGE_TOTAL","CAGE_SQKM_TOTAL","CAGE_values","CAGE_SQKM_values","CAGE_SQKM_MEAN"))
+#stratify_simple
+utils::globalVariables(c("TOTWGT_sqkm","TOTNO_sqkm","BIOMASS_set","ABUNDANCE_set","TOTWGT_SQKM_STRAT_MEAN","TOTNO_SQKM_STRAT_MEAN"))
+#ggStrata
+utils::globalVariables(c("StrataID"))
+#ggNAFO
+utils::globalVariables(c("NAFO"))
+#ggCatchPts
+utils::globalVariables(c("SLONG_DD", "SLAT_DD"))
+#extractFGP
+utils::globalVariables(c("MISSION", "VESEL", "CRUNO", "YEAR", "SEASON", "SDATE", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE", "BOTTOM_SALINITY", "SETNO", "TIME", "ELAT_DD", "ELONG_DD", "DUR", "DIST", "SPEED", "DEPTH_M", "SURF_TEMP", "BOTT_TEMP", "BOTT_SAL", "GEARDESC", "SPEC", "FLEN", "CODE", "SCI_NAME", "COMM", "APHIA_ID"))
+#extractOBIS
+utils::globalVariables(c("SDATE", "MISSION", "SETNO", "DMIN", "DMAX", "DEPTH", "START_DEPTH", "END_DEPTH", "TIME", "REMARKS", "SPEC", "TOTWGT_RAW", "DIST", "TOTNO_RAW", "theCatch", "FSHNO", "SPECIMEN_ID", "id", "geometry", "ELAT_DD", "ELONG_DD", "theSet", "footprintSRS", "footprintWKT", "type", "eventID", "parentEventID", "eventRemarks", "locationRemarks", "sampleSizeValue", "sampleSizeUnit", "coordinateUncertaintyInMeters", "decimalLatitude", "decimalLongitude", "eventDate", "DMIN_M", "DMAX_M", "GEAR", "HOWD", "AREA_M2", "GEARDESC", "WSPREAD", "gearType",  "BOTTOM_SALINITY",  "BOTTOM_TEMPERATURE", "DEPTH_M", "DUR", "SPEED",  "SURFACE_TEMPERATURE", "FSEX", "FWT", "FLEN", "FMAT", "AGE",  "measurement",  "measurementValue", "detID",  "occurrenceID",  "individualCount",  "organismQuantity", "CALWT", "SAMPWGT"))
+#extractDATRAS
+utils::globalVariables(c("DATETIME", "slat_dd", "slong_dd","tmp"))
+#applyConversionFactors
+utils::globalVariables(c("Remove","SAMPTOT_Ratio", "NEDTEM_TO_TELVEN_ABUND", "TELVEN_TO_CARCAB_ABUND", "NEDTEM_TO_TELVEN_BMASS", "TELVEN_TO_CARCAB_BMASS","GSSPEC2", "R2", "GSCONVERSIONS", "CF_VALUE", "CF_METRIC", "FROM_VESSEL", "TO_VESSEL", "SRC", "CF_USED", "TYPE", "WINGSPREAD_FT"))
+
 
 rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
 coreTables <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL", "GSWARPOUT", "GSXTYPE") 
@@ -31,6 +40,35 @@ get_pesd_rvt_dir <- function() {
     dir.create(dir_path, recursive = TRUE, showWarnings = FALSE)
   }
   return(dir_path)
+}
+
+#' @title getSpInfo
+#' @description This function returns any species that match the string sent to "taxa" for any of the recorded taxonomic
+#' levels (e.g. "KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS", "SPECIES" and common name.)
+#' @param tblList the default is \code{NULL}. This is a list populated with all RV dataframes that
+#' should have filtering applied to them.
+#' @param taxa the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM", "PHYLUM", "CLASS", "ORDER", 
+#' "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})
+#' @returns a dataframe of all species records where some taxonomic description matches the submitted value of "taxa".
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @examples \dontrun{
+#' getSpInfo(taxa ="mich", tblList=data_2025)
+#'     CODE APHIA_ID      COMM                          SPEC  KINGDOM     PHYLUM       CLASS
+#'   604   126306 SNIPE EEL        NEMICHTHYS SCOLOPACEUS ANIMALIA   CHORDATA   TELEOSTEI
+#'  2056   106182      <NA> ARCOSCALPELLUM MICHELOTTIANUM ANIMALIA ARTHROPODA THECOSTRACA
+#'  
+#'  ORDER        FAMILY          GENUS
+#'  ANGUILLIFORMES NEMICHTHYIDAE     NEMICHTHYS
+#'  SCALPELLOMORPHA  SCALPELLIDAE ARCOSCALPELLUM
+#' }
+#' @export
+getSpInfo <- function(taxa = NULL, tblList){
+
+  taxa <- toupper(taxa)
+  retFields <- c("CODE","APHIA_ID", "COMM","SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS")
+  these <- tblList$GSSPECIES_NEW[which(apply(tblList$GSSPECIES_NEW[,c("COMM","SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS")], 1, function(r) any(grepl(taxa, toupper(r))))), retFields]
+  these <- these |> unique()
+  return(these)
 }
 
 #' @title easyFlatten
@@ -70,6 +108,7 @@ easyFlatten <- function(tblList = NULL, keep_nullsets=T){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 fathomsToMeters <- function(field=NULL){
+
   field <- round(field*1.8288,2)
   return(field)
 }
@@ -81,6 +120,7 @@ fathomsToMeters <- function(field=NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 sqNMToSqKm <- function(field=NULL){
+
   field <- round(field*3.4299,4)
   return(field)
 }
@@ -93,77 +133,8 @@ sqNMToSqKm <- function(field=NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 binSizes <- function(bin, value){
+
   (floor(value/bin)*bin) + ((bin*.5)-0.5)  
-}
-
-#' @title makeGSSPECIES_NEW
-#' @description The makeGSSPECIES_NEW function consolidates species data from 
-#' multiple sources into a unified, updated dataset. It resolves obsolete 
-#' species codes using redirect mappings, ensures all codes are accounted for, 
-#' and merges data from GSSPECIES_ANDES_, GSSPEC_, and GSSPECIES_. The function 
-#' cleans the dataset by removing fully NA rows, updates species names (SPEC) 
-#' and common names (COMM) only when both are missing, and renames columns for 
-#' clarity. The result is a standardized dataset with current species 
-#' information, ready for analysis.
-#' @param GSSPECIES_ANDES_ the default is \code{NULL}. Original GSSPECIES_ANDES object
-#' @param GSSPECIES_ the default is \code{NULL}. Original GSSPECIES object
-#' @param GSSPEC_ the default is \code{NULL}. Original GSSPEC object 
-#' @param GSSPECIES_CHANGES_ the default is \code{NULL}. Object containing species code redirects and changes
-#' @return A consolidated and standardized species dataframe with resolved redirects and updated taxonomic information
-#' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @noRd
-makeGSSPECIES_NEW <- function(GSSPECIES_ANDES_=NULL, GSSPECIES_ = NULL, GSSPEC_=NULL, GSSPECIES_CHANGES_=NULL){
-  # Step 1: Resolve redirects in GSSPECIES_CHANGES_
-  resolve_redirects <- function(df) {
-    redirects <- df[!is.na(df$REDIRECT_CODE), c("CODE", "REDIRECT_CODE")]
-    
-    all_codes <- unique(c(df$CODE, df$REDIRECT_CODE))
-    mapping <- data.frame(CODE_OG = all_codes, CODE = all_codes, stringsAsFactors = FALSE)
-    
-    changed <- TRUE
-    while (changed) {
-      changed <- FALSE
-      merged <- merge(mapping, redirects, by.x = "CODE", by.y = "CODE", all.x = TRUE, all.y = FALSE)
-      merged$CODE <- ifelse(!is.na(merged$REDIRECT_CODE), merged$REDIRECT_CODE, merged$CODE)
-      new_mapping <- merged[, c("CODE_OG", "CODE")]
-      
-      if (!all(new_mapping$CODE[stats::complete.cases(new_mapping$CODE, mapping$CODE)] == 
-               mapping$CODE[stats::complete.cases(new_mapping$CODE, mapping$CODE)], na.rm = TRUE)) {
-        mapping <- new_mapping
-        changed <- TRUE
-      }
-    }
-    
-    mapping
-  }
-  mapping <- resolve_redirects(GSSPECIES_CHANGES_)
-
-  # Step 2: Ensure all codes from GSSPECIES_ are in mapping
-  all_gspecies_codes <- unique(GSSPECIES_$CODE)
-  missing_codes <- setdiff(all_gspecies_codes, mapping$CODE_OG)
-  if (length(missing_codes) > 0) {
-    missing_mapping <- data.frame(CODE_OG = missing_codes, CODE = missing_codes, stringsAsFactors = FALSE)
-    mapping <- rbind(mapping, missing_mapping)
-  }
-  
-  final_df <- merge(mapping, GSSPECIES_ANDES_, by.x = "CODE", by.y = "CODE",  all.x = TRUE)
-  final_df <- merge(final_df, GSSPEC_[, c("SPEC","LGRP","LFSEXED")], by.x = "CODE", by.y = "SPEC",  all = TRUE)
-  final_df <- final_df[!rowSums(is.na(final_df)) == ncol(final_df), ]
-  
-  # Populate COMM and SPEC with updated values from GSSPECIES_
-  gspecies_map <- GSSPECIES_[, c("CODE", "SPEC", "COMM")]
-  names(gspecies_map)[1] <- "CODE_OG"
-  # "SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS"
-  merged_data <- merge(final_df, gspecies_map, by = "CODE_OG", all.x = TRUE, suffixes = c("", ".y"))
-  
-  # Update SPEC and COMM only if both original values are NA
-  both_na <- is.na(merged_data$SPEC) & is.na(merged_data$COMM)
-  merged_data$SPEC[both_na] <- merged_data$SPEC.y[both_na]
-  merged_data$COMM[both_na] <- merged_data$COMM.y[both_na]
-  
-  # Remove redundant columns
-  merged_data <- merged_data[, !names(merged_data) %in% c("SPEC.y", "COMM.y")]
-  return(merged_data)
 }
 
 #' @title fixHerringLengths
@@ -175,6 +146,7 @@ makeGSSPECIES_NEW <- function(GSSPECIES_ANDES_=NULL, GSSPECIES_ = NULL, GSSPEC_=
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 fixHerringLengths <-function(GSDET_ = NULL){
+
   #Fix herring lengths - ensure all are in mm
   #NED 2016016 - first instance of measuring herring in mm - convert all prior data from cm to mm
   GSDET_[GSDET_$SPEC == 60 &
@@ -196,6 +168,7 @@ fixHerringLengths <-function(GSDET_ = NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 rmSizeClasses <-function(GSCAT_= NULL){
+
   GSCAT_[is.na(GSCAT_$TOTNO),"TOTNO"]<-0
   GSCAT_[is.na(GSCAT_$TOTWGT),"TOTWGT"]<-0
   GSCAT_[is.na(GSCAT_$SAMPWGT),"SAMPWGT"]<-0
@@ -226,6 +199,7 @@ rmSizeClasses <-function(GSCAT_= NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 addDDCoords <- function(GSINF_=NULL){
+
   requireNamespace("Mar.utils", quietly = TRUE)
   GSINF_ <- Mar.utils::DDMMx_to_DD(df=GSINF_, format = "DDMMMM", lat.field = "ELAT", lon.field = "ELONG", WestHemisphere = T)
   colnames(GSINF_)[colnames(GSINF_)=="LAT_DD"] <- "ELAT_DD"
@@ -251,6 +225,7 @@ addDDCoords <- function(GSINF_=NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 roundDD2Min<-function(x=NULL, how = "round", nearestMin = 1, digits=4){
+
   minDD = 0.016666666666 #this is 1 min in DD
   base = nearestMin*minDD
   if (how =="round"){
@@ -272,6 +247,7 @@ roundDD2Min<-function(x=NULL, how = "round", nearestMin = 1, digits=4){
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
 valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
+
   #theData must include NAs (e.g. nullsets so that the means will include them)
   theData[is.na(theData)] <- 0
   ft2m = 0.3048
@@ -293,6 +269,7 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
 correctForTowDist <- function(df, col, towDist=1.75, distCol = "DIST"){
+
   if (!distCol %in% names(df)) stop(sprintf("Column '%s' not found in data frame", distCol))
   if (!col %in% names(df))     stop(sprintf("Column '%s' not found in data frame", col))
   if (!is.numeric(df[[col]]))  stop(sprintf("Column '%s' must be numeric", col))

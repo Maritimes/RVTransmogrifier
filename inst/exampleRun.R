@@ -82,7 +82,7 @@ echinoderms_summer_2016_agg$GSCAT |> filter(SETNO== 122)
 plotRV(echinoderms_summer_2016_agg)
 
 #We can also stratify the values of this group, in the same way we would do it for a single species
-echinoderms_summer_2016_agg_stratified <- stratify(echinoderms_summer_2016_agg)
+echinoderms_summer_2016_agg_stratified <- stratify_simple(echinoderms_summer_2016_agg)
 # echinoderms_summer_2016_agg_stratified |> head()
 # TAXA_ STRAT    AREA_KM COUNT TOTWGT_sum TOTNO_sum TOTWGT_mean TOTNO_mean TOTWGT_SE   TOTNO_SE
 # ECHINODERMATA   440  3169.2276     4     12.068      1946     3.01700  486.50000   1.60855  275.92466
@@ -100,7 +100,7 @@ echinoderms_summer_2016_agg_stratified <- stratify(echinoderms_summer_2016_agg)
 #              16.81935             265.68455  31500.94558    328711.12813   59015.52840    932230.68112
 
 plotRV(tblList = echinoderms_summer_2016_agg, catchStrataData = echinoderms_summer_2016_agg_stratified, plotCatchStrata = "ABUNDANCE", plotSets = NULL)
-plotRV(tblList = echinoderms_summer_2016_agg, catchStrataData = echinoderms_summer_2016_agg_stratified, plotCatchStrata = "BIOMASS", plotSets = NULL)
+plotRV(tblList = echinoderms_summer_2016_agg, catchStrataData = echinoderms_summer_2016_agg_stratified$stratified_byStrat, plotCatchStrata = "BIOMASS", plotSets = NULL)
 
 calcTotalSE(theDataByStrat = polychaetes_2016_transmogrified_agg_stratified, valueField = "BIOMASS", areaField = "AREA_KM2")
 polychaetes_2016_transmogrified_agg_stratified$BIOMASS

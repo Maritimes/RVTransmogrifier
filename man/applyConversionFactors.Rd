@@ -4,9 +4,14 @@
 \alias{applyConversionFactors}
 \title{applyConversionFactors}
 \usage{
-applyConversionFactors(tblList)
+applyConversionFactors(cxn = NULL, tblList)
 }
 \arguments{
+\item{cxn}{A valid Oracle connection object. This parameter allows you to 
+pass an existing connection, reducing the need to establish a new connection 
+within the function. If provided, it takes precedence over the connection-
+related parameters.}
+
 \item{tblList}{the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.}
 }
 \value{

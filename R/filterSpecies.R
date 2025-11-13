@@ -11,14 +11,13 @@
 #' enter the aphiaid here.
 #' @param taxa the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
 #' "PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})
-#' @param keep_nullsets the default is \code{TRUE}.
+#' @param debug the default is \code{FALSE}.
 #' @returns a list of filtered versions of the dataframes passed as \code{tblList}. If the
 #' filtering fails, a value of -1 will be returned. For example, if data is filtered for a year
 #' where data was not collected, a strata that doesn't exist, or a species that was not observed
 #' would all result in a value of -1 being returned.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-#' @param ... other arguments passed to methods (i.e. 'debug' and 'quiet')
 filterSpecies <- function(tblList = NULL, code = NULL, aphiaid = NULL, taxa = NULL, debug = FALSE){
 
   if (!is.null(aphiaid)) {
@@ -87,8 +86,8 @@ filterSpecies <- function(tblList = NULL, code = NULL, aphiaid = NULL, taxa = NU
   }
   tblList$GSSPECIES_NEW <- req_Spp
   if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
-    tblList$GSCAT    <- merge(tblList$GSCAT, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
-    tblList$GSDET      <- merge(tblList$GSDET, tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")], by.x="SPEC", by.y="CODE")
+    tblList$GSCAT    <- merge(tblList$GSCAT, distinct(tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")]), by.x="SPEC", by.y="CODE")
+    tblList$GSDET      <- merge(tblList$GSDET, distinct(tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")]), by.x="SPEC", by.y="CODE")
   }
   return(tblList)
 }

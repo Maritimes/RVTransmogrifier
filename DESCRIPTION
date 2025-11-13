@@ -8,15 +8,19 @@ Depends:
     R (>= 4.1.0)
 Imports:
   dplyr,
+  geosphere, 
   ggplot2,
   lubridate,
   Mar.utils,
-  tidyr,
+  sf,
   stats,
-  sf
-Suggests:
+  suncalc,
+  tidyr,
   utils
+Suggests:
+  Mar.data,
 Remotes:
+  Maritimes/Mar.data,
   Maritimes/Mar.utils
 Encoding: UTF-8
 License: MIT + file LICENSE

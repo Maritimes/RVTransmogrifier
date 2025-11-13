@@ -2,32 +2,19 @@
 #' @description A survey is a defined by a combination of a range of months, a selection of strata, 
 #' and a tow 'type'. This function ensures that all those values are combined correctly to get the 
 #' valid data for a survey.
+#' @param cxn A valid Oracle connection object. This parameter allows you to 
+#' pass an existing connection, reducing the need to establish a new connection 
+#' within the function. If provided, it takes precedence over the connection-
+#' related parameters.
 #' @param force.extract the default is \code{FALSE}.
-#' @param survey the default is \code{NULL}. This specifies which survey should be extracted.  Valid
-#' values are:
-#' \itemize{
-#' \item \code{4X} - Type 1; Spring (i.e. months 1:4); 2008+; specific strata 
-#' \item \code{GEORGES} - Type 1; Spring (i.e. months 1:4); strata 5Z*
-#' \item \code{SPRING} - Type 1; Spring (i.e. months 1:4); pre-2008; specific strata 
-#' \item \code{4VSW}  - Type 1; Spring (i.e. months 1:4); 4VSW strata;  
-#' \item \code{SUMMER} - Type 1; Summer (i.e. months 5:8); strata 440:495 - the "standard" strata
-#' \item \code{SUMMER_ALL} - Type 1; Summer (i.e. months 5:8); strata 434:559+5Z*
-#' \item \code{FALL} - Type 1; Fall (i.e. months 9:12)
-#' }
-#' @param years the default is \code{NULL}. This parameter allows you to generate datasets for one or
-#' more specific years.  A value of NULL will result in products being generated for all years for
-#' which data exists, and a vector of years will result in dataset that include the specified years.
-#' @param missions the default is \code{NULL}. A vector of 1 or more missions can be passed to this function, and the 
-#' data will be filtered to only that/those missions (via GSMISSIONS$MISSION)
-#' @param types the default is \code{1}.  "Valid" survey tows (i.e. type = "1") are those 
-#' tows that fished correctly, and can be used confidently while calculating values such as biomass and abundance.  Any 
-#' other valid values can be submitted as a vector.
 #' @param ... other arguments passed to methods (i.e. 'keep_nullsets', debug' and 'quiet')
 #' @returns a list of dataframes which have been filtered to only include data related to the 
 #' specified survey and years
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom dplyr left_join mutate select
 #' @export
 loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
+
   args <- list(...)
   newE <- new.env()
   if (is.null(args$debug)) args$debug <- FALSE
@@ -75,20 +62,6 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
                     mutate(AREA_KM2 = sqNMToSqKm(AREA_KM2)),
                   by="STRAT")
     }
-    # if ("GSSPECIES_NEW" %in% missingTables | force.extract){
-    #   newE$GSSPECIES_NEW <- makeGSSPECIES_NEW(GSSPECIES_ANDES_ = newE$GSSPECIES_ANDES, 
-    #                                           GSSPECIES_ = newE$GSSPECIES, 
-    #                                           GSSPEC_ = newE$GSSPEC,
-    #                                           GSSPECIES_CHANGES_ = newE$GSSPECIES_CHANGES)
-    #   assign("GSSPECIES_NEW", newE$GSSPECIES_NEW, envir = .GlobalEnv)
-    #   rm(list = c("GSSPEC", "GSSPECIES_ANDES", "GSSPECIES", "GSSPECIES_CHANGES"), envir = newE)
-    #   file.remove(file.path(get_pesd_rvt_dir(), c(
-    #     "GROUNDFISH.GSSPEC.RData",
-    #     "GROUNDFISH.GSSPECIES.RData",
-    #     "GROUNDFISH.GSSPECIES_ANDES.RData",
-    #     "GROUNDFISH.GSSPECIES_CHANGES.RData"
-    #   )))
-    # }
 
   lapply(names(newE), function(x) {
     Mar.utils::save_encrypted(

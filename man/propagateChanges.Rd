@@ -29,6 +29,18 @@ presence/absence of species changes the returned set locations. If \code{FALSE},
 returned records will be directly linkable to the user-filtered records. If \code{TRUE}, set 
 locations will still be returned, even if a particular species was not caught there.}
 
+\item{survey}{the default is \code{NULL}. This specifies which survey should be extracted.  Valid
+values are:
+\itemize{
+\item \code{4X} - Type 1; Spring (i.e. months 1:4); 2008+; specific strata 
+\item \code{GEORGES} - Type 1; Spring (i.e. months 1:4); strata 5Z*
+\item \code{SPRING} - Type 1; Spring (i.e. months 1:4); pre-2008; specific strata 
+\item \code{4VSW}  - Type 1; Spring (i.e. months 1:4); 4VSW strata;  
+\item \code{SUMMER} - Type 1; Summer (i.e. months 5:8); strata 440:495 - the "standard" strata
+\item \code{SUMMER_ALL} - Type 1; Summer (i.e. months 5:8); strata 434:559+5Z*
+\item \code{FALL} - Type 1; Fall (i.e. months 9:12)
+}}
+
 \item{years}{the default is \code{NULL}. A vector of 1 or more years can be passed to this function, and the data 
 will be filtered to only that/those years  (via GSMISSIONS$YEAR).}
 
@@ -47,7 +59,16 @@ data will be filtered to only that/those set types (via GSINF$TYPE)}
 \item{areas}{the default is \code{NULL}. A vector of 1 or more areas can be passed to this function, and the 
 data will be filtered to only that/those set types (via GSINF$AREA)}
 
-\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet').}
+\item{code}{the default is \code{NULL}. If data should be limited to a particular species, enter
+the species code here}
+
+\item{aphiaid}{the default is \code{NULL}. If data should be limited to a particular aphiaid,
+enter the aphiaid here.}
+
+\item{taxa}{the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
+"PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})}
+
+\item{debug}{the default is \code{FALSE}.}
 }
 \value{
 a list of filtered versions of the dataframes passed as \code{tblList}. If the

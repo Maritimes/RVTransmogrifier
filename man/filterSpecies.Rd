@@ -25,9 +25,7 @@ enter the aphiaid here.}
 \item{taxa}{the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
 "PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})}
 
-\item{keep_nullsets}{the default is \code{TRUE}.}
-
-\item{...}{other arguments passed to methods (i.e. 'debug' and 'quiet')}
+\item{debug}{the default is \code{FALSE}.}
 }
 \value{
 a list of filtered versions of the dataframes passed as \code{tblList}. If the
