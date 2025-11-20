@@ -21,22 +21,29 @@
 #' related parameters.
 #' @param data.dir  The default is \code{NULL}. This is the path to your Mar.datawrangling
 #' rdata files
+#' @param path  the default is \code{NULL}. This is the path where you would like your output files created.
 #' @param debug  The default is \code{F}. Setting this to TRUE will limit the 
 #' results to a single set for a single species. 
 #' @return a list containing (named) objects - 1 for each generated HH file
 #' @family DATRAS
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom dplyr rowwise mutate ungroup select across where
+#' @importFrom lubridate year month day make_datetime
 #' @importFrom suncalc getSunlightTimes
 #' @importFrom geosphere bearingRhumb
+#' @importFrom stats aggregate
+#' @importFrom utils write.table write.csv
 #' @export
 #'
 extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
                        cxn = NULL,
-                       data.dir = NULL,
+                       data.dir = NULL, path = NULL,
                        debug = F){
-  stop(
-    "extractDATRAS has not yet been enabled"
-  )
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE)
+    message("Created directory: ", path)
+  }
+  if (is.null(path))path<-getwd()
   timestamp<-format(Sys.time(), "%Y%m%d_%H%M")
   Sys.setenv(TZ = "America/Halifax")
   scratch_env = new.env()
@@ -64,7 +71,7 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
               "SPECCODE","AREATYPE","AREACODE","LNGTCODE","LNGTCLASS","SEX",
               "MATURITY","PLUSGR","AGERINGS","CANOATLNGT","INDWGT",
               "MATURITYSCALE","FISHID","GENSAMP","STOMSAMP","AGESOURCE",
-              "AGEPREPMET","OTGRADING","PARSAMP") #"GEAREXP",
+              "AGEPREPMET","OTGRADING","PARSAMP","LIVERWEIGHT") #"GEAREXP",
   round2 = function(x, n) {
     #this function ensures that values ending in 0.5 are round up to the next integer - not down to zero (R's default)
     posneg = sign(x)
@@ -103,33 +110,16 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
   
 
   
-  getRaw<-function(years=NULL, survey=NULL,
-                   cxn = cxn,
-                   data.dir = data.dir){
-    scratch_env <- loadRVData(cxn = cxn, survey = survey, years = years, types = 1, debug = debug)    
-
-   tmpE <- new.env()
-    Mar.utils::get_data_tables(schema = "GROUNDFISH",cxn =cxn,  tables = c("GS_LV1_OBSERVATIONS"), data.dir = data.dir, env = tmpE)
-    scratch_env[["GS_LV1_OBSERVATIONS"]] <- tmpE[["GS_LV1_OBSERVATIONS"]]
-    scratch_env$GSMISSIONS = scratch_env$GSMISSIONS[scratch_env$GSMISSIONS$YEAR == years,]
-    scratch_env <- propagateChanges(tblList = scratch_env)
-   
-    # unkSpp <-  scratch_env$GSSPECIES_NEW[!(scratch_env$GSSPECIES_NEW$CODE %in% scratch_env$GSSPECIES_CODES[!is.na(scratch_env$GSSPECIES_CODES$APHIAID),"CODE"]), c("CODE", "COMM", "SPEC")]
-    # badSpp1 <- unique(scratch_env$GSCAT[scratch_env$GSCAT$SPEC %in% unkSpp$CODE,"SPEC"])
-    # badSpp2 <- unique(scratch_env$GSDET[scratch_env$GSDET$SPEC %in% unkSpp$CODE,"SPEC"])
-    # allBad <- unique(c(badSpp1, badSpp2))
-    # if (length(allBad)>0){
-    #   fullnmSpp <- gsub(".csv", "_sppMissing.csv", fullnm)
-    #   theSppFile <- file.create(fullnmSpp)
-    #   suppressWarnings(utils::write.table(x = scratch_env$GSSPECIES_NEW[scratch_env$GSSPECIES_NEW$CODE %in% allBad, c("CODE", "COMM", "SPEC")], file = fullnmSpp, row.names = F, col.names = T, quote = FALSE, sep = ","))
-    #   message("\nA file was generated containing species names reported in the catch that don't have aphiaids (", fullnmSpp,")")
-    #   scratch_env$GSSPECIES_NEW<-scratch_env$GSSPECIES_NEW[!(scratch_env$GSSPECIES_NEW$CODE %in% allBad),]
-    #   scratch_env$GSCAT<-scratch_env$GSCAT[!(scratch_env$GSCAT$SPEC %in% allBad),]
-    #   scratch_env$GSDET<-scratch_env$GSDET[!(scratch_env$GSDET$SPEC %in% allBad),]
-    #   Mar.datawrangling::self_filter(keep_nullsets = T, env = scratch_env, quiet = T)
-    # }
-    return(scratch_env)
-  }
+  # getRaw<-function(years=NULL, survey=NULL, cxn = cxn, data.dir = data.dir){
+  #   scratch_env <- loadRVData(cxn = cxn, survey = survey, years = years, types = 1, debug = debug)    
+  # 
+  #  tmpE <- new.env()
+  #   Mar.utils::get_data_tables(schema = "GROUNDFISH",cxn =cxn,  tables = c("GS_LV1_OBSERVATIONS"), data.dir = data.dir, env = tmpE)
+  #   scratch_env[["GS_LV1_OBSERVATIONS"]] <- tmpE[["GS_LV1_OBSERVATIONS"]]
+  #   scratch_env$GSMISSIONS = scratch_env$GSMISSIONS[scratch_env$GSMISSIONS$YEAR == years,]
+  #   scratch_env <- propagateChanges(tblList = scratch_env)
+  #   return(scratch_env)
+  # }
   
   Mar_HH <- function(scratch_env = NULL, survey = NULL){
     cat("\n","Generating HH...")
@@ -281,17 +271,18 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
         # Universal Maritime Gear Constants ---------------------------------------
         df[,c("KITEDIM","TICKLER", "GEAREXP","RIGGING")] <- data.frame(-9,-9,-9,"BM")
         # Universal Western 2A Constants ------------------------------------------
-        if (nrow(df[df$gear %in% 9, ]) > 0) df[df$gear ==9,c("GEAR","WINGSPREAD","DOORSPREAD", "DOORSURFACE","DOORWGT","NETOPENING","DOORTYPE")] <- data.frame("W2A",12.5,42.3672,4,950,4.57,"PE") #Doortype should be "PORTUGUESE"
+        if (nrow(df[df$gear %in% 9, ]) > 0) df[df$gear %in% 9,c("GEAR","WINGSPREAD","DOORSPREAD", "DOORSURFACE","DOORWGT","NETOPENING","DOORTYPE")] <- data.frame("W2A",12.5,42.3672,4,950,4.57,"PE") #Doortype should be "PORTUGUESE"
         # year-specific changes for W2A -------------------------------------------
-        if (nrow(df[df$gear == 9 & df$YEAR >= 1982 & df$YEAR < 2007, ]) > 0)  df[df$gear ==9 & (df$YEAR >= 1982 &  df$YEAR < 2007), c("WARPDIA")] <-28.6      
-        if (nrow(df[df$gear == 9 & df$YEAR >= 2007 & df$YEAR < 2012, ]) > 0)  df[df$gear ==9 & (df$YEAR >= 2007 &  df$YEAR < 2012), c("WARPDIA","WARPDEN","WGTGROUNDROPE")] <-data.frame(25.4,3.17,52.6694)
-        if (nrow(df[df$gear == 9 & df$YEAR < 2007, ]) > 0)   df[df$gear ==9 & df$YEAR <  2007, c("SWEEPLNGT","BUOYANCY")] <-data.frame(round(37.7952,0), round(195.16,0))
-        if (nrow(df[df$gear == 9 & df$YEAR >= 2007, ]) > 0) df[df$gear ==9 & df$YEAR >= 2007, c("SWEEPLNGT","BUOYANCY")] <-data.frame(round(33.8328,0), round(199.68))
+
+        if (nrow(df[df$gear %in%  9 & df$YEAR >= 1982 & df$YEAR < 2007, ]) > 0)  df[df$gear %in% 9 & (df$YEAR >= 1982 &  df$YEAR < 2007), c("WARPDIA")] <-28.6      
+        if (nrow(df[df$gear %in%  9 & df$YEAR >= 2007 & df$YEAR < 2012, ]) > 0)  df[df$gear %in% 9 & (df$YEAR >= 2007 &  df$YEAR < 2012), c("WARPDIA","WARPDEN","WGTGROUNDROPE")] <-data.frame(25.4,3.17,52.6694)
+        if (nrow(df[df$gear %in%  9 & df$YEAR < 2007, ]) > 0)   df[df$gear %in% 9 & df$YEAR <  2007, c("SWEEPLNGT","BUOYANCY")] <-data.frame(round(37.7952,0), round(195.16,0))
+        if (nrow(df[df$gear %in%  9 & df$YEAR >= 2007, ]) > 0) df[df$gear %in% 9 & df$YEAR >= 2007, c("SWEEPLNGT","BUOYANCY")] <-data.frame(round(33.8328,0), round(199.68))
         
         # Yankee 36 Constants -----------------------------------------------------
-        if (nrow(df[df$gear %in% 3, ]) > 0) df[df$gear ==3,c("GEAR","WINGSPREAD","DOORSPREAD", "DOORSURFACE","DOORWGT","NETOPENING","DOORTYPE","SWEEPLNGT", "BUOYANCY","WARPDIA","WARPDEN","WGTGROUNDROPE")] <- data.frame( "Y36",10.7,36.6,2.9,450,2.7,"WR", 36.6, 97.58, 20, -9, -9)  
+        if (nrow(df[df$gear %in% 3, ]) > 0) df[df$gear  %in% 3,c("GEAR","WINGSPREAD","DOORSPREAD", "DOORSURFACE","DOORWGT","NETOPENING","DOORTYPE","SWEEPLNGT", "BUOYANCY","WARPDIA","WARPDEN","WGTGROUNDROPE")] <- data.frame( "Y36",10.7,36.6,2.9,450,2.7,"WR", 36.6, 97.58, 20, -9, -9)  
         # US 4 Seam Constants -----------------------------------------------------
-        if (nrow(df[df$gear %in% 15, ]) > 0) df[df$gear ==15,c("GEAR","WINGSPREAD","DOORSPREAD", "DOORSURFACE","DOORWGT","NETOPENING","DOORTYPE","SWEEPLNGT", "BUOYANCY","WARPDIA","WARPDEN","WGTGROUNDROPE")] <- data.frame( "US4",12.6,33.5,2.2,550,3.7,"PI" ,36.6,-9, -9, -9, -9)  #Doortype should be "PolyIceOval"
+        if (nrow(df[df$gear %in% 15, ]) > 0) df[df$gear  %in% 15,c("GEAR","WINGSPREAD","DOORSPREAD", "DOORSURFACE","DOORWGT","NETOPENING","DOORTYPE","SWEEPLNGT", "BUOYANCY","WARPDIA","WARPDEN","WGTGROUNDROPE")] <- data.frame( "US4",12.6,33.5,2.2,550,3.7,"PI" ,36.6,-9, -9, -9, -9)  #Doortype should be "PolyIceOval"
         if (nrow(df)>0) df$gear <- NULL #by the time we get here, we can delete this field
         return(df)
       }
@@ -386,7 +377,9 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
                  'BOTCURDIR','BOTCURSPEED','WINDDIR','WINDSPEED','SWELLDIR',
                  'SWELLHEIGHT','SURTEMP','BOTTEMP','SURSAL','BOTSAL',
                  'THERMOCLINE','THCLINEDEPTH','mission')]
-      df[is.na(df)]<- -9
+      df <- df |> 
+        dplyr::mutate(across(where(is.numeric), ~ifelse(is.na(.), -9, .))) |> 
+        dplyr::mutate(across(where(is.character), ~ifelse(is.na(.), "-9", .)))
       return(df)
     }
     # Get all of the requested data
@@ -594,10 +587,7 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
         df$AGEPREPMET <- -9 #Age reading preparation method
         return(df)
       }
-      # addPreStomSamp <-function(df=NULL){
-      #   return(df)
-      #   
-      # }
+
       handleDetSpecies<-function(df = NULL){
         #herring were recorded in mm starting SUMMER 2016 - this converts cm to mm
         if (nrow(df[which(df$SPEC == 60 & (substr(df$MISSION, 4,7) <2016 | (df$MISSION %in% c("TEL2016002","TEL2016003")))),])>0){
@@ -608,7 +598,6 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       }
       
       df<-scratch_env$GSDET[,names(scratch_env$GSDET) %in% c("MISSION", "SETNO", "SPEC", "FSHNO", "FMAT", "FLEN", "CLEN","FWT", "FSEX", "SIZE_CLASS","AGE","SPECIMEN_ID")]
-      # colnames(df)[colnames(df)=="SIZE_CLASS"] <- "CATIDENTIFIER"
       df <- addSexCodes(df)
       df <- addMaturity(df)
       df <- addAges(df)
@@ -729,16 +718,19 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       cat(paste0("\n","Working on ", years[y], " ",survey[s]))
       nm = paste0(survey[s],"_",years[y])
       fullnm <- paste0(nm,"_",timestamp,".csv")
-      tmp_env <- getRaw(years=years[y], survey = survey[s],
-                        cxn = cxn,
-                        data.dir = data.dir)
+      tmp_env <- loadRVData(cxn=cxn, survey=survey, years = years)
+      tmp=new.env()
+      Mar.utils::get_data_tables(schema = "GROUNDFISH",cxn=cxn, data.dir = get_pesd_rvt_dir(), tables = "GS_LV1_OBSERVATIONS", env = tmp)
+      tmp_env$GS_LV1_OBSERVATIONS <- tmp$GS_LV1_OBSERVATIONS
       
+      tmp_env$GS_LV1_OBSERVATIONS<- tmp_env$GS_LV1_OBSERVATIONS[tmp_env$GS_LV1_OBSERVATIONS$MISSION %in% tmp_env$GSMISSIONS$MISSION &
+                                                                  tmp_env$GS_LV1_OBSERVATIONS$SPEC %in% tmp_env$GSSPECIES_NEW$CODE,]
       #convert gscat values to grams (gsdet already in g)
       if (nrow(tmp_env$GSINF)==0){
         message("\nNo data found matching parameters")
         theFile <- file.create(fullnm)
         results[[nm]]<-NA
-        utils::write.csv(x = NA, file = paste0(fullnm,"_noResults.csv"), row.names = F)
+        utils::write.csv(x = NA, file = file.path(path,paste0(fullnm,"_noResults.csv")), row.names = F)
         next
       }
       tmp_env$GSCAT$SAMPWGT <- tmp_env$GSCAT$SAMPWGT*1000
@@ -751,8 +743,8 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       tmp_HL$RECORDTYPE <- "HL"
       
       tmp_CA <- Mar_CA(scratch_env = tmp_env)
-      tmp_CA<-merge(tmp_HH[,c("mission","QUARTER","COUNTRY","SHIP","GEAR","SWEEPLNGT","GEAREXP","DOORTYPE","STNO","HAULNO","YEAR","DEPTHSTRATUM")], tmp_CA, all.y = T)
-      
+      tmp_CA<-merge(tmp_HH[,c("mission","QUARTER","COUNTRY","SHIP","GEAR","SWEEPLNGT","GEAREXP","DOORTYPE","STNO","HAULNO","YEAR","DEPTHSTRATUM")], 
+                    tmp_CA, all.y = T)
       tmp_HL$LNGTCODE <- as.character(tmp_HL$LNGTCODE) 
       tmp_HL$LNGTCODE <- gsub('0.1', '.', tmp_HL$LNGTCODE)
       tmp_CA$LNGTCODE <- as.character(tmp_CA$LNGTCODE) 
@@ -788,7 +780,9 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
       ord_CA<-ord_CA[ord_CA %in% names(tmp_CA)]
       tmp_HH<-tmp_HH[,ord_HH]
       tmp_HL<-tmp_HL[,ord_HL]
+      tmp_CA$LIVERWEIGHT <- -9
       tmp_CA<-tmp_CA[,ord_CA]
+
       if (debug){
         cat("Just getting 1 set and 1 species","\n")
         CAsp =stats::aggregate(tmp_CA$SPECCODE,
@@ -799,7 +793,6 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
                                length
         )
         CAspMAX <- CAsp[which.max(CAsp$x),]
-        # tmp_CA <- 
         tmp_CA <- tmp_CA[tmp_CA$STNO == CAspMAX$STNO & tmp_CA$SPECCODE == CAspMAX$SPECCODE, ]
         tmp_HL <- tmp_HL[tmp_HL$STNO == CAspMAX$STNO & tmp_HL$SPECCODE == CAspMAX$SPECCODE, ]
         tmp_HH <- tmp_HH[tmp_HH$STNO == CAspMAX$STNO, ]
@@ -813,7 +806,8 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
                          "SecchiDepth", "Turbidity", "TidePhase", "TideSpeed", "PelSampType", "MinTrawlDepth", "MaxTrawlDepth")
       
       names(tmp_HL) <- c("RecordType", "Quarter", "Country", "Ship", "Gear", "SweepLngt", "GearEx", "DoorType", "StNo", "HaulNo", "Year", "SpecCodeType", "SpecCode", "SpecVal", "Sex", "TotalNo", "CatIdentifier", "NoMeas", "SubFactor", "SubWgt", "CatCatchWgt", "LngtCode", "LngtClass", "HLNoAtLngt", "DevStage", "LenMeasType")
-      names(tmp_CA) <- c("RecordType", "Quarter", "Country", "Ship", "Gear", "SweepLngt", "GearEx", "DoorType", "StNo", "HaulNo", "Year", "SpecCodeType", "SpecCode", "AreaType", "AreaCode", "LngtCode", "LngtClass", "Sex", "Maturity", "PlusGr", "AgeRings", "CANoAtLngt", "MaturityScale", "FishID", "GenSamp", "StomSamp", "AgeSource", "AgePrepMet", "OtGrading", "ParSamp", "LiverWeight")
+      message("added 'tmp_CA' below, but need to ensure data is present")
+      names(tmp_CA) <- c("RecordType", "Quarter", "Country", "Ship", "Gear", "SweepLngt", "GearEx", "DoorType", "StNo", "HaulNo", "Year", "SpecCodeType", "SpecCode", "AreaType", "AreaCode", "LngtCode", "LngtClass", "Sex", "Maturity", "PlusGr", "AgeRings", "CANoAtLngt", "IndWgt","MaturityScale", "FishID", "GenSamp", "StomSamp", "AgeSource", "AgePrepMet", "OtGrading", "ParSamp", "LiverWeight")
       
       # colnames(tmp_HH)[colnames(tmp_HH)=="GEAREXP"] <- "GEAREX"
       # colnames(tmp_HL)[colnames(tmp_HL)=="GEAREXP"] <- "GEAREX"
@@ -829,15 +823,15 @@ extractDATRAS <- function(years=NULL, survey=NULL, csv =T,
         
         if(csv){
           theFile <- file.create(fullnmShip)
-          suppressWarnings(utils::write.table(x = this_tmp_HH, file = fullnmShip, row.names = F, col.names = T, quote = FALSE, sep = ","))
-          suppressWarnings(utils::write.table(x = this_tmp_HL, file = fullnmShip, row.names = F, col.names = T, quote = FALSE, sep = ",", append = T))
-          suppressWarnings(utils::write.table(x = this_tmp_CA, file = fullnmShip, row.names = F, col.names = T, quote = FALSE, sep = ",", append = T))
+          suppressWarnings(utils::write.table(x = this_tmp_HH, file = file.path(path,fullnmShip), row.names = F, col.names = T, quote = FALSE, sep = ","))
+          suppressWarnings(utils::write.table(x = this_tmp_HL, file = file.path(path,fullnmShip), row.names = F, col.names = T, quote = FALSE, sep = ",", append = T))
+          suppressWarnings(utils::write.table(x = this_tmp_CA, file = file.path(path,fullnmShip), row.names = F, col.names = T, quote = FALSE, sep = ",", append = T))
           if (debug){
             utils::write.csv(x = this_tmp_HH, file = paste0(gsub(pattern = ".csv", replacement = "", x = fullnmShip),"_HH_debug.csv"), row.names = F)
             utils::write.csv(x = this_tmp_HL, file = paste0(gsub(pattern = ".csv", replacement = "", x = fullnmShip),"_HL_debug.csv"), row.names = F) 
             utils::write.csv(x = this_tmp_CA, file = paste0(gsub(pattern = ".csv", replacement = "", x = fullnmShip),"_CA_debug.csv"), row.names = F)
           }
-          cat("\n",paste0("File written to ", getwd(),"/", fullnmShip))
+          cat("\n",paste0("File written to ", file.path(path,fullnmShip)))
         }
         thisyrShp <- list(HH = this_tmp_HH, HL = this_tmp_HL, CA = this_tmp_CA)
         results[[nmShip]]<-thisyrShp

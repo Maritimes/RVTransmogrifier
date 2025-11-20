@@ -10,6 +10,7 @@ extractDATRAS(
   csv = T,
   cxn = NULL,
   data.dir = NULL,
+  path = NULL,
   debug = F
 )
 }
@@ -38,6 +39,8 @@ related parameters.}
 
 \item{data.dir}{The default is \code{NULL}. This is the path to your Mar.datawrangling
 rdata files}
+
+\item{path}{the default is \code{NULL}. This is the path where you would like your output files created.}
 
 \item{debug}{The default is \code{F}. Setting this to TRUE will limit the 
 results to a single set for a single species.}

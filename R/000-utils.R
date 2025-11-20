@@ -259,23 +259,3 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   res = round(res,4)
   return(res)
 }
-#' @title correctForTowDist
-#' @description Standardize catch values to a common tow distance. Creates a "_RAW" version of the original field and adjusts values proportionally to the standard tow distance.
-#' @param df the default is \code{NULL}. A data frame containing catch and distance data.
-#' @param col the default is \code{NULL}. The name of the column containing values to be standardized.
-#' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles.
-#' @param distCol the default is \code{"DIST"}. The name of the column containing actual tow distances.
-#' @return The input data frame with the specified column standardized and a new "_RAW" column containing original values.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @export
-correctForTowDist <- function(df, col, towDist=1.75, distCol = "DIST"){
-
-  if (!distCol %in% names(df)) stop(sprintf("Column '%s' not found in data frame", distCol))
-  if (!col %in% names(df))     stop(sprintf("Column '%s' not found in data frame", col))
-  if (!is.numeric(df[[col]]))  stop(sprintf("Column '%s' must be numeric", col))
-  rawCol <- paste0(col,"_RAW")
-  df[[rawCol]] <- df[[col]]
-  df[[distCol]][is.na(df[[distCol]])] <- towDist
-  df[[col]] <- round(df[[rawCol]] * (towDist / df[[distCol]]), 7)
-  return(df)
-}

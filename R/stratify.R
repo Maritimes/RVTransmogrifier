@@ -182,6 +182,61 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   ))
 }
 
+#' @title widen_length_data
+#' @description Transform length frequency data from long to wide format, with length bins as columns. This function bins fish length data according to a specified bin size, aggregates a chosen value column within each bin, and creates a wide-format table where each length bin becomes a separate column. Can operate at either set-level (individual tows) or strata-level (aggregated across sets). Missing length bins are filled with zeros to ensure complete coverage across the length range.
+#' @param data A data frame containing length frequency data. Must include columns: FLEN (fish length), STRAT (stratum), AREA_KM2 (area), SPEC (species code), and the column specified in value_col. For set-level data, must also include MISSION and SETNO.
+#' @param value_col The name of the column to aggregate and pivot. Common options include "CLEN_TOTAL", "CLEN_MEAN", "CLEN_SE", "CLEN_STRAT_TOTAL", or "CLEN_SQKM_SE".
+#' @param bin_size the default is \code{1}. The width of length bins. Length values are binned using the formula: 1 + bin_size * floor(FLEN / bin_size).
+#' @param level the default is \code{c("strata", "set")}. Specifies the aggregation level. "set" includes MISSION and SETNO in grouping; "strata" aggregates across all sets within each stratum.
+#' @return A wide-format data frame with columns for grouping variables (STRAT, AREA_KM2, SPEC, and optionally MISSION/SETNO) and FLEN_* columns (one per length bin). Rows are sorted by STRAT (and MISSION, SETNO for set-level data).
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @examples \dontrun{
+#' result5 <- widen_length_data(testData_strat_det$length_set, value_col = "CLEN_TOTAL",  bin_size = 3,level = "set")
+#' result1 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_MEAN", bin_size = 1,level = "strat")
+#' result2 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_SE", bin_size = 1,level = "strat")
+#' result3 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_STRAT_TOTAL", bin_size = 1,level = "strat")
+#' result4 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_SQKM_SE", bin_size = 1,level = "strat")
+#' }
+#' @importFrom dplyr mutate summarise arrange all_of across .data
+#' @importFrom tidyr complete nesting pivot_wider
+#' @importFrom rlang syms
+#' @importFrom stats setNames
+#' @note The binning formula (1 + bin_size * floor(FLEN / bin_size)) matches the DFO standard used in Oracle queries. For bin_size=3, this creates bins at 4, 7, 10, 13, etc.
+#' @export
+widen_length_data <- function(data, value_col, bin_size = 1, level = c("strata", "set")) {
+  level <- match.arg(level)
+  
+  min_flen <- min(data$FLEN)
+  max_flen <- max(data$FLEN)
+  
+  fill_list <- setNames(list(0), value_col)
+  
+  if (level == "set") {
+    group_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC", "FLEN_BIN")
+    nesting_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC")
+    arrange_vars <- c("STRAT", "MISSION", "SETNO")
+  } else {
+    group_vars <- c("STRAT", "AREA_KM2", "SPEC", "FLEN_BIN")
+    nesting_vars <- c("STRAT", "AREA_KM2", "SPEC")
+    arrange_vars <- "STRAT"
+  }
+  
+  data |>
+    mutate(FLEN_BIN = 1 + bin_size * floor(FLEN / bin_size)) |>
+    summarise("{value_col}" := sum(.data[[value_col]]), 
+              .by = all_of(group_vars)) |>
+    complete(nesting(!!!syms(nesting_vars)),
+             FLEN_BIN = seq(1 + bin_size * floor(min_flen / bin_size),
+                            1 + bin_size * floor(max_flen / bin_size),
+                            by = bin_size),
+             fill = fill_list) |>
+    pivot_wider(names_from = FLEN_BIN,
+                values_from = all_of(value_col),
+                names_prefix = "FLEN_",
+                values_fill = 0) |> 
+    arrange(across(all_of(arrange_vars)))
+}
+
 #' @title stratify_simple
 #' @description Calculate stratified estimates of biomass and abundance from RV survey data. This function handles taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with confidence intervals.
 #' @param tblList the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten.
@@ -229,8 +284,6 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
   df[is.na(df$TOTNO), "TOTNO"] <- 0
   df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   df[is.na(df$SIZE_CLASS), "SIZE_CLASS"] <- 1
-
-  df <- correctForTowDist(df, col = "TOTWGT", towDist = towDist_NM, distCol = "DIST")
   
   df$TOTWGT_sqkm <- valPerSqKm(df$TOTWGT, towDist_NM = df$DIST, netWidth_ft = df$WINGSPREAD_FT)
   df$TOTNO_sqkm <- valPerSqKm(df$TOTNO, towDist_NM = df$DIST, netWidth_ft = df$WINGSPREAD_FT)
@@ -329,6 +382,7 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
     ABUNDANCE_HIGH = round(ABUNDANCE_OVERALL$high, 1)
   )
   results$OVERALL_SUMMARY <- overall
+  
   return(results)
 }
 
@@ -342,10 +396,10 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
 #' @importFrom dplyr select left_join group_by summarise distinct
 #' @export
 
-stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE) {
+stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, bin_size=1) {
   
   results <- stratify_simple(tblList = tblList, towDist_NM = towDist)
-  
+
   totals <- standardize_catch_counts(tblList, towDist = towDist, by_sex = by_sex)
   
   strat_lookup <- results$stratified_bySet |>
@@ -397,8 +451,22 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE) {
       ) |>
       select(-CLEN_values, -CLEN_SQKM_values)
     
-    results$length_set <- length_complete
+    # results$length_set <- length_complete
     results$length_strat <- length_strat
+    
+    lenSet_mean <- widen_length_data(length_complete, value_col = "CLEN_TOTAL", bin_size = bin_size,level = "set")
+    #lenSet_total <- widen_length_data(length_complete, value_col = "CLEN_SQKM_TOTAL", bin_size = bin_size,level = "set")
+    lenStrat_mean <- widen_length_data(length_strat, value_col = "CLEN_MEAN", bin_size = bin_size,level = "strat")
+    lenStrat_se <- widen_length_data(length_strat, value_col = "CLEN_SE", bin_size = bin_size,level = "strat")
+    lenStrat_total <- widen_length_data(length_strat, value_col = "CLEN_STRAT_TOTAL", bin_size = bin_size,level = "strat")
+ 
+    
+    results$length_set_mean <- lenSet_mean
+    #results$length_set_total <- lenSet_total
+    results$length_mean <- lenStrat_mean
+    results$length_mean_se <- lenStrat_se
+    results$length_total <- lenStrat_total
+    
   }
   
   if (inherits(totals$age_total, "data.frame")) {

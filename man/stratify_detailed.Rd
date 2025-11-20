@@ -4,7 +4,7 @@
 \alias{stratify_detailed}
 \title{stratify_detailed}
 \usage{
-stratify_detailed(tblList, towDist = 1.75, by_sex = FALSE)
+stratify_detailed(tblList, towDist = 1.75, by_sex = FALSE, bin_size = 1)
 }
 \arguments{
 \item{tblList}{the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSDET.}

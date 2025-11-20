@@ -11,13 +11,15 @@
 #' @returns a list of dataframes which have been filtered to only include data related to the 
 #' specified survey and years
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @importFrom dplyr left_join mutate select
+#' @importFrom dplyr left_join select mutate
+#' @importFrom stats setNames
 #' @export
 loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
 
   args <- list(...)
   newE <- new.env()
   if (is.null(args$debug)) args$debug <- FALSE
+  if (is.null(args$keep_nullsets)) args$keep_nullsets <- TRUE
   
   missingTables <- coreTables[!file.exists(file.path(get_pesd_rvt_dir(), paste0("GROUNDFISH.", coreTables, ".RData")))]
   
@@ -85,7 +87,7 @@ tblList <- stats::setNames(lapply(df_names, get, envir = newE, inherits = FALSE)
 if (!all(sapply(list(args$survey, args$years, args$months,
                      args$missions, args$strata, args$types, args$areas,
                      args$code, args$aphiaid, args$taxa), is.null))){
-  tblList <- propagateChanges(tblList = tblList, keep_nullsets=T,
+  tblList <- propagateChanges(tblList = tblList, keep_nullsets=args$keep_nullsets,
                               survey = args$survey, years = args$years, months = args$months,  
                               missions = args$missions, strata = args$strata, types=args$types, areas= args$areas,
                               code = args$code, aphiaid = args$aphiaid, taxa = args$taxa, debug = args$debug)
