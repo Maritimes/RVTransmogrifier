@@ -22,8 +22,7 @@ calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
 
 calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
   totArea <- sum(theDataByStrat[[areaField]])
-  res <- sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2))
-  res <- round(res, 5)
+  res <- round(sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2)),5)
   return(res)
 }
 #' @title calcTotalMean
@@ -57,10 +56,13 @@ calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = 
 calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
   if(is_mean){
     value <- calcTotalMean(theDataByStrat, valueField, areaField)
-    se_val <- calcTotalSE_stratified(theDataByStrat, seField, areaField)
+    se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
+    se_val <- calcTotalSE_stratified(se_data, seField, areaField)
   } else {
-    value <- round(sum(theDataByStrat[[valueField]], na.rm = T), 5)
-    se_val <- calcTotalSE_unstratified(theDataByStrat, seField)
+    value <- round(sum(theDataByStrat[[valueField]], na.rm = TRUE), 5)
+    se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
+    se_val <- calcTotalSE_unstratified(se_data, seField)
+    
   }
   
   z_score <- qnorm(1 - (1 - level) / 2)
@@ -91,17 +93,19 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
 
 standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   if(!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) stop("Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead")
+  
   weight_data <- tblList$GSCAT |>
     select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPWGT, TOTWGT)
-
+  
   dist_data <- tblList$GSINF |>
     select(MISSION, SETNO, DIST, AREA_KM2, GEAR, WINGSPREAD_FT)
-
+  
   all_sets <- tblList$GSINF |>
     filter(TYPE == 1) |>
     select(MISSION, STRAT, SETNO, AREA_KM2) |>
     distinct()
-
+  
+  #ensure that NA FSEX are changed to 0, and anything recorded as "berried" is interpreted as female
   standardized_data <- tblList$GSDET |>
     left_join(weight_data, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")) |>
     left_join(dist_data, by = c("MISSION", "SETNO")) |>
@@ -110,6 +114,7 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
         is.na(TOTWGT) | is.na(SAMPWGT) | TOTWGT == 0 | SAMPWGT == 0 ~ 1,
         TRUE ~ TOTWGT / SAMPWGT
       ),
+      FSEX = if_else(is.na(FSEX), 0, if_else(FSEX == 3, 2, FSEX)),
       CLEN = CLEN * weight_ratio,
       CAGE = if_else(!is.na(AGE), CLEN, NA_real_),
       DIST = if_else(is.na(DIST), towDist, DIST),
@@ -121,14 +126,13 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
       CAGE_sqkm = if_else(!is.na(CAGE), valPerSqKm(CAGE, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT), NA_real_)
     ) |>
     select(-weight_ratio, -SAMPWGT, -TOTWGT, -SIZE_CLASS)
-
+  
   spec_only <- standardized_data |>
     select(SPEC) |>
     distinct()
-
+  
   base_groups <- c("MISSION", "SETNO", "SPEC")
   if (by_sex) base_groups <- c(base_groups, "FSEX")
-
   length_total <- if (any(!is.na(standardized_data$FLEN))) {
     length_data <- standardized_data |>
       filter(!is.na(FLEN)) |>
@@ -137,17 +141,30 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
         CLEN_SQKM_TOTAL = sum(CLEN_sqkm, na.rm = TRUE),
         .by = all_of(base_groups) |> c("FLEN")
       )
-
-    all_combos <- all_sets |>
-      cross_join(spec_only) |>
-      cross_join(length_data |> select(FLEN) |> distinct())
-
-    all_combos |>
+    if(by_sex){
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(length_data |> select(FLEN) |> distinct()) |> 
+        cross_join(length_data |> select(FSEX) |> distinct())
+      
+      all_combos |>
+        left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN","FSEX")) |>
+        mutate(
+          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+        )
+    }else{
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(length_data |> select(FLEN) |> distinct())
+      
+      all_combos |>
       left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN")) |>
       mutate(
         CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
         CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
       )
+    }
   } else {
     NA
   }
@@ -160,21 +177,36 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
         CAGE_SQKM_TOTAL = sum(CAGE_sqkm, na.rm = TRUE),
         .by = all_of(base_groups) |> c("AGE")
       )
-
-    all_combos <- all_sets |>
-      cross_join(spec_only) |>
-      cross_join(age_data |> select(AGE) |> distinct())
-
-    all_combos |>
-      left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE")) |>
-      mutate(
-        CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
-        CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
-      )
+    if(by_sex){
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(age_data |> select(AGE) |> distinct()) |> 
+        cross_join(length_data |> select(FSEX) |> distinct())
+      
+      all_combos |>
+        left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE","FSEX")) |>
+        mutate(
+          CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
+          CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
+        )
+      
+    } else{
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(age_data |> select(AGE) |> distinct())
+      
+      all_combos |>
+        left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE")) |>
+        mutate(
+          CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
+          CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
+        )
+    }  
+   
   } else {
     NA
   }
-
+  
   return(list(
     standardized_data = standardized_data,
     length_total = length_total,
@@ -188,24 +220,73 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
 #' @param value_col The name of the column to aggregate and pivot. Common options include "CLEN_TOTAL", "CLEN_MEAN", "CLEN_SE", "CLEN_STRAT_TOTAL", or "CLEN_SQKM_SE".
 #' @param bin_size the default is \code{1}. The width of length bins. Length values are binned using the formula: 1 + bin_size * floor(FLEN / bin_size).
 #' @param level the default is \code{c("strata", "set")}. Specifies the aggregation level. "set" includes MISSION and SETNO in grouping; "strata" aggregates across all sets within each stratum.
+#' @param by_sex the default is \code{F}.   
 #' @return A wide-format data frame with columns for grouping variables (STRAT, AREA_KM2, SPEC, and optionally MISSION/SETNO) and FLEN_* columns (one per length bin). Rows are sorted by STRAT (and MISSION, SETNO for set-level data).
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @examples \dontrun{
-#' result5 <- widen_length_data(testData_strat_det$length_set, value_col = "CLEN_TOTAL",  bin_size = 3,level = "set")
-#' result1 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_MEAN", bin_size = 1,level = "strat")
-#' result2 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_SE", bin_size = 1,level = "strat")
-#' result3 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_STRAT_TOTAL", bin_size = 1,level = "strat")
-#' result4 <- widen_length_data(testData_strat_det$length_strat, value_col = "CLEN_SQKM_SE", bin_size = 1,level = "strat")
+#' result5 <- widen_length_data(testData_strat_det$length_set, 
+#'                              value_col = "CLEN_TOTAL",  
+#'                              bin_size = 3,
+#'                              level = "set")
+#' result1 <- widen_length_data(testData_strat_det$length_strat, 
+#'                              value_col = "CLEN_MEAN", 
+#'                              bin_size = 1,
+#'                              level = "strat")
+#' result2 <- widen_length_data(testData_strat_det$length_strat, 
+#'                              value_col = "CLEN_SE", 
+#'                              bin_size = 1,
+#'                              level = "strat")
+#' result3 <- widen_length_data(testData_strat_det$length_strat, 
+#'                              value_col = "CLEN_STRAT_TOTAL", 
+#'                              bin_size = 1,
+#'                              level = "strat")
+#' result4 <- widen_length_data(testData_strat_det$length_strat, 
+#'                              value_col = "CLEN_SQKM_SE", 
+#'                              bin_size = 1,
+#'                              level = "strat")
 #' }
+#' @importFrom data.table :=
 #' @importFrom dplyr mutate summarise arrange all_of across .data
 #' @importFrom tidyr complete nesting pivot_wider
 #' @importFrom rlang syms
 #' @importFrom stats setNames
 #' @note The binning formula (1 + bin_size * floor(FLEN / bin_size)) matches the DFO standard used in Oracle queries. For bin_size=3, this creates bins at 4, 7, 10, 13, etc.
 #' @export
-widen_length_data <- function(data, value_col, bin_size = 1, level = c("strata", "set")) {
+# widen_length_data <- function(data, value_col, bin_size = 1, level = c("strata", "set"), by_sex=F) {
+#   level <- match.arg(level)
+#   min_flen <- min(data$FLEN)
+#   max_flen <- max(data$FLEN)
+#   
+#   fill_list <- setNames(list(0), value_col)
+#   
+#   if (level == "set") {
+#     group_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC", "FLEN_BIN")
+#     nesting_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC")
+#     arrange_vars <- c("STRAT", "MISSION", "SETNO")
+#   } else {
+#     group_vars <- c("STRAT", "AREA_KM2", "SPEC", "FLEN_BIN")
+#     nesting_vars <- c("STRAT", "AREA_KM2", "SPEC")
+#     arrange_vars <- "STRAT"
+#   }
+#   
+#   data |>
+#     mutate(FLEN_BIN = 1 + bin_size * floor(FLEN / bin_size)) |>
+#     summarise("{value_col}" := sum(.data[[value_col]]), 
+#               .by = all_of(group_vars)) |>
+#     complete(nesting(!!!syms(nesting_vars)),
+#              FLEN_BIN = seq(1 + bin_size * floor(min_flen / bin_size),
+#                             1 + bin_size * floor(max_flen / bin_size),
+#                             by = bin_size),
+#              fill = fill_list) |>
+#     pivot_wider(names_from = FLEN_BIN,
+#                 values_from = all_of(value_col),
+#                 names_prefix = "FLEN_",
+#                 values_fill = 0) |> 
+#     arrange(across(all_of(arrange_vars)))
+# }
+
+widen_length_data <- function(data, value_col, bin_size = 1, level = c("strata", "set"), by_sex = FALSE) {
   level <- match.arg(level)
-  
   min_flen <- min(data$FLEN)
   max_flen <- max(data$FLEN)
   
@@ -221,29 +302,39 @@ widen_length_data <- function(data, value_col, bin_size = 1, level = c("strata",
     arrange_vars <- "STRAT"
   }
   
+  # Add FSEX to grouping if by_sex = TRUE
+  if (by_sex) {
+    group_vars <- c(group_vars, "FSEX")
+    nesting_vars <- c(nesting_vars, "FSEX")
+  }
+  
   data |>
     mutate(FLEN_BIN = 1 + bin_size * floor(FLEN / bin_size)) |>
-    summarise("{value_col}" := sum(.data[[value_col]]), 
-              .by = all_of(group_vars)) |>
-    complete(nesting(!!!syms(nesting_vars)),
-             FLEN_BIN = seq(1 + bin_size * floor(min_flen / bin_size),
-                            1 + bin_size * floor(max_flen / bin_size),
-                            by = bin_size),
-             fill = fill_list) |>
-    pivot_wider(names_from = FLEN_BIN,
-                values_from = all_of(value_col),
-                names_prefix = "FLEN_",
-                values_fill = 0) |> 
+    summarise("{value_col}" := sum(.data[[value_col]]), .by = all_of(group_vars)) |>
+    complete(
+      nesting(!!!syms(nesting_vars)),
+      FLEN_BIN = seq(1 + bin_size * floor(min_flen / bin_size),
+                     1 + bin_size * floor(max_flen / bin_size),
+                     by = bin_size),
+      fill = fill_list
+    ) |>
+    pivot_wider(
+      names_from = if (by_sex) c("FSEX", "FLEN_BIN") else "FLEN_BIN",
+      values_from = all_of(value_col),
+      names_glue = if (by_sex) "{c(FSEX = c('U','M','F')[FSEX+1])}_FLEN_{FLEN_BIN}" else "FLEN_{FLEN_BIN}",
+      values_fill = 0
+    ) |>
     arrange(across(all_of(arrange_vars)))
 }
-
-#' @title stratify_simple
+#' @title stranal_simple
 #' @description Calculate stratified estimates of biomass and abundance from RV survey data. This function handles taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with confidence intervals.
-#' @param tblList the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten().
 #' @param df the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.
 #' @param towDist_NM the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
 #' @param areaField the default is \code{"AREA_KM2"}. The name of the field containing area values.
 #' @param areaFieldUnits the default is \code{c("KM2","NM2")}. The units of the area field. Must be either "KM2" or "NM2".
+#' @param conf_limits the default is \code{95}.  This the value which will be used to calculate the upper and lower confidence intervals.
+#' @param inc_limits the default is \code{TRUE}. This specifies if you would like to include the values for the upper and lower confidence intervals in your summary output.
 #' @param debug the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.
 #' @return A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level summaries), and OVERALL_SUMMARY (overall statistics with confidence intervals).
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
@@ -252,7 +343,7 @@ widen_length_data <- function(data, value_col, bin_size = 1, level = c("strata",
 #' @note This function should be used for taxa-level data or when GSDET has no records. For species-level data with length/age information, use stratify_detailed() instead.
 #' @export
 
-stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), debug=F){
+stranal_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), conf_limits = 95, inc_limits =T, debug=F){
   if(!is.null(tblList)){
     df <- easyFlatten(tblList)
     df <- df[df$TYPE==1,]
@@ -290,9 +381,18 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
   df$BIOMASS_set <- df$TOTWGT_sqkm * df$AREA_KM2
   df$ABUNDANCE_set <- df$TOTNO_sqkm * df$AREA_KM2
   
-  results$stratified_bySet <- df
-  
   species_col <- if ("SPEC" %in% names(df)) "SPEC" else if ("TAXA_" %in% names(df)) "TAXA_" else NULL
+  
+  # setRes <- df [,c(species_col, "MISSION","SETNO","STRAT", "AREA_KM2", "SLAT_DD", "SLONG_DD", "TOTWGT", "TOTWGT_sqkm", "TOTNO", "TOTNO_sqkm")]
+  setRes <- df |> 
+    select(
+      all_of(species_col),  # selects the column whose name is stored in species_col
+      MISSION, SETNO, STRAT, AREA_KM2, AREA , SLAT_DD, SLONG_DD,
+      TOTWGT, TOTWGT_sqkm, TOTNO, TOTNO_sqkm
+    ) |> 
+    arrange(STRAT, SETNO)
+  
+  results$set_stratified <- setRes
   
   all_sets <- df |>
     select(MISSION, SETNO, STRAT, AREA_KM2) |>
@@ -336,20 +436,17 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
            ABUNDANCE = round(TOTNO_SQKM_STRAT_MEAN * AREA_KM2, 5)) |>
     as.data.frame()
   
-  results$stratified_byStrat <- df_strat
-  
   AREA_KM_OVERALL <- sum(df_strat$AREA_KM2, na.rm = TRUE)
   COUNT_OVERALL <- sum(df_strat$COUNT, na.rm = TRUE)
   TOTWGT_OVERALL <- sum(df_strat$TOTWGT_SUM, na.rm = TRUE)
   TOTNO_OVERALL <- sum(df_strat$TOTNO_SUM, na.rm = TRUE)
   
-  TOTWGT_MEAN <- calcYearSummary(df_strat, valueField = "TOTWGT_MEAN", seField = "TOTWGT_SE", areaField = "AREA_KM2", is_mean = TRUE)
-  TOTNO_MEAN <- calcYearSummary(df_strat, valueField = "TOTNO_MEAN", seField = "TOTNO_SE", areaField = "AREA_KM2", is_mean = TRUE)
-  TOTWGT_SQKM_MEAN <- calcYearSummary(df_strat, valueField = "TOTWGT_SQKM_STRAT_MEAN", seField = "TOTWGT_SQKM_STRAT_SE", areaField = "AREA_KM2", is_mean = TRUE)
-  TOTNO_SQKM_MEAN <- calcYearSummary(df_strat, valueField = "TOTNO_SQKM_STRAT_MEAN", seField = "TOTNO_SQKM_STRAT_SE", areaField = "AREA_KM2", is_mean = TRUE)
-  
-  BIOMASS_OVERALL <- calcYearSummary(df_strat, valueField = "BIOMASS", seField = "BIOMASS_SE", areaField = "AREA_KM2", is_mean = FALSE)
-  ABUNDANCE_OVERALL <- calcYearSummary(df_strat, valueField = "ABUNDANCE", seField = "ABUNDANCE_SE", areaField = "AREA_KM2", is_mean = FALSE)
+  TOTWGT_MEAN <- calcYearSummary(df_strat, valueField = "TOTWGT_MEAN", seField = "TOTWGT_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+  TOTNO_MEAN <- calcYearSummary(df_strat, valueField = "TOTNO_MEAN", seField = "TOTNO_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+  TOTWGT_SQKM_MEAN <- calcYearSummary(df_strat, valueField = "TOTWGT_SQKM_STRAT_MEAN", seField = "TOTWGT_SQKM_STRAT_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+  TOTNO_SQKM_MEAN <- calcYearSummary(df_strat, valueField = "TOTNO_SQKM_STRAT_MEAN", seField = "TOTNO_SQKM_STRAT_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+  BIOMASS_OVERALL <- calcYearSummary(df_strat, valueField = "BIOMASS", seField = "BIOMASS_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = FALSE)
+  ABUNDANCE_OVERALL <- calcYearSummary(df_strat, valueField = "ABUNDANCE", seField = "ABUNDANCE_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = FALSE)
   
   overall <- data.frame(
     AREA_KM_OVERALL = AREA_KM_OVERALL,
@@ -381,46 +478,99 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
     ABUNDANCE_LOW = round(ABUNDANCE_OVERALL$low, 1),
     ABUNDANCE_HIGH = round(ABUNDANCE_OVERALL$high, 1)
   )
-  results$OVERALL_SUMMARY <- overall
-  
+  max_min_fields <- c("TOTWGT_MEAN_LOW", "TOTWGT_MEAN_HIGH",
+                      "TOTNO_MEAN_LOW", "TOTNO_MEAN_HIGH",
+                      "TOTWGT_SQKM_MEAN_LOW", "TOTWGT_SQKM_MEAN_HIGH",
+                      "TOTNO_SQKM_MEAN_LOW" , "TOTNO_SQKM_MEAN_HIGH",
+                      "BIOMASS_LOW", "BIOMASS_HIGH",
+                      "ABUNDANCE_LOW", "ABUNDANCE_HIGH")
+
+    results$strat_stratified <- df_strat |> select(-TOTWGT_SUM, -TOTNO_SUM)
+
+if (!inc_limits){
+  results$summary <- overall |> select(-all_of(max_min_fields))
+}else{
+  results$summary <- overall
+}
   return(results)
 }
 
-#' @title stratify_detailed
+#' @title stranal_detailed
 #' @description Calculate detailed stratified estimates of biomass and abundance from RV survey data including length and age distributions. This function extends stratify_simple by incorporating detailed catch-at-length and catch-at-age data from GSDET, standardizing individual measurements, and generating stratified summaries by length and age classes.
 #' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSDET.
 #' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
 #' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
+#' @param conf_limits the default is \code{95}.  This the value which will be used to calculate the upper and lower confidence intervals.
+#' @param inc_limits the default is \code{TRUE}. This specifies if you would like to include the values for the upper and lower confidence intervals in your summary output.
+#' @param bin_size the default is \code{1}.
 #' @return A list containing up to seven elements: stratified_bySet, stratified_byStrat, OVERALL_SUMMARY (from stratify_simple), plus length_set, length_strat (length-based summaries), age_set, and age_strat (age-based summaries). Length and age elements are only included if corresponding data exist.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @importFrom dplyr select left_join group_by summarise distinct
+#' @importFrom dplyr select left_join group_by summarise distinct contains bind_rows rename_with
+#' @importFrom tidyr crossing
 #' @export
 
-stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, bin_size=1) {
+stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limits = 95, inc_limits =T, bin_size=1) {
   
-  results <- stratify_simple(tblList = tblList, towDist_NM = towDist)
-
+  results <- stranal_simple(tblList = tblList, towDist_NM = towDist, conf_limits = conf_limits, inc_limits = inc_limits)
+  
   totals <- standardize_catch_counts(tblList, towDist = towDist, by_sex = by_sex)
-  
-  strat_lookup <- results$stratified_bySet |>
+
+  strat_lookup <- results$set_stratified |>
     select(MISSION, SETNO, STRAT, AREA_KM2) |>
     distinct()
   
-  all_sets <- results$stratified_bySet |>
+  all_sets <- results$set_stratified |>
     select(MISSION, SETNO, STRAT, AREA_KM2) |>
     distinct()
   
-  spec_only <- results$stratified_bySet |>
+  spec_only <- results$set_stratified |>
     select(SPEC) |>
     distinct()
   
   if (inherits(totals$length_total, "data.frame")) {
-    length_data <- totals$length_total |>
-      left_join(strat_lookup, by = c("MISSION", "SETNO"))
     
+    length_data <- totals$length_total 
+  
+  if (by_sex){
     all_combos <- all_sets |>
-      tidyr::crossing(spec_only) |>
-      tidyr::crossing(length_data |> select(FLEN) |> distinct())
+      crossing(spec_only) |>
+      crossing(length_data |> select(FLEN) |> distinct(),
+                      length_data |> select(FSEX) |> distinct())
+    
+    length_complete <- all_combos |>
+      left_join(
+        length_data |> select(MISSION, SETNO, SPEC, FLEN, FSEX, CLEN_TOTAL, CLEN_SQKM_TOTAL),
+        by = c("MISSION", "SETNO", "SPEC", "FSEX", "FLEN")
+      ) |>
+      mutate(
+        CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+        CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+      )
+    
+    length_strat <- length_complete |>
+      group_by(SPEC, STRAT, AREA_KM2, FSEX, FLEN) |>
+      summarise(
+        COUNT = n(),
+        CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
+        CLEN_MEAN = mean(CLEN_TOTAL, na.rm = TRUE),
+        CLEN_MEAN_SE = round(Mar.utils::st_err(CLEN_TOTAL),5),
+        CLEN_values = list(CLEN_TOTAL),
+        CLEN_SQKM_SUM = sum(CLEN_SQKM_TOTAL, na.rm = TRUE),
+        CLEN_SQKM_MEAN = mean(CLEN_SQKM_TOTAL, na.rm = TRUE),
+        CLEN_SQKM_values = list(CLEN_SQKM_TOTAL),
+        .groups = "drop"
+      ) |>
+      mutate(
+        CLEN_SE = sapply(CLEN_values, Mar.utils::st_err),
+        CLEN_SQKM_SE = sapply(CLEN_SQKM_values, Mar.utils::st_err),
+        CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2,
+        CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
+      ) |>
+      select(-CLEN_values, -CLEN_SQKM_values)
+  } else{
+    all_combos <- all_sets |>
+      crossing(spec_only) |>
+      crossing(length_data |> select(FLEN) |> distinct())
     
     length_complete <- all_combos |>
       left_join(
@@ -438,6 +588,7 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, bin_size=
         COUNT = n(),
         CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
         CLEN_MEAN = mean(CLEN_TOTAL, na.rm = TRUE),
+        CLEN_MEAN_SE = round(Mar.utils::st_err(CLEN_TOTAL),5),
         CLEN_values = list(CLEN_TOTAL),
         CLEN_SQKM_SUM = sum(CLEN_SQKM_TOTAL, na.rm = TRUE),
         CLEN_SQKM_MEAN = mean(CLEN_SQKM_TOTAL, na.rm = TRUE),
@@ -447,35 +598,139 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, bin_size=
       mutate(
         CLEN_SE = sapply(CLEN_values, Mar.utils::st_err),
         CLEN_SQKM_SE = sapply(CLEN_SQKM_values, Mar.utils::st_err),
-        CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2
+        CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2,
+        CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
       ) |>
       select(-CLEN_values, -CLEN_SQKM_values)
+  } 
     
-    # results$length_set <- length_complete
-    results$length_strat <- length_strat
-    
-    lenSet_mean <- widen_length_data(length_complete, value_col = "CLEN_TOTAL", bin_size = bin_size,level = "set")
+    lenSet_mean <- widen_length_data(length_complete, value_col = "CLEN_TOTAL", bin_size = bin_size,level = "set", by_sex = by_sex)
     #lenSet_total <- widen_length_data(length_complete, value_col = "CLEN_SQKM_TOTAL", bin_size = bin_size,level = "set")
-    lenStrat_mean <- widen_length_data(length_strat, value_col = "CLEN_MEAN", bin_size = bin_size,level = "strat")
-    lenStrat_se <- widen_length_data(length_strat, value_col = "CLEN_SE", bin_size = bin_size,level = "strat")
-    lenStrat_total <- widen_length_data(length_strat, value_col = "CLEN_STRAT_TOTAL", bin_size = bin_size,level = "strat")
- 
+    lenStrat_mean <- widen_length_data(length_strat, value_col = "CLEN_MEAN", bin_size = bin_size,level = "strat", by_sex = by_sex)
+    lenStrat_se <- widen_length_data(length_strat, value_col = "CLEN_SE", bin_size = bin_size,level = "strat", by_sex = by_sex)
+    lenStrat_total <- widen_length_data(length_strat, value_col = "CLEN_STRAT_TOTAL", bin_size = bin_size,level = "strat", by_sex = by_sex)
+    lenStrat_total_se <- widen_length_data(length_strat, value_col = "CLEN_STRAT_TOTAL_SE", bin_size = bin_size,level = "strat", by_sex = by_sex)
     
-    results$length_set_mean <- lenSet_mean
-    #results$length_set_total <- lenSet_total
-    results$length_mean <- lenStrat_mean
-    results$length_mean_se <- lenStrat_se
-    results$length_total <- lenStrat_total
+    ###### MEAN ######
     
-  }
+    mean_df <- lenStrat_mean |>
+      left_join(
+        lenStrat_se |>
+          dplyr::select(-AREA_KM2, -SPEC) |>
+          dplyr::rename_with(
+            ~ sub("(.*FLEN_)(\\d+)$", "\\1SE_\\2", .),  # Insert _SE_ before number
+            dplyr::contains("FLEN_")
+          ),
+        by = "STRAT"
+      )
+    
+    # Detect original FLEN columns (no _SE_)
+    flen_cols <- grep("FLEN_\\d+$", names(mean_df), value = TRUE)
+    
+    # Detect SE columns (with _SE_)
+    se_flen_cols <- grep("FLEN_SE_\\d+$", names(mean_df), value = TRUE)
+    
+    
+    LENGTH_MEAN <- bind_rows(
+      Map(function(x, y) {
+        out <- calcYearSummary(mean_df,
+                               valueField = x,
+                               seField = y,
+                               areaField = "AREA_KM2",
+                               is_mean = TRUE)
+        out$FLEN_col <- x
+        out |>
+          select(value, se, FLEN_col) |>
+          rename(LENGTH_MEAN_SE = se,
+                 LENGTH_MEAN = value)
+      }, flen_cols, se_flen_cols)
+    )
+    
+    
+    ###### SECOND BLOCK ######
+    
+    total_df <- lenStrat_total |>
+      left_join(
+        lenStrat_total_se |>
+          dplyr::select(-AREA_KM2, -SPEC) |>
+          dplyr::rename_with(
+            ~ sub("(.*FLEN_)(\\d+)$", "\\1SE_\\2", .),
+            contains("FLEN_")
+          ),
+        by = "STRAT"
+      )
+    
+    flen_cols2 <- grep("FLEN_\\d+$", names(total_df), value = TRUE)
+    se_flen_cols2 <- grep("FLEN_SE_\\d+$", names(total_df), value = TRUE)
+    
+    
+    LENGTH_TOTAL <- bind_rows(
+      Map(function(x, y) {
+        out <- calcYearSummary(total_df,
+                               valueField = x,
+                               seField = y,
+                               areaField = "AREA_KM2",
+                               is_mean = FALSE)
+        out$FLEN_col <- x
+        out |>
+          select(value, se, FLEN_col) |>
+          rename(LENGTH_TOTAL_SE = se,
+                 LENGTH_TOTAL = value)
+      }, flen_cols2, se_flen_cols2)
+    )
+    
+    
+  summary_flen <- LENGTH_MEAN |>
+    left_join(LENGTH_TOTAL, by = "FLEN_col") |>
+    mutate(
+      # Extract sex prefix if present (U, M, F), else empty string
+      SEX = if_else(grepl("^[UMF]_FLEN_", FLEN_col),
+                    sub("_FLEN_.*", "", FLEN_col),
+                    ""),
+      
+      # Extract numeric part after last underscore
+      FLEN_NUM = as.integer(sub(".*_(\\d+)$", "\\1", FLEN_col)),
+      
+      # Sort order for sex: none first, then U, M, F
+      SEX_ORDER = case_when(
+        SEX == "" ~ 0,
+        SEX == "U" ~ 1,
+        SEX == "M" ~ 2,
+        SEX == "F" ~ 3
+      )
+    ) |>
+    arrange(SEX_ORDER, FLEN_NUM) |>
+    select(FLEN_col, LENGTH_MEAN, LENGTH_MEAN_SE, LENGTH_TOTAL, LENGTH_TOTAL_SE)
   
+    
+    
+    results$set_flen_mean <- lenSet_mean
+    #results$length_set_total <- lenSet_total
+    results$strat_flen_mean <- lenStrat_mean
+    results$strat_flen_mean_se <- lenStrat_se
+    results$strat_flen_total <- lenStrat_total
+    results$strat_flen_total_se <- lenStrat_total_se
+    results$summary_flen <- summary_flen
+  }
+  new_order <- c(
+    "summary",
+    "set_stratified",
+    "strat_stratified",
+    "summary_flen",
+    "set_flen_mean",
+    "strat_flen_mean",
+    "strat_flen_mean_se",
+    "strat_flen_total",
+    "strat_flen_total_se"
+  )
+  results <- results[new_order]
   if (inherits(totals$age_total, "data.frame")) {
     age_data <- totals$age_total |>
       left_join(strat_lookup, by = c("MISSION", "SETNO"))
     
     all_combos <- all_sets |>
-      tidyr::crossing(spec_only) |>
-      tidyr::crossing(age_data |> select(AGE) |> distinct())
+      crossing(spec_only) |>
+      crossing(age_data |> select(AGE) |> distinct())
     
     age_complete <- all_combos |>
       left_join(
@@ -509,6 +764,8 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, bin_size=
     results$age_set <- age_complete
     results$age_strat <- age_strat
   }
+  
+  
   
   return(results)
 }

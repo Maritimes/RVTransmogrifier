@@ -51,19 +51,21 @@ datras_survey_SUMMER_2016  <- extractDATRAS(cxn = getCxn(), survey = "SUMMER", y
 SHake_2016 <- loadRVData(cxn = getCxn(), code = 14, years= "2016", survey="SUMMER", strata=c(440:495), types=1)
 
 # stratify using tblList
-SHake_2016_post_strat  <- stratify_simple(tblList = SHake_2016)
+SHake_2016_post_strat  <- stranal_simple(tblList = SHake_2016)
+
 
 # stratify using a dataframe
 SHake_2016_flat <- easyFlatten(SHake_2016)
-SHake_2016_flat_post_strat  <- stratify_simple(df = SHake_2016_flat)
+SHake_2016_flat_post_strat  <- stranal_simple(df = SHake_2016_flat, by_sex=F)
 
 #stratify with lengths
-testData_len <- loadRVData(cxn = getCxn(), code = 43, years= c(2010:2021), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
-testData_len_det<-stratify_detailed(testData_len)
+testData_len <- loadRVData(cxn = getCxn(), code = 43, years= c(2014), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
+testData_len_det <- stranal_detailed(testData_len, by_sex = F)
 plotRV(tblList = testData_len, catchStrataData = testData_len_det$stratified_byStrat, plotCatchStrata = "BIOMASS")
 
-testData_len_det_wide <- widen_length_data(testData_len_det$length_set, value_col = "CLEN_SQKM_TOTAL",  bin_size = 3,level = "set")
-
+# sexed
+SHake_2014 <- loadRVData(cxn = getCxn(), code = 14, years= "2014", survey="SUMMER", strata=c(440:495), types=1)
+SHake_2014_stranal <- stranal_detailed(SHake_2014, by_sex = T)
 
 # plot strat level biomass/abundance
 plotRV(tblList = SHake_2016, catchStrataData = SHake_2016_post_strat$stratified_byStrat, plotCatchStrata = "ABUNDANCE", plotSets = NULL)
@@ -130,25 +132,10 @@ echinoderms_summer_2016_agg_stratified <- stratify_simple(echinoderms_summer_201
 #              75.63098            1980.57447 280081.91855   5342706.77256 1018171.29084  26663201.57051
 #              16.81935             265.68455  31500.94558    328711.12813   59015.52840    932230.68112
 
-
-
-
-
-
-
-
-
 #### work on Conversion Factors
 data_GEORGES_1999 <- loadRVData(cxn = getCxn(), code = 14, survey="GEORGES", years=1999)
 
 tt <- applyConversionFactors(data_GEORGES_1999)
-
-
-
-
-
-
-
 
 #### LOOPING THOUGH A PROCESS ####
 years=c(2020:2025)

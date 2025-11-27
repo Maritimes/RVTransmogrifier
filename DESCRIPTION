@@ -7,11 +7,13 @@ Description: This package works with the RVSurveyData package to query and refor
 Depends:
     R (>= 4.1.0)
 Imports:
+  data.table,
   dplyr,
   geosphere, 
   ggplot2,
   lubridate,
   Mar.utils,
+  rlang,
   sf,
   stats,
   suncalc,

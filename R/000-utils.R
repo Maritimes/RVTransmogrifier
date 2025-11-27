@@ -5,12 +5,11 @@ utils::globalVariables(c("TOTNO", "TOTWGT", "CLEN"))
 #loadRVData
 utils::globalVariables(c("STRAT", "AREA", "AREA_KM2"))
 #standardize_catch_counts
-utils::globalVariables(c("SIZE_CLASS","WINGSPREAD_FT","TYPE","weight_ratio","CAGE","CLEN_sqkm","CLEN_TOTAL","CLEN_SQKM_TOTAL","CAGE_sqkm","CAGE_TOTAL","CAGE_SQKM_TOTAL"
-))
-#stratify_detailed
-utils::globalVariables(c("CLEN_TOTAL","CLEN_SQKM_TOTAL","CLEN_values","CLEN_SQKM_values","CLEN_SQKM_MEAN","CAGE_TOTAL","CAGE_SQKM_TOTAL","CAGE_values","CAGE_SQKM_values","CAGE_SQKM_MEAN"))
-#stratify_simple
-utils::globalVariables(c("TOTWGT_sqkm","TOTNO_sqkm","BIOMASS_set","ABUNDANCE_set","TOTWGT_SQKM_STRAT_MEAN","TOTNO_SQKM_STRAT_MEAN"))
+utils::globalVariables(c("SIZE_CLASS","WINGSPREAD_FT","TYPE","weight_ratio","CAGE","CLEN_sqkm","CLEN_TOTAL","CLEN_SQKM_TOTAL","CAGE_sqkm","CAGE_TOTAL","CAGE_SQKM_TOTAL"))
+#stranal_detailed
+utils::globalVariables(c("CLEN_TOTAL","CLEN_SQKM_TOTAL","CLEN_values","CLEN_SQKM_values","CLEN_SQKM_MEAN","CAGE_TOTAL","CAGE_SQKM_TOTAL","CAGE_values","CAGE_SQKM_values", "CAGE_SQKM_MEAN","CLEN_TOTAL", "CLEN_SQKM_TOTAL", "CLEN_values", "CLEN_SQKM_values", "CLEN_SQKM_MEAN", "CAGE_TOTAL", "CAGE_SQKM_TOTAL", "CAGE_values", "CAGE_SQKM_values", "CAGE_SQKM_MEAN", "CLEN_SQKM_SE", "FLEN_col", "SEX_ORDER", "FLEN_NUM", "LENGTH_MEAN_SE", "LENGTH_TOTAL_SE", "se", "value"))
+#stranal_simple
+utils::globalVariables(c("TOTWGT_SUM", "TOTNO_SUM", "TOTWGT_sqkm","TOTNO_sqkm","BIOMASS_set","ABUNDANCE_set","TOTWGT_SQKM_STRAT_MEAN","TOTNO_SQKM_STRAT_MEAN"))
 #ggStrata
 utils::globalVariables(c("StrataID"))
 #ggNAFO
@@ -24,8 +23,9 @@ utils::globalVariables(c("SDATE", "MISSION", "SETNO", "DMIN", "DMAX", "DEPTH", "
 #extractDATRAS
 utils::globalVariables(c("DATETIME", "slat_dd", "slong_dd","tmp"))
 #applyConversionFactors
-utils::globalVariables(c("Remove","SAMPTOT_Ratio", "NEDTEM_TO_TELVEN_ABUND", "TELVEN_TO_CARCAB_ABUND", "NEDTEM_TO_TELVEN_BMASS", "TELVEN_TO_CARCAB_BMASS","GSSPEC2", "R2", "GSCONVERSIONS", "CF_VALUE", "CF_METRIC", "FROM_VESSEL", "TO_VESSEL", "SRC", "CF_USED", "TYPE", "WINGSPREAD_FT"))
-
+utils::globalVariables(c("ATCHAM_TO_CARCAB_ABUND", "ATCHAM_TO_CARCAB_ABUND_LAM", "ATCHAM_TO_CARCAB_BMASS", "ATCHAM_TO_NEDTEM_ABUND_LAM", "ATCHAM_TO_TELVEN_ABUND", "ATCHAM_TO_TELVEN_ABUND_LAM", "ATCHAM_TO_TELVEN_BMASS", "CF_METRIC", "CF_USED", "CF_VALUE", "FROM_VESSEL", "FSEX_key", "GSCONVERSIONS", "LENWT_A", "LENWT_B", "NEDTEM_TO_CARCAB_ABUND", "NEDTEM_TO_CARCAB_ABUND_LAM", "NEDTEM_TO_CARCAB_BMASS", "NEDTEM_TO_TELVEN_ABUND", "NEDTEM_TO_TELVEN_ABUND_LAM", "NEDTEM_TO_TELVEN_BMASS", "R2", "Remove", "SAMPTOT_Ratio", "SRC", "TELVEN_TO_CARCAB_ABUND", "TELVEN_TO_CARCAB_ABUND_LAM", "TELVEN_TO_CARCAB_BMASS","GSSPEC2", "TO_VESSEL", "TYPE", "WINGSPREAD_FT"))
+# calclYearSummary
+utils::globalVariables(c())
 
 rawTables  <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL","GSWARPOUT", "GSXTYPE")
 coreTables <- c("GSCAT", "GSDET", "GSGEAR", "GSINF", "GSMATURITY", "GSMISSIONS", "GSSEX", "GSSPECIES_NEW", "GSSTRATUM", "GSVESSEL", "GSWARPOUT", "GSXTYPE") 
@@ -63,43 +63,12 @@ get_pesd_rvt_dir <- function() {
 #' }
 #' @export
 getSpInfo <- function(taxa = NULL, tblList){
-
   taxa <- toupper(taxa)
   retFields <- c("CODE","APHIA_ID", "COMM","SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS")
   these <- tblList$GSSPECIES_NEW[which(apply(tblList$GSSPECIES_NEW[,c("COMM","SPEC","KINGDOM","PHYLUM","CLASS","ORDER","FAMILY","GENUS")], 1, function(r) any(grepl(taxa, toupper(r))))), retFields]
   these <- these |> unique()
   return(these)
 }
-
-#' @title easyFlatten
-#' @description Merge GSINF, GSCAT, and GSSTRATUM tables into a single flat data frame for analysis. Handles both species-level (SPEC) and taxa-level (TAXA_) data.
-#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSSTRATUM.
-#' @param keep_nullsets the default is \code{TRUE}. If TRUE, retains set information even when no catch occurred.
-#' @return A merged data frame containing set, catch, and stratum information with NA values filled appropriately.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @importFrom dplyr filter rename
-#' @export
-easyFlatten <- function(tblList = NULL, keep_nullsets=T){
-
-  theFields<-c("MISSION", "SETNO","SIZE_CLASS","CALWT", "SAMPWGT", "TOTWGT", "TOTNO")
-  if ("SPEC" %in% names(tblList$GSCAT)){
-    tblList$GSCAT$SPEC[is.na(tblList$GSCAT$SPEC)] <- unique(tblList$GSCAT$SPEC[!is.na(tblList$GSCAT$SPEC)])
-    theFields <- c(theFields,"SPEC")
-  } else if ("TAXA_" %in% names(tblList$GSCAT)){
-    tblList$GSCAT$TAXA_[is.na(tblList$GSCAT$TAXA_)] <- unique(tblList$GSCAT$TAXA_[!is.na(tblList$GSCAT$TAXA_)])
-    tblList$GSCAT$TAXARANK_[is.na(tblList$GSCAT$TAXARANK_)] <- unique(tblList$GSCAT$TAXARANK_[!is.na(tblList$GSCAT$TAXARANK_)])
-    theFields <- c(theFields,"TAXA_")
-  }
-  
-  this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD","AREA_KM2","WINGSPREAD_FT" )], 
-                tblList$GSCAT[, theFields], by=c("MISSION", "SETNO"), all.x=keep_nullsets)
-  this[is.na(this$DIST), "DIST"] <- 1.75
-  this[is.na(this$TOTNO), "TOTNO"] <- 0
-  this[is.na(this$TOTWGT), "TOTWGT"] <- 0
-  
-  return(this)
-}
-
 
 #' @title fathomsToMeters
 #' @description Converts depth measurements from fathoms to meters
@@ -108,7 +77,6 @@ easyFlatten <- function(tblList = NULL, keep_nullsets=T){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 fathomsToMeters <- function(field=NULL){
-
   field <- round(field*1.8288,2)
   return(field)
 }
@@ -133,7 +101,6 @@ sqNMToSqKm <- function(field=NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 binSizes <- function(bin, value){
-
   (floor(value/bin)*bin) + ((bin*.5)-0.5)  
 }
 
@@ -146,7 +113,6 @@ binSizes <- function(bin, value){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 fixHerringLengths <-function(GSDET_ = NULL){
-
   #Fix herring lengths - ensure all are in mm
   #NED 2016016 - first instance of measuring herring in mm - convert all prior data from cm to mm
   GSDET_[GSDET_$SPEC == 60 &
@@ -168,7 +134,6 @@ fixHerringLengths <-function(GSDET_ = NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 rmSizeClasses <-function(GSCAT_= NULL){
-
   GSCAT_[is.na(GSCAT_$TOTNO),"TOTNO"]<-0
   GSCAT_[is.na(GSCAT_$TOTWGT),"TOTWGT"]<-0
   GSCAT_[is.na(GSCAT_$SAMPWGT),"SAMPWGT"]<-0
@@ -199,7 +164,6 @@ rmSizeClasses <-function(GSCAT_= NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 addDDCoords <- function(GSINF_=NULL){
-
   requireNamespace("Mar.utils", quietly = TRUE)
   GSINF_ <- Mar.utils::DDMMx_to_DD(df=GSINF_, format = "DDMMMM", lat.field = "ELAT", lon.field = "ELONG", WestHemisphere = T)
   colnames(GSINF_)[colnames(GSINF_)=="LAT_DD"] <- "ELAT_DD"
@@ -225,7 +189,6 @@ addDDCoords <- function(GSINF_=NULL){
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @noRd
 roundDD2Min<-function(x=NULL, how = "round", nearestMin = 1, digits=4){
-
   minDD = 0.016666666666 #this is 1 min in DD
   base = nearestMin*minDD
   if (how =="round"){
@@ -247,7 +210,6 @@ roundDD2Min<-function(x=NULL, how = "round", nearestMin = 1, digits=4){
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
 valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
-
   #theData must include NAs (e.g. nullsets so that the means will include them)
   theData[is.na(theData)] <- 0
   ft2m = 0.3048
