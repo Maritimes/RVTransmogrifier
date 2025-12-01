@@ -159,16 +159,16 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
         cross_join(length_data |> select(FLEN) |> distinct())
       
       all_combos |>
-      left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN")) |>
-      mutate(
-        CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
-        CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
-      )
+        left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN")) |>
+        mutate(
+          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+        )
     }
   } else {
     NA
   }
-
+  
   age_total <- if (any(!is.na(standardized_data$AGE))) {
     age_data <- standardized_data |>
       filter(!is.na(AGE)) |>
@@ -202,7 +202,7 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
           CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
         )
     }  
-   
+    
   } else {
     NA
   }
@@ -484,14 +484,14 @@ stranal_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField =
                       "TOTNO_SQKM_MEAN_LOW" , "TOTNO_SQKM_MEAN_HIGH",
                       "BIOMASS_LOW", "BIOMASS_HIGH",
                       "ABUNDANCE_LOW", "ABUNDANCE_HIGH")
-
-    results$strat_stratified <- df_strat |> select(-TOTWGT_SUM, -TOTNO_SUM)
-
-if (!inc_limits){
-  results$summary <- overall |> select(-all_of(max_min_fields))
-}else{
-  results$summary <- overall
-}
+  
+  results$strat_stratified <- df_strat |> select(-TOTWGT_SUM, -TOTNO_SUM)
+  
+  if (!inc_limits){
+    results$summary <- overall |> select(-all_of(max_min_fields))
+  }else{
+    results$summary <- overall
+  }
   return(results)
 }
 
@@ -514,7 +514,7 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
   results <- stranal_simple(tblList = tblList, towDist_NM = towDist, conf_limits = conf_limits, inc_limits = inc_limits)
   
   totals <- standardize_catch_counts(tblList, towDist = towDist, by_sex = by_sex)
-
+  
   strat_lookup <- results$set_stratified |>
     select(MISSION, SETNO, STRAT, AREA_KM2) |>
     distinct()
@@ -530,79 +530,79 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
   if (inherits(totals$length_total, "data.frame")) {
     
     length_data <- totals$length_total 
-  
-  if (by_sex){
-    all_combos <- all_sets |>
-      crossing(spec_only) |>
-      crossing(length_data |> select(FLEN) |> distinct(),
-                      length_data |> select(FSEX) |> distinct())
     
-    length_complete <- all_combos |>
-      left_join(
-        length_data |> select(MISSION, SETNO, SPEC, FLEN, FSEX, CLEN_TOTAL, CLEN_SQKM_TOTAL),
-        by = c("MISSION", "SETNO", "SPEC", "FSEX", "FLEN")
-      ) |>
-      mutate(
-        CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
-        CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
-      )
-    
-    length_strat <- length_complete |>
-      group_by(SPEC, STRAT, AREA_KM2, FSEX, FLEN) |>
-      summarise(
-        COUNT = n(),
-        CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
-        CLEN_MEAN = mean(CLEN_TOTAL, na.rm = TRUE),
-        CLEN_MEAN_SE = round(Mar.utils::st_err(CLEN_TOTAL),5),
-        CLEN_values = list(CLEN_TOTAL),
-        CLEN_SQKM_SUM = sum(CLEN_SQKM_TOTAL, na.rm = TRUE),
-        CLEN_SQKM_MEAN = mean(CLEN_SQKM_TOTAL, na.rm = TRUE),
-        CLEN_SQKM_values = list(CLEN_SQKM_TOTAL),
-        .groups = "drop"
-      ) |>
-      mutate(
-        CLEN_SE = sapply(CLEN_values, Mar.utils::st_err),
-        CLEN_SQKM_SE = sapply(CLEN_SQKM_values, Mar.utils::st_err),
-        CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2,
-        CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
-      ) |>
-      select(-CLEN_values, -CLEN_SQKM_values)
-  } else{
-    all_combos <- all_sets |>
-      crossing(spec_only) |>
-      crossing(length_data |> select(FLEN) |> distinct())
-    
-    length_complete <- all_combos |>
-      left_join(
-        length_data |> select(MISSION, SETNO, SPEC, FLEN, CLEN_TOTAL, CLEN_SQKM_TOTAL),
-        by = c("MISSION", "SETNO", "SPEC", "FLEN")
-      ) |>
-      mutate(
-        CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
-        CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
-      )
-    
-    length_strat <- length_complete |>
-      group_by(SPEC, STRAT, AREA_KM2, FLEN) |>
-      summarise(
-        COUNT = n(),
-        CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
-        CLEN_MEAN = mean(CLEN_TOTAL, na.rm = TRUE),
-        CLEN_MEAN_SE = round(Mar.utils::st_err(CLEN_TOTAL),5),
-        CLEN_values = list(CLEN_TOTAL),
-        CLEN_SQKM_SUM = sum(CLEN_SQKM_TOTAL, na.rm = TRUE),
-        CLEN_SQKM_MEAN = mean(CLEN_SQKM_TOTAL, na.rm = TRUE),
-        CLEN_SQKM_values = list(CLEN_SQKM_TOTAL),
-        .groups = "drop"
-      ) |>
-      mutate(
-        CLEN_SE = sapply(CLEN_values, Mar.utils::st_err),
-        CLEN_SQKM_SE = sapply(CLEN_SQKM_values, Mar.utils::st_err),
-        CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2,
-        CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
-      ) |>
-      select(-CLEN_values, -CLEN_SQKM_values)
-  } 
+    if (by_sex){
+      all_combos <- all_sets |>
+        crossing(spec_only) |>
+        crossing(length_data |> select(FLEN) |> distinct(),
+                 length_data |> select(FSEX) |> distinct())
+      
+      length_complete <- all_combos |>
+        left_join(
+          length_data |> select(MISSION, SETNO, SPEC, FLEN, FSEX, CLEN_TOTAL, CLEN_SQKM_TOTAL),
+          by = c("MISSION", "SETNO", "SPEC", "FSEX", "FLEN")
+        ) |>
+        mutate(
+          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+        )
+      
+      length_strat <- length_complete |>
+        group_by(SPEC, STRAT, AREA_KM2, FSEX, FLEN) |>
+        summarise(
+          COUNT = n(),
+          CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
+          CLEN_MEAN = mean(CLEN_TOTAL, na.rm = TRUE),
+          CLEN_MEAN_SE = round(Mar.utils::st_err(CLEN_TOTAL),5),
+          CLEN_values = list(CLEN_TOTAL),
+          CLEN_SQKM_SUM = sum(CLEN_SQKM_TOTAL, na.rm = TRUE),
+          CLEN_SQKM_MEAN = mean(CLEN_SQKM_TOTAL, na.rm = TRUE),
+          CLEN_SQKM_values = list(CLEN_SQKM_TOTAL),
+          .groups = "drop"
+        ) |>
+        mutate(
+          CLEN_SE = sapply(CLEN_values, Mar.utils::st_err),
+          CLEN_SQKM_SE = sapply(CLEN_SQKM_values, Mar.utils::st_err),
+          CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2,
+          CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
+        ) |>
+        select(-CLEN_values, -CLEN_SQKM_values)
+    } else{
+      all_combos <- all_sets |>
+        crossing(spec_only) |>
+        crossing(length_data |> select(FLEN) |> distinct())
+      
+      length_complete <- all_combos |>
+        left_join(
+          length_data |> select(MISSION, SETNO, SPEC, FLEN, CLEN_TOTAL, CLEN_SQKM_TOTAL),
+          by = c("MISSION", "SETNO", "SPEC", "FLEN")
+        ) |>
+        mutate(
+          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+        )
+      
+      length_strat <- length_complete |>
+        group_by(SPEC, STRAT, AREA_KM2, FLEN) |>
+        summarise(
+          COUNT = n(),
+          CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
+          CLEN_MEAN = mean(CLEN_TOTAL, na.rm = TRUE),
+          CLEN_MEAN_SE = round(Mar.utils::st_err(CLEN_TOTAL),5),
+          CLEN_values = list(CLEN_TOTAL),
+          CLEN_SQKM_SUM = sum(CLEN_SQKM_TOTAL, na.rm = TRUE),
+          CLEN_SQKM_MEAN = mean(CLEN_SQKM_TOTAL, na.rm = TRUE),
+          CLEN_SQKM_values = list(CLEN_SQKM_TOTAL),
+          .groups = "drop"
+        ) |>
+        mutate(
+          CLEN_SE = sapply(CLEN_values, Mar.utils::st_err),
+          CLEN_SQKM_SE = sapply(CLEN_SQKM_values, Mar.utils::st_err),
+          CLEN_STRAT_TOTAL = CLEN_SQKM_MEAN * AREA_KM2,
+          CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
+        ) |>
+        select(-CLEN_values, -CLEN_SQKM_values)
+    } 
     
     lenSet_mean <- widen_length_data(length_complete, value_col = "CLEN_TOTAL", bin_size = bin_size,level = "set", by_sex = by_sex)
     #lenSet_total <- widen_length_data(length_complete, value_col = "CLEN_SQKM_TOTAL", bin_size = bin_size,level = "set")
@@ -680,28 +680,28 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
     )
     
     
-  summary_flen <- LENGTH_MEAN |>
-    left_join(LENGTH_TOTAL, by = "FLEN_col") |>
-    mutate(
-      # Extract sex prefix if present (U, M, F), else empty string
-      SEX = if_else(grepl("^[UMF]_FLEN_", FLEN_col),
-                    sub("_FLEN_.*", "", FLEN_col),
-                    ""),
-      
-      # Extract numeric part after last underscore
-      FLEN_NUM = as.integer(sub(".*_(\\d+)$", "\\1", FLEN_col)),
-      
-      # Sort order for sex: none first, then U, M, F
-      SEX_ORDER = case_when(
-        SEX == "" ~ 0,
-        SEX == "U" ~ 1,
-        SEX == "M" ~ 2,
-        SEX == "F" ~ 3
-      )
-    ) |>
-    arrange(SEX_ORDER, FLEN_NUM) |>
-    select(FLEN_col, LENGTH_MEAN, LENGTH_MEAN_SE, LENGTH_TOTAL, LENGTH_TOTAL_SE)
-  
+    summary_flen <- LENGTH_MEAN |>
+      left_join(LENGTH_TOTAL, by = "FLEN_col") |>
+      mutate(
+        # Extract sex prefix if present (U, M, F), else empty string
+        SEX = if_else(grepl("^[UMF]_FLEN_", FLEN_col),
+                      sub("_FLEN_.*", "", FLEN_col),
+                      ""),
+        
+        # Extract numeric part after last underscore
+        FLEN_NUM = as.integer(sub(".*_(\\d+)$", "\\1", FLEN_col)),
+        
+        # Sort order for sex: none first, then U, M, F
+        SEX_ORDER = case_when(
+          SEX == "" ~ 0,
+          SEX == "U" ~ 1,
+          SEX == "M" ~ 2,
+          SEX == "F" ~ 3
+        )
+      ) |>
+      arrange(SEX_ORDER, FLEN_NUM) |>
+      select(FLEN_col, LENGTH_MEAN, LENGTH_MEAN_SE, LENGTH_TOTAL, LENGTH_TOTAL_SE)
+    
     
     
     results$set_flen_mean <- lenSet_mean
