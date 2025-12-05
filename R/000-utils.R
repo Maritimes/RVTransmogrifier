@@ -221,3 +221,336 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   res = round(res,4)
   return(res)
 }
+
+##### STRANAL utilities start
+#' @title calcTotalSE_unstratified
+#' @description Calculate the total standard error for unstratified data by taking the square root of the sum of squared standard errors.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param valueField the default is \code{NULL}. The name of the field containing standard error values to be summed.
+#' @return A numeric value representing the total standard error, rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
+
+calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
+  res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
+  return(res)
+}
+
+#' @title calcTotalSE_stratified
+#' @description Calculate the total standard error for stratified data using area-weighted standard errors.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param valueField the default is \code{NULL}. The name of the field containing standard error values.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @return A numeric value representing the stratified total standard error, rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
+
+calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
+  totArea <- sum(theDataByStrat[[areaField]])
+  res <- round(sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2)),5)
+  return(res)
+}
+#' @title calcTotalMean
+#' @description Calculate the area-weighted mean across strata.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param valueField the default is \code{NULL}. The name of the field containing values to be averaged.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @return A numeric value representing the area-weighted mean, rounded to 5 decimal places.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
+
+calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
+  totArea <- sum(theDataByStrat[[areaField]])
+  res <- round(sum(theDataByStrat[[valueField]] * theDataByStrat[[areaField]] / totArea), 5)
+  return(res)
+}
+
+#' @title calcYearSummary
+#' @description Calculate annual summary statistics including value, standard error, and confidence intervals for either means or totals.
+#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
+#' @param year the default is \code{NULL}. The year for which summary statistics are being calculated.
+#' @param valueField the default is \code{NULL}. The name of the field containing values to be summarized.
+#' @param seField the default is \code{NULL}. The name of the field containing standard error values.
+#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
+#' @param level the default is \code{0.95}. The confidence level for the interval (e.g., 0.95 for 95\% CI).
+#' @param is_mean the default is \code{TRUE}. If TRUE, calculates stratified mean; if FALSE, calculates unstratified total.
+#' @return A data frame containing value, se, low (lower CI), and high (upper CI) columns.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @export
+
+calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
+  if(is_mean){
+    value <- calcTotalMean(theDataByStrat, valueField, areaField)
+    se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
+    se_val <- calcTotalSE_stratified(se_data, seField, areaField)
+  } else {
+    value <- round(sum(theDataByStrat[[valueField]], na.rm = TRUE), 5)
+    se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
+    se_val <- calcTotalSE_unstratified(se_data, seField)
+    
+  }
+  
+  z_score <- qnorm(1 - (1 - level) / 2)
+  
+  lower_ci <- round(value - (z_score * se_val), 5)
+  upper_ci <- round(value + (z_score * se_val), 5)
+  
+  result <- data.frame(
+    value = value,
+    se = se_val,
+    low = lower_ci,
+    high = upper_ci
+  )
+  
+  return(result)
+}
+
+#' @title standardize_catch_counts
+#' @description Standardize catch counts from detailed length/age data (GSDET) by applying weight ratios, correcting for tow distance, and calculating density per square kilometer. Returns standardized data at the individual level as well as aggregated totals by length and age.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSCAT, GSDET, and GSINF.
+#' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
+#' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
+#' @return A list containing three elements: standardized_data (individual-level records), length_total (aggregated by length), and age_total (aggregated by age). Returns NA for length_total or age_total if no length or age data exist.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom dplyr select left_join mutate filter summarise cross_join if_else distinct all_of case_when
+#' @importFrom tidyr crossing
+#' @export
+
+standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
+  if(!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) stop("Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead")
+  
+  weight_data <- tblList$GSCAT |>
+    select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPWGT, TOTWGT)
+  
+  dist_data <- tblList$GSINF |>
+    select(MISSION, SETNO, DIST, AREA_KM2, GEAR, WINGSPREAD_FT)
+  
+  all_sets <- tblList$GSINF |>
+    filter(TYPE == 1) |>
+    select(MISSION, STRAT, SETNO, AREA_KM2) |>
+    distinct()
+  
+  #ensure that NA FSEX are changed to 0, and anything recorded as "berried" is interpreted as female
+  standardized_data <- tblList$GSDET |>
+    left_join(weight_data, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")) |>
+    left_join(dist_data, by = c("MISSION", "SETNO")) |>
+    mutate(
+      weight_ratio = case_when(
+        is.na(TOTWGT) | is.na(SAMPWGT) | TOTWGT == 0 | SAMPWGT == 0 ~ 1,
+        TRUE ~ TOTWGT / SAMPWGT
+      ),
+      FSEX = if_else(is.na(FSEX), 0, if_else(FSEX == 3, 2, FSEX)),
+      CLEN = CLEN * weight_ratio,
+      CAGE = if_else(!is.na(AGE), CLEN, NA_real_),
+      DIST = if_else(is.na(DIST), towDist, DIST),
+      CLEN_RAW = CLEN,
+      CAGE_RAW = CAGE,
+      CLEN = CLEN * (towDist / DIST),
+      CAGE = if_else(!is.na(CAGE), CAGE * (towDist / DIST), NA_real_),
+      CLEN_sqkm = if_else(!is.na(CLEN), valPerSqKm(CLEN, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT), NA_real_),
+      CAGE_sqkm = if_else(!is.na(CAGE), valPerSqKm(CAGE, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT), NA_real_)
+    ) |>
+    select(-weight_ratio, -SAMPWGT, -TOTWGT, -SIZE_CLASS)
+  
+  spec_only <- standardized_data |>
+    select(SPEC) |>
+    distinct()
+  
+  base_groups <- c("MISSION", "SETNO", "SPEC")
+  if (by_sex) base_groups <- c(base_groups, "FSEX")
+  length_total <- if (any(!is.na(standardized_data$FLEN))) {
+    length_data <- standardized_data |>
+      filter(!is.na(FLEN)) |>
+      summarise(
+        CLEN_TOTAL = sum(CLEN, na.rm = TRUE),
+        CLEN_SQKM_TOTAL = sum(CLEN_sqkm, na.rm = TRUE),
+        .by = all_of(base_groups) |> c("FLEN")
+      )
+    if(by_sex){
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(length_data |> select(FLEN) |> distinct()) |> 
+        cross_join(length_data |> select(FSEX) |> distinct())
+      
+      all_combos |>
+        left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN","FSEX")) |>
+        mutate(
+          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+        )
+    }else{
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(length_data |> select(FLEN) |> distinct())
+      
+      all_combos |>
+        left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN")) |>
+        mutate(
+          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
+          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
+        )
+    }
+  } else {
+    NA
+  }
+  
+  age_total <- if (any(!is.na(standardized_data$AGE))) {
+    age_data <- standardized_data |>
+      filter(!is.na(AGE)) |>
+      summarise(
+        CAGE_TOTAL = sum(CAGE, na.rm = TRUE),
+        CAGE_SQKM_TOTAL = sum(CAGE_sqkm, na.rm = TRUE),
+        .by = all_of(base_groups) |> c("AGE")
+      )
+    if(by_sex){
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(age_data |> select(AGE) |> distinct()) |> 
+        cross_join(length_data |> select(FSEX) |> distinct())
+      
+      all_combos |>
+        left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE","FSEX")) |>
+        mutate(
+          CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
+          CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
+        )
+      
+    } else{
+      all_combos <- all_sets |>
+        cross_join(spec_only) |>
+        cross_join(age_data |> select(AGE) |> distinct())
+      
+      all_combos |>
+        left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE")) |>
+        mutate(
+          CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
+          CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
+        )
+    }  
+    
+  } else {
+    NA
+  }
+  
+  return(list(
+    standardized_data = standardized_data,
+    length_total = length_total,
+    age_total = age_total
+  ))
+}
+
+
+#' @title widen_data
+#' @description Transform long-format biological data (e.g., length or age) into wide format with bins as columns. This function bins a specified continuous variable (such as fish length or age) according to a given bin size, aggregates a chosen value column within each bin, and creates a wide-format table where each bin becomes a separate column. Supports optional sex-based grouping and operates at either set-level (individual tows) or strata-level (aggregated across sets). Missing bins are filled with zeros to ensure complete coverage across the range.
+#'
+#' @param data A data frame containing the data to be widened. Must include columns for the variable specified in `var_col`, STRAT (stratum), AREA_KM2 (area), SPEC (species code), and the column specified in `value_col`. For set-level data, must also include MISSION and SETNO.
+#' @param var_col A string specifying the name of the continuous variable to bin (e.g., "FLEN" for length or "AGE" for age).
+#' @param value_col A string specifying the name of the column to aggregate and pivot (e.g., "CLEN_TOTAL", "CAGE_TOTAL", "CLEN_MEAN", etc.).
+#' @param bin_size Numeric. Default is \code{1}. Only applicable when \code{var_col} is FLEN.The width of bins. Values are binned using the formula: \code{bin_size * floor(var / bin_size)}.
+#' @param level Character. Either \code{"set"} or \code{"strata"}. Specifies the aggregation level. "set" includes MISSION and SETNO in grouping; "strata" aggregates across all sets within each stratum.
+#' @param by_sex Logical. Default is \code{FALSE}. If \code{TRUE}, includes FSEX in grouping and creates separate columns for each sex-bin combination.
+#'
+#' @return A wide-format data frame with columns for grouping variables (STRAT, AREA_KM2, SPEC, and optionally MISSION/SETNO and FSEX) and columns named according to the binning scheme (e.g., \code{FLEN_10}, \code{AGE_5}, or \code{U_FLEN_10} for sexed data). Rows are sorted by STRAT (and MISSION, SETNO for set-level data).
+#'
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @examples \dontrun{
+#' # Length example
+#' len_set <- widen_data(length_complete,
+#'                       var_col = "FLEN",
+#'                       value_col = "CLEN_TOTAL",
+#'                       bin_size = 3,
+#'                       level = "set",
+#'                       by_sex = TRUE)
+#'
+#' # Age example
+#' age_strat <- widen_data(age_strat,
+#'                         var_col = "AGE",
+#'                         value_col = "CAGE_MEAN",
+#'                         bin_size = 1,
+#'                         level = "strata",
+#'                         by_sex = FALSE)
+#' }
+#'
+#' @importFrom dplyr mutate summarise arrange all_of across .data
+#' @importFrom tidyr complete nesting pivot_wider
+#' @importFrom rlang syms
+#' @importFrom stats setNames
+#' @note The binning formula (\code{bin_size * floor(var / bin_size)}) matches the DFO standard used in Oracle queries. For bin_size = 3, this creates bins at 0, 3, 6, 9, etc.
+#' @export
+widen_data <- function(data, var_col, value_col, level = c("strata", "set"), bin_size = 1, by_sex = FALSE) {
+  if (missing(var_col)) stop("Parameter 'var_col' is missing.")
+  if (missing(value_col)) stop("Parameter 'value_col' is missing.")
+  level <- match.arg(level)
+  
+  var_col_sym <- rlang::sym(var_col)
+  value_col_sym <- rlang::sym(value_col)
+  
+  if (var_col == "FLEN") {
+    bin_col <- "FLEN_BIN"
+    min_val <- min(data$FLEN)
+    max_val <- max(data$FLEN)
+    
+    data <- binnit(data, bin_size = bin_size)
+    col_for_wide <- bin_col
+    seq_vals <- seq(1 + bin_size * floor(min_val / bin_size), 1 + bin_size * floor(max_val / bin_size), by = bin_size)
+  } else {
+    col_for_wide <- var_col
+    seq_vals <- sort(unique(data[[var_col]]))
+  }
+  
+  if (level == "set") {
+    group_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC", col_for_wide)
+    nesting_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC")
+    arrange_vars <- c("STRAT", "MISSION", "SETNO")
+  } else {
+    group_vars <- c("STRAT", "AREA_KM2", "SPEC", col_for_wide)
+    nesting_vars <- c("STRAT", "AREA_KM2", "SPEC")
+    arrange_vars <- "STRAT"
+  }
+  
+  if (by_sex) {
+    group_vars <- c(group_vars, "FSEX")
+    nesting_vars <- c(nesting_vars, "FSEX")
+  }
+  
+  fill_list <- setNames(list(0), value_col)
+  
+  data |>
+    summarise("{value_col}" := sum(.data[[value_col]]), .by = all_of(group_vars)) |>
+    tidyr::complete(
+      nesting(!!!syms(nesting_vars)),
+      !!col_for_wide := seq_vals,
+      fill = fill_list
+    ) |>
+    tidyr::pivot_wider(
+      names_from = if (by_sex) c("FSEX", col_for_wide) else col_for_wide,
+      values_from = all_of(value_col),
+      names_glue = if (by_sex) {
+        paste0("{c(FSEX = c('U','M','F')[FSEX+1])}", toupper(var_col), "{", col_for_wide, "}")
+      } else {
+        paste0(toupper(var_col), "_{", col_for_wide, "}")
+      },
+      values_fill = 0
+    ) |>
+    arrange(across(all_of(arrange_vars)))
+}
+
+
+
+
+#' @title binnit
+#' @description Assigns each FLEN to a length bin using the specified bin size. Bin values are calculated as the lower 
+#' edge of each bin, using the formula 1 + bin_size * floor(FLEN / bin_size). This approach is consistent with legacy 
+#' APL code, but bins do not necessarily start at the minimum observed length.
+#' @param data A data frame containing a numeric column named \code{FLEN}.
+#' @param bin_size Numeric value specifying the width of each length bin. Default is \code{1}.
+#' @return The input data frame with an added column \code{FLEN_BIN} indicating the bin assignment for each fish length.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom dplyr mutate
+#' @export
+binnit <- function(data, bin_size = 1) {
+  FLEN_BIN <- 1 + bin_size * floor(data$FLEN / bin_size)
+  dplyr::mutate(data, FLEN_BIN = FLEN_BIN)
+}
+
+

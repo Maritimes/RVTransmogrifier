@@ -55,7 +55,7 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
       newE$GSINF$SLAT <- newE$GSINF$SLONG <- newE$GSINF$ELAT <- newE$GSINF$ELONG  <- NULL
       gearDets <- data.frame(
         GEAR = c(9, 3, 15),
-        WINGSPREAD_FT = c(41, 35, 41)
+        WINGSPREAD_FT = c(41, 35, 42.65)
       )
       newE$GSINF <- newE$GSINF |> 
         left_join(gearDets, by="GEAR") |> 

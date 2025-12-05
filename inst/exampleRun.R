@@ -59,9 +59,17 @@ SHake_2016_flat <- easyFlatten(SHake_2016)
 SHake_2016_flat_post_strat  <- stranal_simple(df = SHake_2016_flat, by_sex=F)
 
 #stratify with lengths
-testData_len <- loadRVData(cxn = getCxn(), code = 43, years= c(2014), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
-testData_len_det <- stranal_detailed(testData_len, by_sex = F)
+wf <- loadRVData(cxn = NULL, code = 43, years= c(2014), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
+wf_simp <- stranal_simple(wf)
+wf_det_noSex <- stranal_detailed(wf, by_sex = F)
 plotRV(tblList = testData_len, catchStrataData = testData_len_det$stratified_byStrat, plotCatchStrata = "BIOMASS")
+
+
+testData_had <- loadRVData(cxn = NULL, code = 11, years= c(2014), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
+testData_det_noSex <- stranal_detailed(testData_had, by_sex = F, bin_size = 1)
+
+testData_cod <- loadRVData(cxn = NULL, code = 10, years= c(2024), survey="SUMMER", strata=470:495, types=1)
+testData_cod_det_noSex <- stranal_detailed(testData_cod, by_sex = F, bin_size = 3)
 
 # sexed
 SHake_2014 <- loadRVData(cxn = getCxn(), code = 14, years= "2014", survey="SUMMER", strata=c(440:495), types=1)
