@@ -236,6 +236,7 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
           CLEN_STRAT_TOTAL_SE =  CLEN_SQKM_SE * AREA_KM2
         ) |>
         select(-CLEN_values, -CLEN_SQKM_values)
+      
     } else{
       all_combos <- all_sets |>
         crossing(spec_only) |>
@@ -272,7 +273,9 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
         ) |>
         select(-CLEN_values, -CLEN_SQKM_values)
     } 
-
+    
+    
+    
     lenSet_mean <- widen_data(length_complete,var_col = "FLEN", value_col = "CLEN_TOTAL", bin_size = bin_size,level = "set", by_sex = by_sex) 
     lenStrat_mean <- widen_data(length_strat, var_col = "FLEN",value_col = "CLEN_MEAN", bin_size = bin_size,level = "strat", by_sex = by_sex)
     lenStrat_se <- widen_data(length_strat,var_col = "FLEN", value_col = "CLEN_SE", bin_size = bin_size,level = "strat", by_sex = by_sex)
@@ -347,7 +350,6 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
       }, flen_cols2, se_flen_cols2)
     )
     
-    
     summary_flen <- LENGTH_MEAN |>
       left_join(LENGTH_TOTAL, by = "FLEN_col") |>
       mutate(
@@ -392,25 +394,81 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
   
   if (inherits(totals$age_total, "data.frame")) {
     
-    agelen<- tblList$GSDET[,c("FLEN", "AGE")] |> filter(!is.na(FLEN) & !is.na(AGE))
+    #agelen<- tblList$GSDET[,c("FLEN", "AGE")] |> filter(!is.na(FLEN) & !is.na(AGE))
+    
+    agelen <- tblList$GSDET |>
+      select(FLEN, AGE, !!!if (by_sex) syms("FSEX")) 
+    
+    if (by_sex) {
+      agelen <- agelen |> filter(!is.na(FLEN) & !is.na(AGE) & !is.na(FSEX))
+    } else {
+      agelen <- agelen |> filter(!is.na(FLEN) & !is.na(AGE))
+    }
+    
+    alk_group_vars <- c("FLEN_BIN", "AGE")
+    if (by_sex) alk_group_vars <- c(alk_group_vars, "FSEX")
     
     alk <- agelen |>
       binnit(bin_size = bin_size) |>
-      count(FLEN_BIN, AGE) |>
-      tidyr::complete(FLEN_BIN = seq(min(FLEN_BIN), max(FLEN_BIN), by = bin_size), AGE, fill = list(n = 0)) |>
-      tidyr::pivot_wider(names_from = AGE, values_from = n, values_fill = 0) |>
-      arrange(FLEN_BIN) |>
-      rename(LENGTHS = FLEN_BIN)
-
+      count(across(all_of(alk_group_vars))) |>
+      tidyr::complete(
+        FLEN_BIN = seq(min(FLEN_BIN), max(FLEN_BIN), by = bin_size),
+        AGE,
+        !!!if (by_sex) syms("FSEX"),
+        fill = list(n = 0)
+      ) 
+    if (by_sex) {
+      alk <- alk |>
+        tidyr::pivot_wider(
+          names_from = c("FSEX", "AGE"),
+          values_from = n,
+          values_fill = 0,
+          names_glue = "{c(FSEX = c('U','M','F')[FSEX+1])}_{AGE}"
+        ) |>
+        arrange(FLEN_BIN) |>
+        rename(LENGTHS = FLEN_BIN) |>
+        select(LENGTHS, tidyselect::matches("^U_\\d+$"), 
+               tidyselect::matches("^M_\\d+$"), 
+               tidyselect::matches("^F_\\d+$"))
+    } else {
+      alk <- alk |>
+        tidyr::pivot_wider(
+          names_from = "AGE",
+          values_from = n,
+          values_fill = 0,
+          names_glue = "{AGE}"
+        ) |>
+        arrange(FLEN_BIN) |>
+        rename(LENGTHS = FLEN_BIN)
+    }
+    alk <- alk |> as.data.frame()
+    
+    alw_group_vars <- c("AGE", "FLEN_BIN")
+    if (by_sex) alw_group_vars <- c(alw_group_vars, "FSEX")
+    
     alw <- totals$standardized_data |>
       mutate(FLEN_BIN = 1 + 3 * floor(FLEN / 3)) |>
-      group_by(AGE, FLEN_BIN) |>
+      group_by(across(all_of(alw_group_vars))) |>
       summarise(FWT = mean(FWT), .groups = "drop") |>
-      complete(AGE, FLEN_BIN = full_seq(FLEN_BIN, 3), fill = list(FWT = 0)) |>
-      mutate(FWT = FWT / 1000) |>
-      pivot_wider(names_from = AGE, values_from = FWT) |>
-      rename(FLEN = FLEN_BIN) |> 
-      as.data.frame()
+      complete(FLEN_BIN = full_seq(FLEN_BIN, 3), AGE, !!!if (by_sex) syms("FSEX"), fill = list(FWT = 0)) |>
+      mutate(FWT = FWT / 1000) 
+ 
+    if (by_sex) {
+      alw <- alw |>
+        pivot_wider(
+          names_from = c("FSEX", "AGE"),
+          values_from = FWT,
+          names_glue = "{c(FSEX = c('U','M','F')[FSEX+1])}_{AGE}"
+        )
+    } else {
+      alw <- alw |>
+        pivot_wider(
+          names_from = "AGE",
+          values_from = FWT,
+          names_glue = "{AGE}"
+        )
+    }
+    alw <- alw |> as.data.frame()
     rownames(alw)<-alw$FLEN
     
     alk_ap <- as.data.frame(alk) |>
@@ -420,34 +478,37 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
     x <- prop.table(as.matrix(alk_ap[, setdiff(names(alk_ap), "FLEN")]), 1)
     x <- ifelse(is.nan(x), 0, x)
     ages_prop <- as.data.frame(x) |> dplyr::mutate(FLEN = alk_ap$FLEN)
-
+    
     lengths = colSums(lenStrat_total[,4:ncol(lenStrat_total)])
     lengths = as.data.frame(lengths[lengths>0])
     colnames(lengths) = "length_sum"
     lengths$FLEN <-  sub("FLEN_", "", rownames(lengths))
     row.names(lengths) <- NULL
-    # browser()
+    
     age_table<-merge(ages_prop,lengths, by="FLEN", all.x=T)
     age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))]<- age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))] * age_table[["length_sum"]]
     age_table[is.na(age_table)]<-0
     age_table$length_sum <- NULL
-
+    
     set_age <- widen_data(totals$age_total, var_col = "AGE", value_col = "CAGE_TOTAL", bin_size = bin_size,level = "set", by_sex = by_sex)
     
     age_complete <- totals$age_total |>
-           mutate(
-                 CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
-                 CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
-             )
-  
+      mutate(
+        CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
+        CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
+      )
+    
+    group_vars <- c("SPEC", "STRAT", "AREA_KM2", "AGE")
+    if (by_sex) group_vars <- c(group_vars, "FSEX")
     age_strat <- age_complete |>
-      dplyr::group_by(SPEC, STRAT, AREA_KM2, AGE) |>
+      dplyr::group_by(across(all_of(group_vars))) |>
       dplyr::group_map(~{
         tibble::tibble(
           SPEC = .y$SPEC,
           STRAT = .y$STRAT,
           AREA_KM2 = .y$AREA_KM2,
           AGE = .y$AGE,
+          !!!if (by_sex) list(FSEX = .y$FSEX),
           COUNT = nrow(.x),
           CAGE_SUM = sum(.x$CAGE_TOTAL, na.rm = TRUE),
           CAGE_MEAN = mean(.x$CAGE_TOTAL, na.rm = TRUE),
@@ -465,8 +526,14 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
     strat_age_mean_se <- widen_data(age_strat, var_col = "AGE", value_col = "CAGE_MEAN_SE", bin_size = bin_size,level = "strat", by_sex = by_sex) 
     strat_age_total <- widen_data(age_strat, var_col = "AGE", value_col = "CAGE_TOTAL", bin_size = bin_size,level = "strat", by_sex = by_sex) 
     strat_age_total_se <- widen_data(age_strat, var_col = "AGE", value_col = "CAGE_TOTAL_SE", bin_size = bin_size,level = "strat", by_sex = by_sex)
-  
-
+    
+    # TOTWGT_MEAN <- calcYearSummary(df_strat, valueField = "TOTWGT_MEAN", seField = "TOTWGT_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+    # TOTNO_MEAN <- calcYearSummary(df_strat, valueField = "TOTNO_MEAN", seField = "TOTNO_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+    # TOTWGT_SQKM_MEAN <- calcYearSummary(df_strat, valueField = "TOTWGT_SQKM_STRAT_MEAN", seField = "TOTWGT_SQKM_STRAT_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+    # TOTNO_SQKM_MEAN <- calcYearSummary(df_strat, valueField = "TOTNO_SQKM_STRAT_MEAN", seField = "TOTNO_SQKM_STRAT_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+    # BIOMASS_OVERALL <- calcYearSummary(df_strat, valueField = "BIOMASS", seField = "BIOMASS_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = FALSE)
+    # ABUNDANCE_OVERALL <- calcYearSummary(df_strat, valueField = "ABUNDANCE", seField = "ABUNDANCE_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = FALSE)
+    # 
     # AGE_MEAN <- calcYearSummary(age_strat, valueField = "CAGE_MEAN", seField = "CAGE_MEAN_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
     # AGE_SQKM_MEAN <- calcYearSummary(age_strat, valueField = "CAGE_SQKM_MEAN", seField = "CAGE_SQKM_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
     # AGE_OVERALL <- calcYearSummary(age_strat, valueField = "CAGE_TOTAL", seField = "CAGE_TOTAL_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = FALSE)

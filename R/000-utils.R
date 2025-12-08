@@ -356,6 +356,7 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
     distinct()
   
   base_groups <- c("MISSION", "SETNO", "SPEC")
+
   if (by_sex) base_groups <- c(base_groups, "FSEX")
   length_total <- if (any(!is.na(standardized_data$FLEN))) {
     length_data <- standardized_data |>
@@ -392,7 +393,7 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   } else {
     NA
   }
-  
+
   age_total <- if (any(!is.na(standardized_data$AGE))) {
     age_data <- standardized_data |>
       filter(!is.na(AGE)) |>
@@ -513,8 +514,7 @@ widen_data <- function(data, var_col, value_col, level = c("strata", "set"), bin
   }
   
   fill_list <- setNames(list(0), value_col)
-  
-  data |>
+  result<- data |>
     summarise("{value_col}" := sum(.data[[value_col]]), .by = all_of(group_vars)) |>
     tidyr::complete(
       nesting(!!!syms(nesting_vars)),
@@ -522,16 +522,17 @@ widen_data <- function(data, var_col, value_col, level = c("strata", "set"), bin
       fill = fill_list
     ) |>
     tidyr::pivot_wider(
-      names_from = if (by_sex) c("FSEX", col_for_wide) else col_for_wide,
-      values_from = all_of(value_col),
+      names_from = if (by_sex) c("FSEX", col_for_wide) else col_for_wide, values_from = all_of(value_col),
       names_glue = if (by_sex) {
-        paste0("{c(FSEX = c('U','M','F')[FSEX+1])}", toupper(var_col), "{", col_for_wide, "}")
+        paste0("{c(FSEX = c('U','M','F')[FSEX+1])}_", toupper(var_col), "_{", col_for_wide, "}")
       } else {
         paste0(toupper(var_col), "_{", col_for_wide, "}")
       },
       values_fill = 0
     ) |>
     arrange(across(all_of(arrange_vars)))
+  
+  return(result)
 }
 
 
