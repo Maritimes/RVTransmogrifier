@@ -1,218 +1,3 @@
-#' @title calcTotalSE_unstratified
-#' @description Calculate the total standard error for unstratified data by taking the square root of the sum of squared standard errors.
-#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
-#' @param valueField the default is \code{NULL}. The name of the field containing standard error values to be summed.
-#' @return A numeric value representing the total standard error, rounded to 5 decimal places.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @export
-
-calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
-  res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
-  return(res)
-}
-
-#' @title calcTotalSE_stratified
-#' @description Calculate the total standard error for stratified data using area-weighted standard errors.
-#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
-#' @param valueField the default is \code{NULL}. The name of the field containing standard error values.
-#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
-#' @return A numeric value representing the stratified total standard error, rounded to 5 decimal places.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @export
-
-calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
-  totArea <- sum(theDataByStrat[[areaField]])
-  res <- round(sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2)),5)
-  return(res)
-}
-#' @title calcTotalMean
-#' @description Calculate the area-weighted mean across strata.
-#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
-#' @param valueField the default is \code{NULL}. The name of the field containing values to be averaged.
-#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
-#' @return A numeric value representing the area-weighted mean, rounded to 5 decimal places.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @export
-
-calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
-  totArea <- sum(theDataByStrat[[areaField]])
-  res <- round(sum(theDataByStrat[[valueField]] * theDataByStrat[[areaField]] / totArea), 5)
-  return(res)
-}
-
-#' @title calcYearSummary
-#' @description Calculate annual summary statistics including value, standard error, and confidence intervals for either means or totals.
-#' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
-#' @param year the default is \code{NULL}. The year for which summary statistics are being calculated.
-#' @param valueField the default is \code{NULL}. The name of the field containing values to be summarized.
-#' @param seField the default is \code{NULL}. The name of the field containing standard error values.
-#' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
-#' @param level the default is \code{0.95}. The confidence level for the interval (e.g., 0.95 for 95\% CI).
-#' @param is_mean the default is \code{TRUE}. If TRUE, calculates stratified mean; if FALSE, calculates unstratified total.
-#' @return A data frame containing value, se, low (lower CI), and high (upper CI) columns.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @export
-
-calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
-  if(is_mean){
-    value <- calcTotalMean(theDataByStrat, valueField, areaField)
-    se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
-    se_val <- calcTotalSE_stratified(se_data, seField, areaField)
-  } else {
-    value <- round(sum(theDataByStrat[[valueField]], na.rm = TRUE), 5)
-    se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
-    se_val <- calcTotalSE_unstratified(se_data, seField)
-    
-  }
-  
-  z_score <- qnorm(1 - (1 - level) / 2)
-  
-  lower_ci <- round(value - (z_score * se_val), 5)
-  upper_ci <- round(value + (z_score * se_val), 5)
-  
-  result <- data.frame(
-    value = value,
-    se = se_val,
-    low = lower_ci,
-    high = upper_ci
-  )
-  
-  return(result)
-}
-
-#' @title standardize_catch_counts
-#' @description Standardize catch counts from detailed length/age data (GSDET) by applying weight ratios, correcting for tow distance, and calculating density per square kilometer. Returns standardized data at the individual level as well as aggregated totals by length and age.
-#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSCAT, GSDET, and GSINF.
-#' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
-#' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
-#' @return A list containing three elements: standardized_data (individual-level records), length_total (aggregated by length), and age_total (aggregated by age). Returns NA for length_total or age_total if no length or age data exist.
-#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @importFrom dplyr select left_join mutate filter summarise cross_join if_else distinct all_of case_when
-#' @importFrom tidyr crossing
-#' @export
-
-standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
-  if(!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) stop("Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead")
-  
-  weight_data <- tblList$GSCAT |>
-    select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPWGT, TOTWGT)
-  
-  dist_data <- tblList$GSINF |>
-    select(MISSION, SETNO, DIST, AREA_KM2, GEAR, WINGSPREAD_FT)
-  
-  all_sets <- tblList$GSINF |>
-    filter(TYPE == 1) |>
-    select(MISSION, STRAT, SETNO, AREA_KM2) |>
-    distinct()
-  
-  #ensure that NA FSEX are changed to 0, and anything recorded as "berried" is interpreted as female
-  standardized_data <- tblList$GSDET |>
-    left_join(weight_data, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")) |>
-    left_join(dist_data, by = c("MISSION", "SETNO")) |>
-    mutate(
-      weight_ratio = case_when(
-        is.na(TOTWGT) | is.na(SAMPWGT) | TOTWGT == 0 | SAMPWGT == 0 ~ 1,
-        TRUE ~ TOTWGT / SAMPWGT
-      ),
-      FSEX = if_else(is.na(FSEX), 0, if_else(FSEX == 3, 2, FSEX)),
-      CLEN = CLEN * weight_ratio,
-      CAGE = if_else(!is.na(AGE), CLEN, NA_real_),
-      DIST = if_else(is.na(DIST), towDist, DIST),
-      CLEN_RAW = CLEN,
-      CAGE_RAW = CAGE,
-      CLEN = CLEN * (towDist / DIST),
-      CAGE = if_else(!is.na(CAGE), CAGE * (towDist / DIST), NA_real_),
-      CLEN_sqkm = if_else(!is.na(CLEN), valPerSqKm(CLEN, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT), NA_real_),
-      CAGE_sqkm = if_else(!is.na(CAGE), valPerSqKm(CAGE, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT), NA_real_)
-    ) |>
-    select(-weight_ratio, -SAMPWGT, -TOTWGT, -SIZE_CLASS)
-  
-  spec_only <- standardized_data |>
-    select(SPEC) |>
-    distinct()
-  
-  base_groups <- c("MISSION", "SETNO", "SPEC")
-  if (by_sex) base_groups <- c(base_groups, "FSEX")
-  length_total <- if (any(!is.na(standardized_data$FLEN))) {
-    length_data <- standardized_data |>
-      filter(!is.na(FLEN)) |>
-      summarise(
-        CLEN_TOTAL = sum(CLEN, na.rm = TRUE),
-        CLEN_SQKM_TOTAL = sum(CLEN_sqkm, na.rm = TRUE),
-        .by = all_of(base_groups) |> c("FLEN")
-      )
-    if(by_sex){
-      all_combos <- all_sets |>
-        cross_join(spec_only) |>
-        cross_join(length_data |> select(FLEN) |> distinct()) |> 
-        cross_join(length_data |> select(FSEX) |> distinct())
-      
-      all_combos |>
-        left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN","FSEX")) |>
-        mutate(
-          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
-          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
-        )
-    }else{
-      all_combos <- all_sets |>
-        cross_join(spec_only) |>
-        cross_join(length_data |> select(FLEN) |> distinct())
-      
-      all_combos |>
-        left_join(length_data, by = c("MISSION", "SETNO", "SPEC", "FLEN")) |>
-        mutate(
-          CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
-          CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
-        )
-    }
-  } else {
-    NA
-  }
-  
-  age_total <- if (any(!is.na(standardized_data$AGE))) {
-    age_data <- standardized_data |>
-      filter(!is.na(AGE)) |>
-      summarise(
-        CAGE_TOTAL = sum(CAGE, na.rm = TRUE),
-        CAGE_SQKM_TOTAL = sum(CAGE_sqkm, na.rm = TRUE),
-        .by = all_of(base_groups) |> c("AGE")
-      )
-    if(by_sex){
-      all_combos <- all_sets |>
-        cross_join(spec_only) |>
-        cross_join(age_data |> select(AGE) |> distinct()) |> 
-        cross_join(length_data |> select(FSEX) |> distinct())
-      
-      all_combos |>
-        left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE","FSEX")) |>
-        mutate(
-          CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
-          CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
-        )
-      
-    } else{
-      all_combos <- all_sets |>
-        cross_join(spec_only) |>
-        cross_join(age_data |> select(AGE) |> distinct())
-      
-      all_combos |>
-        left_join(age_data, by = c("MISSION", "SETNO", "SPEC", "AGE")) |>
-        mutate(
-          CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
-          CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
-        )
-    }  
-    
-  } else {
-    NA
-  }
-  
-  return(list(
-    standardized_data = standardized_data,
-    length_total = length_total,
-    age_total = age_total
-  ))
-}
 
 #' @title stranal_simple
 #' @description Calculate stratified estimates of biomass and abundance from RV survey data. This function handles taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with confidence intervals.
@@ -570,11 +355,7 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
         SEX = if_else(grepl("^[UMF]_FLEN_", FLEN_col),
                       sub("_FLEN_.*", "", FLEN_col),
                       ""),
-        
-        # Extract numeric part after last underscore
         FLEN_NUM = as.integer(sub(".*_(\\d+)$", "\\1", FLEN_col)),
-        
-        # Sort order for sex: none first, then U, M, F
         SEX_ORDER = case_when(
           SEX == "" ~ 0,
           SEX == "U" ~ 1,
@@ -630,7 +411,6 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
       pivot_wider(names_from = AGE, values_from = FWT) |>
       rename(FLEN = FLEN_BIN) |> 
       as.data.frame()
-
     rownames(alw)<-alw$FLEN
     
     alk_ap <- as.data.frame(alk) |>
@@ -646,8 +426,8 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
     colnames(lengths) = "length_sum"
     lengths$FLEN <-  sub("FLEN_", "", rownames(lengths))
     row.names(lengths) <- NULL
-    
-    age_table<-merge(ages_prop,lengths, by="FLEN")
+    # browser()
+    age_table<-merge(ages_prop,lengths, by="FLEN", all.x=T)
     age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))]<- age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))] * age_table[["length_sum"]]
     age_table[is.na(age_table)]<-0
     age_table$length_sum <- NULL
@@ -686,6 +466,28 @@ stranal_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limit
     strat_age_total <- widen_data(age_strat, var_col = "AGE", value_col = "CAGE_TOTAL", bin_size = bin_size,level = "strat", by_sex = by_sex) 
     strat_age_total_se <- widen_data(age_strat, var_col = "AGE", value_col = "CAGE_TOTAL_SE", bin_size = bin_size,level = "strat", by_sex = by_sex)
   
+
+    # AGE_MEAN <- calcYearSummary(age_strat, valueField = "CAGE_MEAN", seField = "CAGE_MEAN_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+    # AGE_SQKM_MEAN <- calcYearSummary(age_strat, valueField = "CAGE_SQKM_MEAN", seField = "CAGE_SQKM_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = TRUE)
+    # AGE_OVERALL <- calcYearSummary(age_strat, valueField = "CAGE_TOTAL", seField = "CAGE_TOTAL_SE", areaField = "AREA_KM2", level = conf_limits/100, is_mean = FALSE)
+    # 
+    # overall_age <- data.frame(
+    #   AGE_MEAN = AGE_MEAN$value,
+    #   AGE_MEAN_SE = AGE_MEAN$se,
+    #   AGE_MEAN_LOW = AGE_MEAN$low,
+    #   AGE_MEAN_HIGH = AGE_MEAN$high,
+    #   
+    #   AGE_SQKM_MEAN = AGE_SQKM_MEAN$value,
+    #   AGE_SQKM_MEAN_SE = AGE_SQKM_MEAN$se,
+    #   AGE_SQKM_MEAN_LOW = AGE_SQKM_MEAN$low,
+    #   AGE_SQKM_MEAN_HIGH = AGE_SQKM_MEAN$high,
+    #   
+    #   AGE_OVERALL = AGE_OVERALL$value,
+    #   AGE_OVERALL_SE = AGE_OVERALL$se,
+    #   AGE_OVERALL_LOW = AGE_OVERALL$low,
+    #   AGE_OVERALL_HIGH = AGE_OVERALL$high
+    # )     
+    # results$summary_age <- overall_age
     results$age_length_key <- alk
     results$age_table <- age_table
     results$age_length_weight <- alw

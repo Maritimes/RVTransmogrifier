@@ -318,7 +318,6 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
 
 standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   if(!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) stop("Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead")
-  
   weight_data <- tblList$GSCAT |>
     select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPWGT, TOTWGT)
   
