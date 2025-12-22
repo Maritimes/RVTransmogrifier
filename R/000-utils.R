@@ -6,9 +6,9 @@ utils::globalVariables(c("TOTNO", "TOTWGT", "CLEN"))
 utils::globalVariables(c("STRAT", "AREA", "AREA_KM2"))
 #standardize_catch_counts
 utils::globalVariables(c("SIZE_CLASS","WINGSPREAD_FT","TYPE","weight_ratio","CAGE","CLEN_sqkm","CLEN_TOTAL","CLEN_SQKM_TOTAL","CAGE_sqkm","CAGE_TOTAL","CAGE_SQKM_TOTAL"))
-#stranal_detailed
+#stratify_detailed
 utils::globalVariables(c("CLEN_TOTAL","CLEN_SQKM_TOTAL","CLEN_values","CLEN_SQKM_values","CLEN_SQKM_MEAN","CAGE_TOTAL","CAGE_SQKM_TOTAL","CAGE_values","CAGE_SQKM_values", "CAGE_SQKM_MEAN","CLEN_TOTAL", "CLEN_SQKM_TOTAL", "CLEN_values", "CLEN_SQKM_values", "CLEN_SQKM_MEAN", "CAGE_TOTAL", "CAGE_SQKM_TOTAL", "CAGE_values", "CAGE_SQKM_values", "CAGE_SQKM_MEAN", "CLEN_SQKM_SE", "FLEN_col", "SEX_ORDER", "FLEN_NUM", "LENGTH_MEAN_SE", "LENGTH_TOTAL_SE", "se", "value"))
-#stranal_simple
+#stratify_simple
 utils::globalVariables(c("TOTWGT_SUM", "TOTNO_SUM", "TOTWGT_sqkm","TOTNO_sqkm","BIOMASS_set","ABUNDANCE_set","TOTWGT_SQKM_STRAT_MEAN","TOTNO_SQKM_STRAT_MEAN"))
 #ggStrata
 utils::globalVariables(c("StrataID"))
@@ -115,16 +115,33 @@ binSizes <- function(bin, value){
 fixHerringLengths <-function(GSDET_ = NULL){
   #Fix herring lengths - ensure all are in mm
   #NED 2016016 - first instance of measuring herring in mm - convert all prior data from cm to mm
-  GSDET_[GSDET_$SPEC == 60 &
-           substr(GSDET_$MISSION,4,7) <= 2016 & 
-           !GSDET_$MISSION %in% c("NED2016116","NED2016016") & 
-           !is.na(GSDET_$FLEN),"FLEN"] <- GSDET_[GSDET_$SPEC == 60 &
-                                                   substr(GSDET_$MISSION,4,7) <= 2016 & 
-                                                   !GSDET_$MISSION %in% c("NED2016116","NED2016016") & 
-                                                   !is.na(GSDET_$FLEN),"FLEN"]*10
-  return(GSDET_)
+  GSDET_ |>
+    dplyr::mutate(
+      FLEN = dplyr::case_when(
+        SPEC == 60 &
+          substr(MISSION, 4, 7) <= 2016 &
+          !MISSION %in% c("NED2016116", "NED2016016") &
+          !is.na(FLEN) ~ FLEN * 10,
+        TRUE ~ FLEN
+      )
+    )
 }
 
+
+fixGrenadierLengths <-function(GSDET_ = NULL){
+  #Fix grenadier lengths
+  GSDET_ |>
+    dplyr::mutate(
+      FLEN = dplyr::case_when(
+        SPEC == 410 & substr(MISSION, 4, 7) < 2019 & MISSION != "NED2010027" ~ ((FLEN - 1.770067) / 4.453725) * 10,
+        SPEC == 410 & MISSION == "NED2010027" & !SETNO %in% c(219, 222, 223, 229, 230, 233, 236) ~ ((FLEN - 1.770067) / 4.453725) * 10,
+        SPEC == 410 & MISSION == "NED2010027" & SETNO %in% c(219, 222, 223, 229, 230, 233, 236) ~ FLEN * 10,
+        SPEC == 410 & MISSION == "NED2019102" & SETNO %in% c(13, 15, 132, 133, 150) ~ FLEN * 10,
+        SPEC == 410 & MISSION == "NED2019030" & SETNO %in% c(132, 133, 150) ~ FLEN * 10,
+        TRUE ~ FLEN
+      )
+    )
+}
 
 #' @title rmSizeClasses
 #' @description Aggregates catch data by removing size class distinctions, summing calculated weight, 
@@ -230,7 +247,6 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
 #' @return A numeric value representing the total standard error, rounded to 5 decimal places.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-
 calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
   res <- round(sqrt(sum(theDataByStrat[[valueField]]^2)), 5)
   return(res)
@@ -244,12 +260,12 @@ calcTotalSE_unstratified  <- function(theDataByStrat = NULL, valueField = NULL){
 #' @return A numeric value representing the stratified total standard error, rounded to 5 decimal places.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-
 calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
   totArea <- sum(theDataByStrat[[areaField]])
   res <- round(sqrt(sum((theDataByStrat[[areaField]] / totArea)^2 * theDataByStrat[[valueField]]^2)),5)
   return(res)
 }
+
 #' @title calcTotalMean
 #' @description Calculate the area-weighted mean across strata.
 #' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
@@ -258,7 +274,6 @@ calcTotalSE_stratified  <- function(theDataByStrat = NULL, valueField = NULL, ar
 #' @return A numeric value representing the area-weighted mean, rounded to 5 decimal places.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-
 calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = NULL){
   totArea <- sum(theDataByStrat[[areaField]])
   res <- round(sum(theDataByStrat[[valueField]] * theDataByStrat[[areaField]] / totArea), 5)
@@ -272,13 +287,11 @@ calcTotalMean <- function(theDataByStrat = NULL, valueField = NULL, areaField = 
 #' @param valueField the default is \code{NULL}. The name of the field containing values to be summarized.
 #' @param seField the default is \code{NULL}. The name of the field containing standard error values.
 #' @param areaField the default is \code{NULL}. The name of the field containing area values for weighting.
-#' @param level the default is \code{0.95}. The confidence level for the interval (e.g., 0.95 for 95\% CI).
 #' @param is_mean the default is \code{TRUE}. If TRUE, calculates stratified mean; if FALSE, calculates unstratified total.
 #' @return A data frame containing value, se, low (lower CI), and high (upper CI) columns.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-
-calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, level = 0.95, is_mean = TRUE){
+calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NULL, seField = NULL, areaField = NULL, is_mean = TRUE){
   if(is_mean){
     value <- calcTotalMean(theDataByStrat, valueField, areaField)
     se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
@@ -287,21 +300,13 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
     value <- round(sum(theDataByStrat[[valueField]], na.rm = TRUE), 5)
     se_data <- theDataByStrat[!is.na(theDataByStrat[[seField]]), ]
     se_val <- calcTotalSE_unstratified(se_data, seField)
-    
   }
-  
-  z_score <- qnorm(1 - (1 - level) / 2)
-  
-  lower_ci <- round(value - (z_score * se_val), 5)
-  upper_ci <- round(value + (z_score * se_val), 5)
-  
+
   result <- data.frame(
     value = value,
-    se = se_val,
-    low = lower_ci,
-    high = upper_ci
+    se = se_val
   )
-  
+
   return(result)
 }
 
@@ -315,7 +320,6 @@ calcYearSummary <- function(theDataByStrat = NULL, year = NULL, valueField = NUL
 #' @importFrom dplyr select left_join mutate filter summarise cross_join if_else distinct all_of case_when
 #' @importFrom tidyr crossing
 #' @export
-
 standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   if(!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) stop("Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead")
   weight_data <- tblList$GSCAT |>
@@ -431,14 +435,12 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
   } else {
     NA
   }
-  
   return(list(
     standardized_data = standardized_data,
     length_total = length_total,
     age_total = age_total
   ))
 }
-
 
 #' @title widen_data
 #' @description Transform long-format biological data (e.g., length or age) into wide format with bins as columns. This function bins a specified continuous variable (such as fish length or age) according to a given bin size, aggregates a chosen value column within each bin, and creates a wide-format table where each bin becomes a separate column. Supports optional sex-based grouping and operates at either set-level (individual tows) or strata-level (aggregated across sets). Missing bins are filled with zeros to ensure complete coverage across the range.
@@ -535,9 +537,6 @@ widen_data <- function(data, var_col, value_col, level = c("strata", "set"), bin
   return(result)
 }
 
-
-
-
 #' @title binnit
 #' @description Assigns each FLEN to a length bin using the specified bin size. Bin values are calculated as the lower 
 #' edge of each bin, using the formula 1 + bin_size * floor(FLEN / bin_size). This approach is consistent with legacy 
@@ -553,4 +552,63 @@ binnit <- function(data, bin_size = 1) {
   dplyr::mutate(data, FLEN_BIN = FLEN_BIN)
 }
 
+# summarize_by_age <- function(data, value_col, area_col = "AREA_KM2", group_col = "STRAT", age_col = "AGE", method = c("weighted_mean", "rss_se", "rss_se_no_area", "weighted_mean_by_count"), count_col = NULL) {
+#   method <- match.arg(method)
+#   ages <- sort(unique(data[[age_col]]))
+#   result <- sapply(ages, function(a) {
+#     subset <- data[data[[age_col]] == a, ]
+#     strata <- unique(subset[[group_col]])
+#     if (method == "weighted_mean") {
+#       mean_by_stratum <- sapply(strata, function(s) mean(subset[subset[[group_col]] == s, value_col], na.rm = TRUE))
+#       area_by_stratum <- as.numeric(sapply(strata, function(s) unique(subset[subset[[group_col]] == s, area_col])[1]))
+#       sum(mean_by_stratum * area_by_stratum) / sum(area_by_stratum)
+#     } else if (method == "rss_se") {
+#       se_by_stratum <- as.numeric(sapply(strata, function(s) subset[subset[[group_col]] == s, value_col][1]))
+#       area_by_stratum <- as.numeric(sapply(strata, function(s) unique(subset[subset[[group_col]] == s, area_col])[1]))
+#       sqrt(sum((se_by_stratum^2) * (area_by_stratum^2), na.rm = TRUE)) / sum(area_by_stratum)
+#     } else if (method == "rss_se_no_area") {
+#       se_by_stratum <- as.numeric(sapply(strata, function(s) subset[subset[[group_col]] == s, value_col][1]))
+#       sqrt(sum(se_by_stratum^2, na.rm = TRUE))
+#     } else if (method == "weighted_mean_by_count" && !is.null(count_col)) {
+#       w <- subset[[value_col]]
+#       n <- subset[[count_col]]
+#       if (sum(n, na.rm = TRUE) == 0) return(NA)
+#       sum(w * n, na.rm = TRUE) / sum(n, na.rm = TRUE)
+#     } else {
+#       NA
+#     }
+#   })
+#   names(result) <- ages
+#   return(result)
+# }
 
+summarize_by_age2 <- function(data, value_col, area_col = "AREA_KM2", group_col = "STRAT", age_col = "AGE", method = c("weighted_mean", "rss_se", "rss_se_no_area", "weighted_mean_by_count"), count_col = NULL) {
+  method <- match.arg(method)
+  ages <- sort(unique(data[[age_col]]))
+  result <- sapply(ages, function(a) {
+    subset <- data[data[[age_col]] == a, ]
+    strata <- unique(subset[[group_col]])
+    if (method == "weighted_mean") {
+      mean_by_stratum <- sapply(strata, function(s) mean(subset[subset[[group_col]] == s, value_col], na.rm = TRUE))
+      area_by_stratum <- as.numeric(sapply(strata, function(s) unique(subset[subset[[group_col]] == s, area_col])[1]))
+      calcTotalMean(theDataByStrat = data.frame(value = mean_by_stratum, area = area_by_stratum), valueField = "value", areaField = "area")
+    } else if (method == "rss_se") {
+      first_by_stratum <- as.numeric(sapply(strata, function(s) subset[subset[[group_col]] == s, value_col][1]))
+      area_by_stratum <- as.numeric(sapply(strata, function(s) unique(subset[subset[[group_col]] == s, area_col])[1]))
+      calcTotalSE_stratified(theDataByStrat = data.frame(value = first_by_stratum, area = area_by_stratum), valueField = "value", areaField = "area")
+    } else if (method == "rss_se_no_area") {
+      #sum(subset[[value_col]], na.rm = TRUE)
+      # calcTotalSE_unstratified(theDataByStrat = subset, valueField = value_col)
+      calcTotalSE_unstratified(theDataByStrat = subset[subset[[value_col]] != 0, ], valueField = value_col)
+    } else if (method == "weighted_mean_by_count" && !is.null(count_col)) {
+      w <- subset[[value_col]]
+      n <- subset[[count_col]]
+      if (sum(n, na.rm = TRUE) == 0) return(NA)
+      sum(w * n, na.rm = TRUE) / sum(n, na.rm = TRUE)
+    } else {
+      NA
+    }
+  })
+  names(result) <- ages
+  return(result)
+}

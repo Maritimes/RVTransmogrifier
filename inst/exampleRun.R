@@ -89,6 +89,7 @@ plotRV(tblList = SHake_2016, catchStrataData = SHake_2016_post_strat$stratified_
 
 # Here we extract SUMMER 2016 echinoderms
 echinoderms_summer_2016 <- loadRVData(cxn = getCxn(), survey = "SUMMER", years = 2016, taxa="ECHINODERMATA")
+ARGENTINIFORMES <- loadRVData(cxn = getCxn(), survey = "SUMMER", years = 2016, taxa="ARGENTINIFORMES")
 
 #Now we have all of the echinoderms, and we can handle them by species, if we choose...
 plotRV(echinoderms_summer_2016)
@@ -142,6 +143,7 @@ echinoderms_summer_2016_agg_stratified <- stratify_simple(echinoderms_summer_201
 
 #### work on Conversion Factors
 data_GEORGES_1999 <- loadRVData(cxn = getCxn(), code = 14, survey="GEORGES", years=1999)
+
 
 tt <- applyConversionFactors(data_GEORGES_1999)
 

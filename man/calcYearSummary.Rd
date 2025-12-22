@@ -10,7 +10,6 @@ calcYearSummary(
   valueField = NULL,
   seField = NULL,
   areaField = NULL,
-  level = 0.95,
   is_mean = TRUE
 )
 }
@@ -24,8 +23,6 @@ calcYearSummary(
 \item{seField}{the default is \code{NULL}. The name of the field containing standard error values.}
 
 \item{areaField}{the default is \code{NULL}. The name of the field containing area values for weighting.}
-
-\item{level}{the default is \code{0.95}. The confidence level for the interval (e.g., 0.95 for 95\% CI).}
 
 \item{is_mean}{the default is \code{TRUE}. If TRUE, calculates stratified mean; if FALSE, calculates unstratified total.}
 }

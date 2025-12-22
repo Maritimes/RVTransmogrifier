@@ -11,6 +11,8 @@
 #' @importFrom dplyr filter select rename group_by ungroup mutate case_when left_join anti_join across
 #' @export
 applyConversionFactors <- function(cxn=NULL, tblList){
+  
+  
   season <- unique(tblList$GSMISSION$SEASON)
   if (length(season)>1)stop("The function can only handle a single season of data")
   if (!season %in% c('SPRING','SUMMER'))stop("This function can only handle SUMMER or SPRING/GEORGES") 
@@ -42,7 +44,8 @@ applyConversionFactors <- function(cxn=NULL, tblList){
   GSCAT_mrg <- tblList$GSCAT |>
     dplyr::mutate(
       SAMPWGT = dplyr::if_else(SAMPWGT == 0 | is.na(SAMPWGT), TOTWGT, SAMPWGT),
-      SAMPTOT_Ratio = dplyr::if_else(is.nan(TOTWGT / SAMPWGT), 1, TOTWGT / SAMPWGT)
+      SAMPTOT_Ratio = dplyr::if_else(is.nan(TOTWGT / SAMPWGT), 1, TOTWGT / SAMPWGT),
+      SAMPTOT_Ratio = dplyr::if_else(is.na(TOTWGT / SAMPWGT), 1, TOTWGT / SAMPWGT)
     )
   
   #########################################################################
@@ -133,8 +136,8 @@ applyConversionFactors <- function(cxn=NULL, tblList){
       FROM_VESSEL = dplyr::case_when(
         VESEL == "A" ~ "ATC_HAM",
         VESEL == "H" ~ "ATC_HAM",
-        VESEL == "J" ~ "NONE",    # <<CARTIER>>
-        VESEL == "B" ~ "NONE",
+        VESEL == "J" ~ "CAR_CAB",    # <<CARTIER>>
+        VESEL == "B" ~ "CAR_CAB",
         VESEL == "N" ~ "NED_TEM",
         VESEL == "S" ~ "TEL_VEN",
         VESEL == "T" ~ "NED_TEM",
@@ -144,7 +147,11 @@ applyConversionFactors <- function(cxn=NULL, tblList){
     )
   rm(list=c("CATDET_base"))
   
-  #First lets deal with all the to cartier/cabot conversions we need to account for
+  # from/to logic
+  # to teleost:
+  # from cam/hammond -> needler/templeman -> venture/teleost -> cabot/cartier
+  # anywhere where the inversions is done, swap the from and to vessels?
+  # First lets deal with all the to cartier/cabot conversions we need to account for
   TELVEN_TO_CARCAB_ABUND_CONV <- GSCONVERSIONS |>
     filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") &  FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
     select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
@@ -216,6 +223,7 @@ applyConversionFactors <- function(cxn=NULL, tblList){
   NEDTEM_TO_TELVEN_ABUND_CONV_LDM<-subset(NEDTEM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   ATCHAM_TO_TELVEN_ABUND_CONV_LDM<-subset(ATCHAM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   
+  message()
   LF_Data_All<-merge(CATDET,TELVEN_TO_CARCAB_ABUND_CONV_LDM,by=c("SPEC","FLEN","FROM_VESSEL"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,NEDTEM_TO_CARCAB_ABUND_CONV_LDM,by=c("SPEC","FLEN","FROM_VESSEL"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,NEDTEM_TO_TELVEN_ABUND_CONV_LDM,by=c("SPEC","FLEN","FROM_VESSEL"),all.x=TRUE)

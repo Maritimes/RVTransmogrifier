@@ -37,7 +37,7 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
       # identify the stuff we have that can just be loaded
       message("Extracting and processing missing tables - this will take a minute (subsequent loads will be WAY faster)")
       allProcessTables <- c("GSINF") #GSSPECIES_NEW
-      
+    
       missingProcessTables <- intersect(missingTables, allProcessTables)
       haveTables <- setdiff(coreTables, missingProcessTables)
       
@@ -51,6 +51,7 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
     #                                                                                      cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
     #general processing for specific tables
     if("GSINF" %in% missingTables | force.extract) {
+      message("Tweaking GSINF (adding dd coords, wingspreads and strata areas in km2")
       newE$GSINF <- addDDCoords(newE$GSINF)
       newE$GSINF$SLAT <- newE$GSINF$SLONG <- newE$GSINF$ELAT <- newE$GSINF$ELONG  <- NULL
       gearDets <- data.frame(
@@ -64,7 +65,13 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
                     mutate(AREA_KM2 = sqNMToSqKm(AREA_KM2)),
                   by="STRAT")
     }
-
+    if("GSDET" %in% missingTables) invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = c("GSDET"), force.extract = force.extract,
+                                                                        cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
+    if("GSDET" %in% missingTables | force.extract) {
+      message("Tweaking GSDET (converting herring to millimeters  and fixing grenadier fork lengths)")
+      newE$GSDET <- fixHerringLengths(newE$GSDET)
+      newE$GSDET <- fixGrenadierLengths(newE$GSDET)
+    }
   lapply(names(newE), function(x) {
     Mar.utils::save_encrypted(
       list = x,
