@@ -88,6 +88,7 @@ filterSpecies <- function(tblList = NULL, code = NULL, aphiaid = NULL, taxa = NU
   if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
     tblList$GSCAT    <- merge(tblList$GSCAT, distinct(tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")]), by.x="SPEC", by.y="CODE")
     tblList$GSDET      <- merge(tblList$GSDET, distinct(tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")]), by.x="SPEC", by.y="CODE")
+    tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, distinct(tblList$GSSPECIES_NEW[,c("CODE","TAXA_", "TAXARANK_")]), by.x="SPEC", by.y="CODE")
   }
   return(tblList)
 }

@@ -7,6 +7,8 @@
 #' within the function. If provided, it takes precedence over the connection-
 #' related parameters.
 #' @param force.extract the default is \code{FALSE}.
+#' @param stock Optional. A valid stock name from `stock_map`. If provided, it overrides 
+#' manually specified parameters like `code`, `months`, `strata`, etc.
 #' @param ... other arguments passed to methods (i.e. 'keep_nullsets', debug' and 'quiet')
 #' @returns a list of dataframes which have been filtered to only include data related to the 
 #' specified survey and years
@@ -14,12 +16,30 @@
 #' @importFrom dplyr left_join select mutate
 #' @importFrom stats setNames
 #' @export
-loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
+loadRVData <- function(cxn=NULL, force.extract = FALSE, stock = NULL, ...){
 
   args <- list(...)
   newE <- new.env()
   if (is.null(args$debug)) args$debug <- FALSE
   if (is.null(args$keep_nullsets)) args$keep_nullsets <- TRUE
+  
+  # Use stock_map if stock argument is provided
+  if (!is.null(stock)) {
+    if (!exists("stock_map", where = .GlobalEnv)) {
+      stop("The stock_map object is not loaded. Ensure `stock-utils.R` is sourced.")
+    }
+    if (!stock %in% names(stock_map)) {
+      stop("Invalid stock name. Use `list_stocks()` to see valid options.")
+    }
+    
+    stock_params <- stock_map[[stock]]
+    
+    args$survey <- NULL
+    args$code <- stock_params$code
+    args$months <- stock_params$months
+    args$strata <- stock_params$strata
+    args$areas <- stock_params$areas
+  }
   
   missingTables <- coreTables[!file.exists(file.path(get_pesd_rvt_dir(), paste0("GROUNDFISH.", coreTables, ".RData")))]
   
@@ -31,7 +51,7 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
     if (force.extract){
       # replace everything, load everything
       message("Initial data extraction/processing - this will take a minute (subsequent loads will be WAY faster)")
-      invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = rawTables, force.extract = force.extract,
+      invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = coreTables, force.extract = force.extract,
                                            cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
     }else{
       # identify the stuff we have that can just be loaded
@@ -47,9 +67,8 @@ loadRVData <- function(cxn=NULL, force.extract = FALSE, ...){
     }
     if("GSINF" %in% missingTables) invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = c("GSINF","GSSTRATA"), force.extract = force.extract,
                                                                                cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
-    # if ("GSSPECIES_NEW" %in% missingTables)  invisible(Mar.utils::get_data_tables(schema = "GROUNDFISH", tables = c("GSSPECIES_CHANGES","GSSPECIES_ANDES","GSSPECIES", "GSSPEC"), force.extract = force.extract,
-    #                                                                                      cxn = cxn, data.dir = get_pesd_rvt_dir(), extract_user= args$extract_user, extract_computer = args$extract_computer,env = newE))
-    #general processing for specific tables
+
+    # general processing for specific tables
     if("GSINF" %in% missingTables | force.extract) {
       message("Tweaking GSINF (adding dd coords, wingspreads and strata areas in km2")
       newE$GSINF <- addDDCoords(newE$GSINF)
@@ -91,10 +110,10 @@ df_names <- ls(envir = newE)[sapply(ls(envir = newE), function(x) is.data.frame(
 tblList <- stats::setNames(lapply(df_names, get, envir = newE, inherits = FALSE), df_names)
 
 #only need to propagate changes if we make changes...
-if (!all(sapply(list(args$survey, args$years, args$months,
+if (!all(sapply(list(args$stock, args$survey, args$years, args$months,
                      args$missions, args$strata, args$types, args$areas,
                      args$code, args$aphiaid, args$taxa), is.null))){
-  tblList <- propagateChanges(tblList = tblList, keep_nullsets=args$keep_nullsets,
+  tblList <- propagateChanges(tblList = tblList, keep_nullsets=args$keep_nullsets, 
                               survey = args$survey, years = args$years, months = args$months,  
                               missions = args$missions, strata = args$strata, types=args$types, areas= args$areas,
                               code = args$code, aphiaid = args$aphiaid, taxa = args$taxa, debug = args$debug)

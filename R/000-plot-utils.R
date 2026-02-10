@@ -65,7 +65,7 @@ ggStrata <- function(plotStrata=TRUE, plotLabels=TRUE, filter=NULL){
     ggItems[["strata"]] <- ggplot2::geom_sf(data = strata,fill=NA, color="#00669933")
     if(plotLabels) {
       strata<- sf::st_set_geometry(strata, 'centroids')
-      ggItems[["strata"]] <- c(ggItems[["strata"]],ggplot2::geom_sf_text(data = strata,ggplot2::aes(label = StrataID), fontface = "italic", color="#88888880", size = 4))##00669933
+      ggItems[["strata"]] <- c(ggItems[["strata"]],ggplot2::geom_sf_text(data = strata,ggplot2::aes(label = StrataID), fontface = "italic", color="#00669933", size = 4))##00669933
     }
   }else{
     ggItems[["strata"]] <- NULL

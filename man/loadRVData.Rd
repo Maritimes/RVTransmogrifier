@@ -4,7 +4,7 @@
 \alias{loadRVData}
 \title{loadRVData}
 \usage{
-loadRVData(cxn = NULL, force.extract = FALSE, ...)
+loadRVData(cxn = NULL, force.extract = FALSE, stock = NULL, ...)
 }
 \arguments{
 \item{cxn}{A valid Oracle connection object. This parameter allows you to 
@@ -13,6 +13,9 @@ within the function. If provided, it takes precedence over the connection-
 related parameters.}
 
 \item{force.extract}{the default is \code{FALSE}.}
+
+\item{stock}{Optional. A valid stock name from `stock_map`. If provided, it overrides 
+manually specified parameters like `code`, `months`, `strata`, etc.}
 
 \item{...}{other arguments passed to methods (i.e. 'keep_nullsets', debug' and 'quiet')}
 }

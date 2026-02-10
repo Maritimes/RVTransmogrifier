@@ -2,7 +2,18 @@
 #' @title stratify_simple
 #' @description Calculate stratified estimates of biomass and abundance from RV survey data. This function handles taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with confidence intervals.
 #' @param tblList the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten().
-#' @param df the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.
+#' @param df the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.  The df must contain the following fields:
+#' \itemize{
+#'   \item \code{SPEC} or \code{TAXA_}
+#'   \item \code{DIST}
+#'   \item \code{WINGSPREAD_FT}
+#'   \item \code{TOTNO}
+#'   \item \code{TOTWGT}
+#'   \item \code{AREA_KM2} (or column specified by \code{areaField})
+#'   \item \code{STRAT}
+#'   \item \code{MISSION}
+#'   \item \code{SETNO}
+#' }
 #' @param towDist_NM the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
 #' @param areaField the default is \code{"AREA_KM2"}. The name of the field containing area values.
 #' @param areaFieldUnits the default is \code{c("KM2","NM2")}. The units of the area field. Must be either "KM2" or "NM2".
@@ -14,36 +25,39 @@
 #' @note This function should be used for taxa-level data or when GSDET has no records. For species-level data with length/age information, use stratify_detailed() instead.
 #' @export
 
-stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), conf_limits = 95, inc_limits =T, debug=F){
+stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), debug=F){
   if(!is.null(tblList)){
     df <- easyFlatten(tblList)
     df <- df[df$TYPE==1,]
   }else{
     areaFieldUnits <- match.arg(areaFieldUnits)
-    if (!areaField %in% names(df)) stop(sprintf("Column %s not found in data frame", areaField))
-    if (!"STRAT" %in% names(df)) stop("Column STRAT not found in data frame")
-    if (!"WINGSPREAD_FT" %in% names(df)) stop("Column WINGSPREAD_FT not found in data frame")
-    if (!"MISSION" %in% names(df)) stop("Column MISSION not found in data frame")
-    if (!"SETNO" %in% names(df)) stop("Column SETNO not found in data frame")
+    if (!any(c("SPEC", "TAXA_") %in% names(df))) stop("Either SPEC or TAXA_ must exist in the data frame")
     if (!"DIST" %in% names(df)) stop("Column DIST not found in data frame")
-    if (!"GEAR" %in% names(df)) stop("Column GEAR not found in data frame")
-    if (!any(c("SPEC", "TAXA_") %in% names(df))) stop("Column SPEC (or TAXA_) not found in data frame")
+    if (!"WINGSPREAD_FT" %in% names(df)) stop("Column WINGSPREAD_FT not found in data frame")
     if (!"TOTNO" %in% names(df)) stop("Column TOTNO not found in data frame")
     if (!"TOTWGT" %in% names(df)) stop("Column TOTWGT not found in data frame")
-    if (areaFieldUnits == "NM2") df$AREA_KM2 <- sqNMToSqKm(field = df[[areaField]])
+    if (!areaField %in% names(df)) stop(sprintf("Column %s not found in data frame", areaField))
+    if (!"STRAT" %in% names(df)) stop("Column STRAT not found in data frame")
+    if (!"MISSION" %in% names(df)) stop("Column MISSION not found in data frame")
+    if (!"SETNO" %in% names(df)) stop("Column SETNO not found in data frame")
+    if (areaFieldUnits == "NM2") {
+      df$AREA_KM2 <- sqNMToSqKm(field = df[[areaField]])
+    }else{
+      df$AREA_KM2<- df[[areaField]]
+    }
   }
   
   if ("SPEC" %in% names(df)){
-    df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
+    df<- df[!is.na(df$SPEC),]
+    #df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
   } else if ("TAXA_" %in% names(df)){
-    df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
-    df$TAXARANK_[is.na(df$TAXARANK_)] <- unique(df$TAXARANK_[!is.na(df$TAXARANK_)])
+    df<- df[!is.na(df$TAXA_),]
+    # df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
   }
-  
+
   df[is.na(df$DIST), "DIST"] <- towDist_NM
   df[is.na(df$TOTNO), "TOTNO"] <- 0
   df[is.na(df$TOTWGT), "TOTWGT"] <- 0
-  df[is.na(df$SIZE_CLASS), "SIZE_CLASS"] <- 1
   
   df$TOTWGT_sqkm <- valPerSqKm(df$TOTWGT, towDist_NM = df$DIST, netWidth_ft = df$WINGSPREAD_FT)
   df$TOTNO_sqkm <- valPerSqKm(df$TOTNO, towDist_NM = df$DIST, netWidth_ft = df$WINGSPREAD_FT)
@@ -55,7 +69,7 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
   setRes <- df |> 
     select(
       all_of(species_col),  
-      MISSION, SETNO, STRAT, AREA_KM2, AREA , SLAT_DD, SLONG_DD,
+      MISSION, SETNO, STRAT, AREA_KM2, 
       TOTWGT, TOTWGT_sqkm, TOTNO, TOTNO_sqkm
     ) |> 
     arrange(STRAT, SETNO)
@@ -83,7 +97,9 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
     )
   
   df_strat <- df_complete |>
-    group_by(.data[[species_col]], STRAT, AREA_KM2) |>
+    mutate(YEAR = as.integer(substr(MISSION, 4, 7))) |>
+    #group_by(.data[[species_col]], MISSION, STRAT, AREA_KM2) |>
+    group_by(.data[[species_col]], YEAR, STRAT, AREA_KM2) |>
     summarise(COUNT = n(),
               TOTWGT_SUM = round(sum(TOTWGT), 5),
               TOTNO_SUM = round(sum(TOTNO), 5),
@@ -153,7 +169,7 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
       ABUNDANCE = overall$ABUNDANCE,
       ABUNDANCE_SE = overall$ABUNDANCE_SE
     ) |> 
-    select(SPEC, STRAT, AREA_KM2, COUNT, 
+    select(SPEC, STRAT, YEAR, AREA_KM2, COUNT, 
            TOTWGT_MEAN, TOTWGT_MEAN_SE, TOTWGT_SQKM_STRAT_MEAN, TOTNO_SQKM_STRAT_MEAN_SE, BIOMASS, BIOMASS_SE,
            TOTNO_MEAN, TOTNO_MEAN_SE, TOTNO_SQKM_STRAT_MEAN, TOTNO_SQKM_STRAT_MEAN_SE, ABUNDANCE, ABUNDANCE_SE)
   
@@ -169,8 +185,6 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
 #' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSDET.
 #' @param towDist the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
 #' @param by_sex the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.
-#' @param conf_limits the default is \code{95}.  This the value which will be used to calculate the upper and lower confidence intervals.
-#' @param inc_limits the default is \code{TRUE}. This specifies if you would like to include the values for the upper and lower confidence intervals in your summary output.
 #' @param bin_size the default is \code{1}.
 #' @return A list containing up to seven elements: stratified_bySet, stratified_byStrat, OVERALL_SUMMARY (from stratify_simple), plus length_set, length_strat (length-based summaries), age_set, and age_strat (age-based summaries). Length and age elements are only included if corresponding data exist.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}

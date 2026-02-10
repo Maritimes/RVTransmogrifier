@@ -10,15 +10,24 @@ stratify_simple(
   towDist_NM = 1.75,
   areaField = "AREA_KM2",
   areaFieldUnits = c("KM2", "NM2"),
-  conf_limits = 95,
-  inc_limits = T,
   debug = F
 )
 }
 \arguments{
 \item{tblList}{the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten().}
 
-\item{df}{the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.}
+\item{df}{the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.  The df must contain the following fields:
+\itemize{
+  \item \code{SPEC} or \code{TAXA_}
+  \item \code{DIST}
+  \item \code{WINGSPREAD_FT}
+  \item \code{TOTNO}
+  \item \code{TOTWGT}
+  \item \code{AREA_KM2} (or column specified by \code{areaField})
+  \item \code{STRAT}
+  \item \code{MISSION}
+  \item \code{SETNO}
+}}
 
 \item{towDist_NM}{the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.}
 

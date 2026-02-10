@@ -9,6 +9,7 @@ plotRV(
   plotSets = "TOTWGT",
   plotNullSets = TRUE,
   plotCatchStrata = "MEAN_WGT",
+  plotRaw = FALSE,
   catchStrataData = NULL,
   plotStrata = TRUE,
   labelStrata = TRUE,
@@ -16,6 +17,9 @@ plotRV(
   bathyIntervals = 200,
   plotNAFO = FALSE,
   labelNAFO = FALSE,
+  title = NULL,
+  path = NULL,
+  filename = NULL,
   ...
 )
 }

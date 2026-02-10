@@ -12,7 +12,6 @@
 #' @export
 applyConversionFactors <- function(cxn=NULL, tblList){
   
-  
   season <- unique(tblList$GSMISSION$SEASON)
   if (length(season)>1)stop("The function can only handle a single season of data")
   if (!season %in% c('SPRING','SUMMER'))stop("This function can only handle SUMMER or SPRING/GEORGES") 
@@ -74,22 +73,29 @@ applyConversionFactors <- function(cxn=NULL, tblList){
       GSCAT_mrg |> dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPTOT_Ratio),
       by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
     ) |>
-    dplyr::mutate(CLEN = CLEN * SAMPTOT_Ratio) |>
+    dplyr::mutate(CLEN = round(CLEN * SAMPTOT_Ratio,3)) |>
     dplyr::select(-SAMPTOT_Ratio)
-  
+
   # find records in GSCAT that don't have associated data in GSDET
   GSCAT_mrg <- GSCAT_mrg |>
     dplyr::anti_join(GSDET_ratioed, by = c("MISSION", "SETNO", "SPEC")) |>
-    dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO) |>
+    dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO, SIZE_CLASS) |>
     dplyr::rename(FWT = TOTWGT, CLEN = TOTNO) |>
     dplyr::mutate(
       FWT = FWT * 1000,# Convert FWT from kg to g
       SRC = "GSCAT",   # Note source for unanticipated debugging
-      FLEN = NA,       # GSCAT does not have values for FLEN
-      FSEX = 0         #, GSCAT does not have values for FSEX 
-      #     AGMAT = NA        # GSCAT does not have values for age material
-      #     AGE = NA,          # GSCAT does not have ages
-      #     FMAT = 0           # GSCAT does not have values for maturity
+      FLEN = NA,       # GSCAT does not have values the fields below - all set to NA
+      FSEX = NA,        
+      AGMAT = NA,       
+      AGE = NA,          
+      FMAT = NA,           
+      AGER = NA, 
+      CHKMRK = NA, 
+      EDGE = NA, 
+      FSHNO = NA, 
+      NANN = NA, 
+      REMARKS = NA, 
+      SPECIMEN_ID = NA
     )
   
   message("Some recs had weight = 9999 (e.g. snowcrab, scallops). Placeholder?" )
@@ -100,9 +106,10 @@ applyConversionFactors <- function(cxn=NULL, tblList){
   # - any records that could not be merged on SPEC are retained
   # where possible, if FWT is blank, calculate it, convert to kgs
   # add FROM_VESSEL
+  # "AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID"
   CATDET_base <- dplyr::bind_rows(
     GSCAT_mrg,
-    GSDET_ratioed |> dplyr::select(MISSION, SETNO, SPEC, FSEX, FWT, FLEN, CLEN, SRC)
+    GSDET_ratioed |> dplyr::select(MISSION, SETNO, SPEC, FSEX, FWT, FLEN, CLEN, SRC, AGMAT, AGE,FMAT,AGER, NANN, CHKMRK, EDGE, FSHNO, REMARKS, SPECIMEN_ID)
   ) |>
     dplyr::filter(
       SPEC < 9500,              # remove these records that aren't actually species
@@ -223,7 +230,6 @@ applyConversionFactors <- function(cxn=NULL, tblList){
   NEDTEM_TO_TELVEN_ABUND_CONV_LDM<-subset(NEDTEM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   ATCHAM_TO_TELVEN_ABUND_CONV_LDM<-subset(ATCHAM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   
-  message()
   LF_Data_All<-merge(CATDET,TELVEN_TO_CARCAB_ABUND_CONV_LDM,by=c("SPEC","FLEN","FROM_VESSEL"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,NEDTEM_TO_CARCAB_ABUND_CONV_LDM,by=c("SPEC","FLEN","FROM_VESSEL"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,NEDTEM_TO_TELVEN_ABUND_CONV_LDM,by=c("SPEC","FLEN","FROM_VESSEL"),all.x=TRUE)
@@ -278,7 +284,6 @@ applyConversionFactors <- function(cxn=NULL, tblList){
   ATCHAM_TO_CARCAB_BMASS_CONV<- ATCHAM_TO_CARCAB_BMASS_CONV |> 
     select(c(-FLEN)) 
   
-  
   NEDTEM_TO_TELVEN_BMASS_CONV<- NEDTEM_TO_TELVEN_BMASS_CONV |> 
     select(c(-FLEN)) 
   
@@ -287,10 +292,8 @@ applyConversionFactors <- function(cxn=NULL, tblList){
     select(c(-FLEN)) 
   
   LF_Data_All<-merge(LF_Data_All,TELVEN_TO_CARCAB_BMASS_CONV,by=c("SPEC","FROM_VESSEL"),all.x=TRUE)
-  
   LF_Data_All<-merge(LF_Data_All,NEDTEM_TO_CARCAB_BMASS_CONV,by=c("SPEC","FROM_VESSEL"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,NEDTEM_TO_TELVEN_BMASS_CONV,by=c("SPEC","FROM_VESSEL"),all.x=TRUE)
-  
   LF_Data_All<-merge(LF_Data_All,ATCHAM_TO_CARCAB_BMASS_CONV,by=c("SPEC","FROM_VESSEL"),all.x=TRUE)
   LF_Data_All<-merge(LF_Data_All,ATCHAM_TO_TELVEN_BMASS_CONV,by=c("SPEC","FROM_VESSEL"),all.x=TRUE)
   
@@ -369,22 +372,6 @@ applyConversionFactors <- function(cxn=NULL, tblList){
                       ifelse(SPEC %in% c(Species_List_BMASS_TELVEN,Species_List_BMASS_NEDTEM) & !SPEC %in% c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) & FROM_VESSEL %in% c("NED_TEM","ATC_HAM"),"BIOMASS","NONE"))))))
     )
   
-  
-  #These are just manual checks, will delete later or you can delete now as I'll have this stuff in another file.
-  #LF_Data_All$WGT_Diff<-LF_Data_All$TOTWGT_RAW-LF_Data_All$TOTWGT
-  #LF_Data_All$NUM_Diff<-LF_Data_All$TOTNO_RAW-LF_Data_All$TOTNO 
-  #LF_Data_All$WGT_CHANGE<-ifelse(LF_Data_All$WGT_Diff==0,"N","Y")
-  #LF_Data_All$NUM_CHANGE<-ifelse(LF_Data_All$NUM_Diff==0,"N","Y")
-  #LF_Data_All$NEDTEM_BIOM<-ifelse(LF_Data_All$SPEC %in% Species_List_BMASS_NEDTEM,"Y","N")
-  #LF_Data_All$TELVEN_BIOM<-ifelse(LF_Data_All$SPEC %in% Species_List_BMASS_TELVEN,"Y","N")
-  #LF_Data_All$NEDTEM_ABUND<-ifelse(LF_Data_All$SPEC %in% Species_List_ABUND_NEDTEM,"Y","N")
-  #LF_Data_All$TELVEN_ABUND<-ifelse(LF_Data_All$SPEC %in% Species_List_ABUND_TELVEN,"Y","N")
-  #TesterA<- GSCONVERSIONS |> select(SPEC,FROM_VESSEL,CF_MODEL_TYPE)
-  #TesterA<- TesterA[!duplicated(TesterA),]
-  #TesterA<-merge(LF_Data_All,TesterA,by=c("SPEC","FROM_VESSEL"),all.x=TRUE)
-  #openxlsx::write.xlsx(TesterA,"Data_Checks_And_Flags.xlsx")
-  
-  
   message("How conversion factors are applied and how biomass is calculated can affect results. 
 This script applies conversion factors and calculates biomass in the following way:
           1: All length disaggregated/aggregated abundance conversion factors are 
@@ -417,17 +404,57 @@ This script applies conversion factors and calculates biomass in the following w
         biomass_condition & FWT == 0 ~ "BIOMASS_PROBLEM",
         TRUE ~ CF_USED
       )
-    ) |> select(SPEC, FLEN, FROM_VESSEL, MISSION, FSEX, SETNO, SRC, VESEL, YEAR, TOTNO_RAW, TOTWGT_RAW, TOTNO, TOTWGT, CF_USED) # AGMAT, AGE FMAT
+    ) |> select(SPEC, FLEN, FROM_VESSEL, MISSION, FSEX, SETNO, SRC, AGMAT, AGE, FMAT, VESEL, YEAR, TOTNO_RAW, TOTWGT_RAW, TOTNO, TOTWGT, CF_USED, AGER, CHKMRK, EDGE, FSHNO, NANN, REMARKS, SIZE_CLASS, SPECIMEN_ID) # 
   
   #NEDTEM_TO_TELVEN_ABUND, TELVEN_TO_CARCAB_ABUND, NEDTEM_TO_TELVEN_BMASS, TELVEN_TO_CARCAB_BMASS, LENWT_A, LENWT_B, 
   
   message("Note that for records where 'ABUNDANCE_PROBLEM'or 'BIOMASS_PROBLEM', 
 the preferred CF will result in 0, while the other has a non-zero value." )
+  
+  taxAll <- data.frame()
+  if ("TAXA_" %in% names(tblList$GSDET)) {
+    taxAll <- tblList$GSDET |> dplyr::select(SPEC, TAXA_, TAXARANK_) |> unique()
+  }
+  if ("TAXA_" %in% names(tblList$GSCAT)) {
+    taxAll <- dplyr::bind_rows(
+      taxAll,
+      tblList$GSCAT |> dplyr::select(SPEC, TAXA_, TAXARANK_)
+    ) |> unique()
+  }
 
-    #while we have all the GS tables loaded, let's add fields we'll want
-  LF_Data_All <- merge(LF_Data_All, tblList$GSINF[,c("MISSION", "SETNO","STRAT", "AREA", "DIST", "GEAR","SLONG_DD", "SLAT_DD", "ELONG_DD", "ELAT_DD", "AREA_KM2")],all = T, by=c("MISSION", "SETNO")) 
+  if (nrow(taxAll)>0){
+    LF_Data_All <- LF_Data_All |> dplyr::left_join(taxAll, by = "SPEC")
+  }
 
-  LF_Data_All<-LF_Data_All[, c( "MISSION", "SETNO", "STRAT", "AREA_KM2", "VESEL", "FROM_VESSEL", "DIST", "GEAR","SLONG_DD", "SLAT_DD", "ELONG_DD", "ELAT_DD", 
-                                "SRC", "SPEC", "FLEN" , "FSEX", "CF_USED", "TOTNO_RAW", "TOTWGT_RAW", "TOTNO", "TOTWGT" )]  #"AGMAT", "AGE", "FMAT", "YEAR",
-  return(LF_Data_All)
+#  c("AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID")
+  detcols <- c("MISSION", "SETNO", "SPEC", "FLEN", "FSEX", "AGMAT", "AGE", "FMAT", "VESEL", "SRC", "CF_USED", "TOTNO_RAW", "TOTWGT_RAW", "TOTNO", "TOTWGT","AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID")
+  catcols <- c("MISSION", "SETNO", "SPEC", "TOTNO_RAW", "TOTWGT_RAW", "TOTNO", "TOTWGT")
+  catgrpcols <- c("MISSION", "SETNO", "SPEC", "SAMPWGT", "SIZE_CLASS")
+  if ("TAXA_" %in% names(LF_Data_All)) {
+    detcols <- append(detcols, c("TAXA_", "TAXARANK_"), after = 3)
+    catcols <- append(catcols, c("TAXA_", "TAXARANK_"), after = 3)
+    catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
+  }
+  tblList$GSDET_CONV <- LF_Data_All  |>
+    dplyr::select(
+      dplyr::all_of(detcols),
+      TO_VESSEL = VESEL,
+      CLEN = TOTNO,
+      CLEN_RAW = TOTNO_RAW
+    ) |>
+    dplyr::mutate(CLEN = round(CLEN,3),
+                  FWT = round(TOTWGT * 1000,3),
+                  FWT_RAW = round(TOTWGT_RAW * 1000,3)) |> 
+    dplyr::select(-TOTWGT_RAW, -TOTWGT)
+
+  tblList$GSCAT_CONV <- LF_Data_All|> 
+    dplyr::select(dplyr::all_of(catcols)) |>
+    mutate(SAMPWGT = NA, SIZE_CLASS =NA) |> 
+    dplyr::group_by(dplyr::across(dplyr::all_of(catgrpcols))) |>
+    dplyr::summarise(TOTNO_RAW = sum(TOTNO_RAW, na.rm = T),
+                     TOTNO = sum(TOTNO, na.rm = T),
+                     TOTWGT_RAW = sum(TOTWGT_RAW, na.rm = T),
+                     TOTWGT = sum(TOTWGT, na.rm = T), .groups = "keep")
+  tblList <- tblList[order(names(tblList))]
+  return(tblList)
 }

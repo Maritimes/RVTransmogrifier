@@ -53,8 +53,9 @@
 propagateChanges<-function(tblList = NULL, keep_nullsets=T, 
                            survey = NULL, years = NULL, months = NULL, 
                            missions = NULL,strata = NULL, types = 1, areas = NULL,
-                           code=NULL,aphiaid = NULL, taxa= NULL, debug=F){
+                           code=NULL, aphiaid = NULL, taxa= NULL, debug=F){
   if (!is.null(code)|!is.null(aphiaid)|!is.null(taxa)) tblList <- filterSpecies(tblList = tblList, code = code, aphiaid = aphiaid, taxa = taxa, debug=debug)
+
   if (!is.null(missions)) missions <- toupper(missions)
   if (!is.null(survey)) survey <- toupper(survey)
   if (!is.null(taxa)) taxa <- toupper(taxa)
@@ -99,13 +100,33 @@ propagateChanges<-function(tblList = NULL, keep_nullsets=T,
   if (!is.null(user_strata)) strata <- user_strata
   if (!is.null(user_years)) years <- user_years
   
-  
-  if (!is.null(years)) tblList$GSMISSIONS<- tblList$GSMISSIONS[tblList$GSMISSIONS$YEAR %in% years,]
   if (!is.null(missions)) tblList$GSMISSIONS<- tblList$GSMISSIONS[tblList$GSMISSIONS$MISSION %in% missions,]
   if (!is.null(months)) tblList$GSINF <- tblList$GSINF[lubridate::month(tblList$GSINF$SDATE) %in% months,]
   if (!is.null(types)) tblList$GSINF<- tblList$GSINF[tblList$GSINF$TYPE %in% types,]
+  
+  if (!is.null(years)) tblList$GSMISSIONS<- tblList$GSMISSIONS[tblList$GSMISSIONS$YEAR %in% years,]
   if (!is.null(strata)) tblList$GSSTRATUM  <- tblList$GSSTRATUM[tblList$GSSTRATUM$STRAT %in% strata,]
-  if (!is.null(areas)) tblList$GSINF  <- tblList$GSINF[tblList$GSINF$AREA %in% areas,]
+  #if (!is.null(areas)) tblList$GSINF  <- tblList$GSINF[tblList$GSINF$AREA %in% areas,]
+  
+  # NEW CODE: Filter GSINF to valid STRAT-AREA combinations when both are specified
+  # Get all data from specified areas (this has valid STRAT-AREA combos)
+    # Get unique valid STRAT-AREA combinations
+    # Filter GSINF to only these valid combinations
+  
+  # Handle AREA filtering based on whether STRATA are also specified]
+  # print(areas)
+  # print(strata)
+  # tblList$GSINF[,c("STRAT", "AREA")] |> unique() |> print()
+  # browser()
+    if (!is.null(strata) && !is.null(areas)) {
+    dataA <- tblList$GSINF[tblList$GSINF$AREA %in% areas, ]
+    validCombos <- unique(dataA[, c("STRAT", "AREA")])
+    tblList$GSINF <- tblList$GSINF |>
+      dplyr::semi_join(validCombos, by = c("STRAT", "AREA"))
+  } else if (!is.null(areas)) {
+    # ONLY areas specified (no strata): simple filter
+    tblList$GSINF <- tblList$GSINF[tblList$GSINF$AREA %in% areas, ]
+  }
   
   LOOPAGAIN <- T
   while (LOOPAGAIN){
@@ -121,20 +142,36 @@ propagateChanges<-function(tblList = NULL, keep_nullsets=T,
     tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
     tblList$GSCAT      <- merge(tblList$GSCAT,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]), by="MISSION")
     tblList$GSDET      <- merge(tblList$GSDET,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
+    tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSMISSIONS[,"MISSION",drop=F]))
+    tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSSTRATUM[,"STRAT",drop=F]))
+    if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV    <- merge(tblList$GSCAT_CONV,        unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
+    if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV    <- merge(tblList$GSCAT_CONV,        unique(tblList$GSMISSIONS[,"MISSION",drop=F]), by="MISSION")
+    if ("GSDET_CONV" %in% names(tblList)) tblList$GSDET_CONV    <- merge(tblList$GSDET_CONV, unique(tblList$GSINF[,c("MISSION","SETNO")]), all.y=keep_nullsets)
+    
+
     if(!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))){
       #this will only be used when no species filtering has been done.  As soon as species filtering 
       #is done, taxa_ and taxarank_ will exist
       tblList$GSCAT        <- merge(tblList$GSCAT,        unique(tblList$GSSPECIES_NEW[,"CODE",drop=F]), by.x="SPEC", by.y  ="CODE")
       tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
-      tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSDET[,c("MISSION","SETNO", "SPEC")]))
       tblList$GSSPECIES_NEW  <- merge(tblList$GSSPECIES_NEW,  unique(tblList$GSCAT[,"SPEC",drop=F]), by.x="CODE", by.y="SPEC")
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSDET[,c("MISSION","SETNO", "SPEC","FSHNO")]))
+      if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV        <- merge(tblList$GSCAT_CONV,        unique(tblList$GSSPECIES_NEW[,"CODE",drop=F]), by.x="SPEC", by.y  ="CODE")
+      if ("GSDET_CONV" %in% names(tblList)) tblList$GSDET_CONV        <- merge(tblList$GSDET_CONV,        unique(tblList$GSCAT[,c("MISSION","SETNO", "SPEC")]))
+      
     }else{
       tblList$GSCAT        <- merge(tblList$GSCAT,        unique(tblList$GSSPECIES_NEW[,c("TAXA_", "TAXARANK_")]))
       tblList$GSDET        <- merge(tblList$GSDET,        unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
       tblList$GSDET     <- merge(tblList$GSDET,     unique(tblList$GSDET[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
       tblList$GSSPECIES_NEW  <- merge(tblList$GSSPECIES_NEW,  unique(tblList$GSCAT[,c("TAXA_", "TAXARANK_")]))
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSDET[,c("MISSION","SETNO", "TAXA_", "TAXARANK_","FSHNO")]))
+      if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV        <- merge(tblList$GSCAT_CONV,       unique(tblList$GSSPECIES_NEW[,c("TAXA_", "TAXARANK_")]))
+      if ("GSDET_CONV" %in% names(tblList)) tblList$GSDET_CONV        <- merge(tblList$GSDET_CONV,        unique(tblList$GSCAT[,c("MISSION","SETNO", "TAXA_", "TAXARANK_")]))
     }
-    
+
+
     postcnt = sum(sapply(tblList, NROW))
     
     if(nrow(tblList$GSCAT)==0 | nrow(tblList$GSINF)==0){

@@ -20,10 +20,6 @@ stratify_detailed(
 
 \item{by_sex}{the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.}
 
-\item{conf_limits}{the default is \code{95}.  This the value which will be used to calculate the upper and lower confidence intervals.}
-
-\item{inc_limits}{the default is \code{TRUE}. This specifies if you would like to include the values for the upper and lower confidence intervals in your summary output.}
-
 \item{bin_size}{the default is \code{1}.}
 }
 \value{

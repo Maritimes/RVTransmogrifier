@@ -28,10 +28,11 @@
 #' @export
 plotRV <- function(tblList = NULL, 
                    plotSets = "TOTWGT", plotNullSets = TRUE,
-                   plotCatchStrata = "MEAN_WGT", catchStrataData = NULL,
+                   plotCatchStrata = "MEAN_WGT", plotRaw = FALSE, catchStrataData = NULL,
                    plotStrata = TRUE,labelStrata=TRUE,
                    plotBathy = "FILL", bathyIntervals=200,
-                   plotNAFO=FALSE, labelNAFO = FALSE, ...){
+                   plotNAFO=FALSE, labelNAFO = FALSE, title = NULL, 
+                   path = NULL, filename = NULL, ...){
   args <- list(...)
   if (dev.cur() == 0) png(filename = "temp.png", width = 800, height = 600)
 
@@ -48,9 +49,39 @@ plotRV <- function(tblList = NULL,
                                     code = args$code)
   }
   
-  if (!is.null(tblList) & !is.null(plotSets)) {
-    #strata are used to set plot bounds (filtered to sampled strata (from GSINF))
+  # if (!is.null(tblList) & !is.null(plotSets)) {
+  #   #strata are used to set plot bounds (filtered to sampled strata (from GSINF))
+  #   limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
+  # }
+  if (!is.null(tblList)) {
+    # Step 1: Start with polygon bounds from sampled strata
     limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
+    
+    # Step 2: Expand based on symbolized points (GSCAT), if available
+    if (!is.null(plotSets) & "GSCAT" %in% names(tblList)) {
+      catches <- merge(
+        tblList$GSCAT,
+        tblList$GSINF[, c("MISSION", "SETNO", "SLONG_DD", "SLAT_DD")],
+        by = c("MISSION", "SETNO"),
+        all.x = TRUE
+      )
+      limits1 <- c(
+        min(limits1[1], min(catches$SLONG_DD, na.rm = TRUE)),
+        max(limits1[2], max(catches$SLONG_DD, na.rm = TRUE)),
+        min(limits1[3], min(catches$SLAT_DD, na.rm = TRUE)),
+        max(limits1[4], max(catches$SLAT_DD, na.rm = TRUE))
+      )
+    }
+    
+    # Step 3: Expand based on raw points (`GSINF`), if plotRaw is TRUE
+    if (plotRaw) {
+      limits1 <- c(
+        min(limits1[1], min(tblList$GSINF$SLONG_DD, na.rm = TRUE)),
+        max(limits1[2], max(tblList$GSINF$SLONG_DD, na.rm = TRUE)),
+        min(limits1[3], min(tblList$GSINF$SLAT_DD, na.rm = TRUE)),
+        max(limits1[4], max(tblList$GSINF$SLAT_DD, na.rm = TRUE))
+      )
+    }
   }
   
   if (!is.null(catchStrataData)) {
@@ -90,6 +121,7 @@ plotRV <- function(tblList = NULL,
   } 
 
   #ensure specified variables are plottable
+   if (!plotRaw) {
   if (is.null(plotSets)){
     #don't plot sets
     catLeg<- NULL
@@ -116,14 +148,33 @@ plotRV <- function(tblList = NULL,
       catLeg <- NULL
       ggItems[["allPts"]] <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar="TOTNO", colourVar = NULL, return="ALLSETS")})
     }
-     ggItems[["catchLabels"]] <- ggplot2::guides(color = ggplot2::guide_legend(title = "Taxa", order=1), size = ggplot2::guide_legend(title = catLeg, order=2))
+     ggItems[["catchLabels"]] <- ggplot2::guides(color = ggplot2::guide_legend(title = "Taxa", order=1), 
+                                                 size = ggplot2::guide_legend(title = catLeg, order=2))
   }
+} else {
+  # Adding raw data as black dots to the plot
+  rawData <- tblList$GSINF
+  if (!is.null(rawData)) {
+    ggItems[["rawData"]] <- ggplot2::geom_point(
+      data = rawData,
+      ggplot2::aes(x = SLONG_DD, y = SLAT_DD),
+      colour = "gray37", size = 0.4
+    )
+  }
+}
   
   ggItems[["land"]]   <- ggplot2::geom_sf(data = Mar.data::coast_lores_sf, fill = "darkgrey", color = NA)
   ggItems[["extent"]] <- ggplot2::coord_sf(xlim = c(limits[1],limits[2]), ylim = c(limits[3], limits[4]))
-  ggItems[["labels"]] <- suppressWarnings({ggplot2::labs(x="Longitude", y="Latitude")})
+  ggItems[["labels"]] <- suppressWarnings({ggplot2::labs(x="Longitude", y="Latitude", title = title)})
   p<-p+ggItems
-  if (exists("temp_device")) dev.off()
-  print(p)
-  invisible(p)
+
+    if (exists("temp_device")) dev.off()
+  # Save to file if `path` and `filename` are specified
+  if (!is.null(path) && !is.null(filename)) {
+    save_path <- file.path(path, paste0(filename,".png"))
+    ggplot2::ggsave(save_path, plot = p, width = 8, height = 6)
+  }
+  # 
+  # print(p)
+  # invisible(p)
 }
