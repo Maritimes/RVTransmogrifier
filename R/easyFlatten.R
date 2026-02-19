@@ -9,7 +9,7 @@
 #' @importFrom dplyr filter rename
 #' @export
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
-  theFields<-c("MISSION", "SETNO","SIZE_CLASS", "SAMPWGT", "TOTWGT", "TOTNO")
+  theFields<-c("MISSION", "SETNO", "TOTWGT", "TOTNO")
 
   if ("GSCAT_CONV" %in% names(tblList)){
     theCat <- tblList$GSCAT_CONV

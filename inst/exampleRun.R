@@ -47,33 +47,33 @@ obis_survey_GEORGES_2025  <- extractOBIS(cxn = getCxn(), survey = "GEORGES", yea
 #### generate datasets for DATRAS ####
 datras_survey_SUMMER_2016  <- extractDATRAS(cxn = getCxn(), survey = "SUMMER", years= 2016, path="c:/Users/McMahonM/OneDrive - DFO-MPO/DataMgmt/FGP/DATRAS/20251113")
 
-#### do whatever STRANAL (& Stratisfy) does ####
+#### do whatever stratify (& Stratisfy) does ####
 SHake_2016 <- loadRVData(cxn = getCxn(), code = 14, years= "2016", survey="SUMMER", strata=c(440:495), types=1)
 
 # stratify using tblList
-SHake_2016_post_strat  <- stranal_simple(tblList = SHake_2016)
+SHake_2016_post_strat  <- stratify_simple(tblList = SHake_2016)
 
 
 # stratify using a dataframe
 SHake_2016_flat <- easyFlatten(SHake_2016)
-SHake_2016_flat_post_strat  <- stranal_simple(df = SHake_2016_flat, by_sex=F)
+SHake_2016_flat_post_strat  <- stratify_simple(df = SHake_2016_flat, by_sex=F)
 
 #stratify with lengths
 wf <- loadRVData(cxn = NULL, code = 43, years= c(2014), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
-wf_simp <- stranal_simple(wf)
-wf_det_noSex <- stranal_detailed(wf, by_sex = F)
+wf_simp <- stratify_simple(wf)
+wf_det_noSex <- stratify_detailed(wf, by_sex = F)
 plotRV(tblList = testData_len, catchStrataData = testData_len_det$stratified_byStrat, plotCatchStrata = "BIOMASS")
 
 
 testData_had <- loadRVData(cxn = NULL, code = 11, years= c(2014), survey="GEORGES", strata=c("5Z1", "5Z2", "5Z3", "5Z4"), types=1)
-testData_det_noSex <- stranal_detailed(testData_had, by_sex = F, bin_size = 1)
+testData_det_noSex <- stratify_detailed(testData_had, by_sex = F, bin_size = 1)
 
 testData_cod <- loadRVData(cxn = NULL, code = 10, years= c(2024), survey="SUMMER", strata=470:495, types=1)
-testData_cod_det_noSex <- stranal_detailed(testData_cod, by_sex = F, bin_size = 3)
+testData_cod_det_noSex <- stratify_detailed(testData_cod, by_sex = F, bin_size = 3)
 
 # sexed
 SHake_2014 <- loadRVData(cxn = getCxn(), code = 14, years= "2014", survey="SUMMER", strata=c(440:495), types=1)
-SHake_2014_stranal <- stranal_detailed(SHake_2014, by_sex = T)
+SHake_2014_stratify <- stratify_detailed(SHake_2014, by_sex = T)
 
 # plot strat level biomass/abundance
 plotRV(tblList = SHake_2016, catchStrataData = SHake_2016_post_strat$stratified_byStrat, plotCatchStrata = "ABUNDANCE", plotSets = NULL)

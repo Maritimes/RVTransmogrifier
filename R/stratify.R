@@ -46,13 +46,14 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
       df$AREA_KM2<- df[[areaField]]
     }
   }
-  
-  if ("SPEC" %in% names(df)){
-    df<- df[!is.na(df$SPEC),]
+  if ("SPEC" %in% names(df) & length(unique(df$SPEC)==1)){
+    df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
     #df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
-  } else if ("TAXA_" %in% names(df)){
-    df<- df[!is.na(df$TAXA_),]
+  } else if ("TAXA_" %in% names(df) & length(unique(df$SPEC)==1)){
+    df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
     # df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
+  } else{
+    stop("This analytic can only be used on a single SPEC or taxonomic group at a time")
   }
 
   df[is.na(df$DIST), "DIST"] <- towDist_NM
@@ -65,7 +66,6 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
   df$ABUNDANCE_set <- df$TOTNO_sqkm * df$AREA_KM2
   
   species_col <- if ("SPEC" %in% names(df)) "SPEC" else if ("TAXA_" %in% names(df)) "TAXA_" else NULL
-  
   setRes <- df |> 
     select(
       all_of(species_col),  

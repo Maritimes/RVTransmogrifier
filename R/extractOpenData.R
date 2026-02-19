@@ -58,12 +58,14 @@ extractOpenData <- function(cxn=NULL, tblList = NULL, survey = NULL, years=NULL,
   this$GSINF <- this$GSINF |>
     dplyr::mutate(SDATE = as.Date(SDATE)) |>
     dplyr::rename(
+      NAFO_AREA_ID = AREA,
+      STRAT_AREA_KM2 = AREA_KM2, 
       SURF_TEMP = SURFACE_TEMPERATURE,
       BOTT_TEMP = BOTTOM_TEMPERATURE,
       BOTT_SAL = BOTTOM_SALINITY
     ) |>
     dplyr::select(
-      MISSION, SETNO, SDATE, TIME, STRAT, SLAT_DD, SLONG_DD, ELAT_DD, ELONG_DD,
+      MISSION, SETNO, SDATE, TIME, NAFO_AREA_ID, STRAT, STRAT_AREA_KM2, SLAT_DD, SLONG_DD, ELAT_DD, ELONG_DD,
       DUR, DIST, SPEED, DEPTH_M, SURF_TEMP, BOTT_TEMP, BOTT_SAL, GEARDESC
     ) |>
     dplyr::rename(DEPTH = DEPTH_M) |> 

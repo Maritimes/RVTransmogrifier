@@ -435,6 +435,7 @@ the preferred CF will result in 0, while the other has a non-zero value." )
     catcols <- append(catcols, c("TAXA_", "TAXARANK_"), after = 3)
     catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
   }
+
   tblList$GSDET_CONV <- LF_Data_All  |>
     dplyr::select(
       dplyr::all_of(detcols),
@@ -454,7 +455,10 @@ the preferred CF will result in 0, while the other has a non-zero value." )
     dplyr::summarise(TOTNO_RAW = sum(TOTNO_RAW, na.rm = T),
                      TOTNO = sum(TOTNO, na.rm = T),
                      TOTWGT_RAW = sum(TOTWGT_RAW, na.rm = T),
-                     TOTWGT = sum(TOTWGT, na.rm = T), .groups = "keep")
+                     TOTWGT = sum(TOTWGT, na.rm = T), .groups = "keep") |> 
+    ungroup() |>
+    select(MISSION, SETNO, SPEC, TOTNO_RAW, TOTNO, TOTWGT_RAW, TOTWGT) |> 
+    as.data.frame()
   tblList <- tblList[order(names(tblList))]
   return(tblList)
 }

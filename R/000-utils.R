@@ -239,7 +239,7 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41){
   return(res)
 }
 
-##### STRANAL utilities start
+##### STRATIFY utilities start
 #' @title calcTotalSE_unstratified
 #' @description Calculate the total standard error for unstratified data by taking the square root of the sum of squared standard errors.
 #' @param theDataByStrat the default is \code{NULL}. A data frame containing stratified data.
