@@ -93,6 +93,18 @@ sqNMToSqKm <- function(field=NULL){
   return(field)
 }
 
+#' @title sqMToSqKm
+#' @description Converts area measurements from square meters to square kilometers
+#' @param field the default is \code{NULL}. A numeric value or vector in square meters to be converted to square kilometers
+#' @return A numeric value or vector representing area in square kilometers, rounded to 4 decimal places
+#' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @noRd
+sqMToSqKm <- function(field=NULL){
+  
+  field <- round(field/1000000)
+  return(field)
+}
+
 #' @title binSizes
 #' @description Assigns values to size bins by calculating the midpoint of the bin containing the value
 #' @param bin the bin width/interval size

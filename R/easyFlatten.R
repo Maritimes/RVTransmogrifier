@@ -10,7 +10,6 @@
 #' @export
 easyFlatten <- function(tblList = NULL, keep_nullsets=T){
   theFields<-c("MISSION", "SETNO", "TOTWGT", "TOTNO")
-
   if ("GSCAT_CONV" %in% names(tblList)){
     theCat <- tblList$GSCAT_CONV
   }else{
@@ -26,7 +25,7 @@ easyFlatten <- function(tblList = NULL, keep_nullsets=T){
     theFields <- c(theFields,"TAXA_")
   }
   
-  this <- merge(tblList$GSINF[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD","AREA","AREA_KM2","WINGSPREAD_FT" )], 
+  this <- merge(tblList$GSINF, #[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD","AREA","AREA_KM2","WINGSPREAD_FT" )], 
                 theCat[, theFields], by=c("MISSION", "SETNO"), all.x=keep_nullsets)
   this[is.na(this$DIST), "DIST"] <- 1.75
   this[is.na(this$TOTNO), "TOTNO"] <- 0
