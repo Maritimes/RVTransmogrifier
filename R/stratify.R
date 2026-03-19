@@ -16,7 +16,7 @@
 #' }
 #' @param towDist_NM the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
 #' @param areaField the default is \code{"AREA_KM2"}. The name of the field containing area values.
-#' @param areaFieldUnits the default is \code{c("KM2","NM2")}. The units of the area field. Must be either "KM2" or "NM2".
+#' @param areaFieldUnits the default is \code{c("KM2","NM2","M")}. The units of the area field. Must be either "KM2", "M2" or "NM2".
 #' @param debug the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.
 #' @return A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level summaries), and OVERALL_SUMMARY (overall statistics with confidence intervals).
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
@@ -25,12 +25,11 @@
 #' @note This function should be used for taxa-level data or when GSDET has no records. For species-level data with length/age information, use stratify_detailed() instead.
 #' @export
 
-stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2"), debug=F){
+stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField = "AREA_KM2", areaFieldUnits= c("KM2","NM2", "M2"), debug=F){
   if(!is.null(tblList)){
     df <- easyFlatten(tblList)
     df <- df[df$TYPE==1,]
   }else{
-    areaFieldUnits <- match.arg(areaFieldUnits)
     if (!any(c("SPEC", "TAXA_") %in% names(df))) stop("Either SPEC or TAXA_ must exist in the data frame")
     if (!"DIST" %in% names(df)) stop("Column DIST not found in data frame")
     if (!"WINGSPREAD_FT" %in% names(df)) stop("Column WINGSPREAD_FT not found in data frame")
@@ -40,25 +39,28 @@ stratify_simple <- function(tblList=NULL, df=NULL, towDist_NM = 1.75, areaField 
     if (!"STRAT" %in% names(df)) stop("Column STRAT not found in data frame")
     if (!"MISSION" %in% names(df)) stop("Column MISSION not found in data frame")
     if (!"SETNO" %in% names(df)) stop("Column SETNO not found in data frame")
-    if (areaFieldUnits == "NM2") {
-      df$AREA_KM2 <- sqNMToSqKm(field = df[[areaField]])
-    }else{
-      df$AREA_KM2<- df[[areaField]]
+    
+    if ("SPEC" %in% names(df) & length(unique(df$SPEC)==1)){
+      df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
+    } else if ("TAXA_" %in% names(df) & length(unique(df$SPEC)==1)){
+      df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
+    } else{
+      stop("This analytic can only be used on a single SPEC or taxonomic group at a time")
     }
+    
+    df[is.na(df$DIST), "DIST"] <- towDist_NM
+    df[is.na(df$TOTNO), "TOTNO"] <- 0
+    df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   }
-  if ("SPEC" %in% names(df) & length(unique(df$SPEC)==1)){
-    df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
-    #df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
-  } else if ("TAXA_" %in% names(df) & length(unique(df$SPEC)==1)){
-    df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
-    # df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
-  } else{
-    stop("This analytic can only be used on a single SPEC or taxonomic group at a time")
+  
+  areaFieldUnits <- match.arg(areaFieldUnits)
+  if (areaFieldUnits == "NM2") {
+    df$AREA_KM2 <- sqNMToSqKm(field = df[[areaField]])
+  }else if (areaFieldUnits == "M2") {
+    df$AREA_KM2<- sqMToSqKm(field = df[[areaField]])
+  }else if (areaFieldUnits == "KM2") {
+    df$AREA_KM2<- df[[areaField]]
   }
-
-  df[is.na(df$DIST), "DIST"] <- towDist_NM
-  df[is.na(df$TOTNO), "TOTNO"] <- 0
-  df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   
   df$TOTWGT_sqkm <- valPerSqKm(df$TOTWGT, towDist_NM = df$DIST, netWidth_ft = df$WINGSPREAD_FT)
   df$TOTNO_sqkm <- valPerSqKm(df$TOTNO, towDist_NM = df$DIST, netWidth_ft = df$WINGSPREAD_FT)
@@ -380,7 +382,7 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limi
       ) |>
       arrange(SEX_ORDER, FLEN_NUM) |>
       select(FLEN_col, LENGTH_MEAN, LENGTH_MEAN_SE, LENGTH_TOTAL, LENGTH_TOTAL_SE)
-
+    
     # handle flen summaries
     flen_mean_vals <- summary_flen |>
       dplyr::select(FLEN_col, LENGTH_MEAN ) |>
@@ -674,7 +676,7 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limi
     # 
     # strat_age_total_se <- strat_age_total_se |>
     #   mutate(TOTAL_SE = sqrt(rowSums(dplyr::across(matches("AGE_\\d+$"))^2)))
-
+    
     # handle age summaries
     age_mean_vals <- summary_age |>
       dplyr::select(AGE_col, AGE_MEAN ) |>
@@ -728,7 +730,7 @@ stratify_detailed <- function(tblList, towDist = 1.75, by_sex = FALSE, conf_limi
         !!!age_total_se_vals
       )
   }
-
+  
   results <- list()
   results$summaries$overall <- stratSimp$overall
   results$setLevel$allSets <- stratSimp$set_stratified

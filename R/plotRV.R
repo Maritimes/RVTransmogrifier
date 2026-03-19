@@ -48,7 +48,7 @@ plotRV <- function(tblList = NULL,
     tblList      <- aggregateByTaxa(tblList = tblList,
                                     code = args$code)
   }
-  
+
   # if (!is.null(tblList) & !is.null(plotSets)) {
   #   #strata are used to set plot bounds (filtered to sampled strata (from GSINF))
   #   limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
@@ -175,6 +175,6 @@ plotRV <- function(tblList = NULL,
     ggplot2::ggsave(save_path, plot = p, width = 8, height = 6)
   }
   # 
-  # print(p)
+  print(p)
   # invisible(p)
 }
