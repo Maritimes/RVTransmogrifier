@@ -15,8 +15,8 @@ easyFlatten(tblList = NULL, keep_nullsets = T)
 A merged data frame containing set, catch, and stratum information with NA values filled appropriately.
 }
 \description{
-Merge GSINF, GSCAT, and GSSTRATUM tables into a single flat data frame for analysis. If conversion 
-factors have been applied (i.e. GSCAT_CONV exists), tthey will be used, rather than GSCAT.  This function Handles 
+Merge GSINF, GSCAT, and GSSTRATUM tables into a single flat data frame for analysis. If conversion
+factors have been applied (i.e. GSCAT_CONV exists), tthey will be used, rather than GSCAT.  This function Handles
 both species-level (SPEC) and taxa-level (TAXA_) data.
 }
 \author{

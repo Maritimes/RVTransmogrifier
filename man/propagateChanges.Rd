@@ -24,39 +24,39 @@ propagateChanges(
 \item{tblList}{the default is \code{NULL}. This is a list populated with all RV dataframes that
 should have filtering applied to them.}
 
-\item{keep_nullsets}{the default is \code{FALSE}. This is used to control whether or not the 
-presence/absence of species changes the returned set locations. If \code{FALSE}, the only 
-returned records will be directly linkable to the user-filtered records. If \code{TRUE}, set 
+\item{keep_nullsets}{the default is \code{FALSE}. This is used to control whether or not the
+presence/absence of species changes the returned set locations. If \code{FALSE}, the only
+returned records will be directly linkable to the user-filtered records. If \code{TRUE}, set
 locations will still be returned, even if a particular species was not caught there.}
 
 \item{survey}{the default is \code{NULL}. This specifies which survey should be extracted.  Valid
 values are:
 \itemize{
-\item \code{4X} - Type 1; Spring (i.e. months 1:4); 2008+; specific strata 
+\item \code{4X} - Type 1; Spring (i.e. months 1:4); 2008+; specific strata
 \item \code{GEORGES} - Type 1; Spring (i.e. months 1:4); strata 5Z*
-\item \code{SPRING} - Type 1; Spring (i.e. months 1:4); pre-2008; specific strata 
-\item \code{4VSW}  - Type 1; Spring (i.e. months 1:4); 4VSW strata;  
+\item \code{SPRING} - Type 1; Spring (i.e. months 1:4); pre-2008; specific strata
+\item \code{4VSW}  - Type 1; Spring (i.e. months 1:4); 4VSW strata;
 \item \code{SUMMER} - Type 1; Summer (i.e. months 5:8); strata 440:495 - the "standard" strata
 \item \code{SUMMER_ALL} - Type 1; Summer (i.e. months 5:8); strata 434:559+5Z*
 \item \code{FALL} - Type 1; Fall (i.e. months 9:12)
 }}
 
-\item{years}{the default is \code{NULL}. A vector of 1 or more years can be passed to this function, and the data 
+\item{years}{the default is \code{NULL}. A vector of 1 or more years can be passed to this function, and the data
 will be filtered to only that/those years  (via GSMISSIONS$YEAR).}
 
-\item{months}{the default is \code{NULL}. A vector of 1 or more months can be passed to this function, and the data 
+\item{months}{the default is \code{NULL}. A vector of 1 or more months can be passed to this function, and the data
 will be filtered to only that/those months (via GSINF$SDATE).}
 
-\item{missions}{the default is \code{NULL}. A vector of 1 or more missions can be passed to this function, and the 
+\item{missions}{the default is \code{NULL}. A vector of 1 or more missions can be passed to this function, and the
 data will be filtered to only that/those missions (via GSMISSIONS$MISSION)}
 
-\item{strata}{the default is \code{NULL}. A vector of 1 or more strata can be passed to this function, and the 
+\item{strata}{the default is \code{NULL}. A vector of 1 or more strata can be passed to this function, and the
 data will be filtered to only that/those strata (via GSSTRATUM$STRAT)}
 
-\item{types}{the default is \code{NULL}. A vector of 1 or more set "types" can be passed to this function, and the 
+\item{types}{the default is \code{NULL}. A vector of 1 or more set "types" can be passed to this function, and the
 data will be filtered to only that/those set types (via GSINF$TYPE)}
 
-\item{areas}{the default is \code{NULL}. A vector of 1 or more areas can be passed to this function, and the 
+\item{areas}{the default is \code{NULL}. A vector of 1 or more areas can be passed to this function, and the
 data will be filtered to only that/those set types (via GSINF$AREA)}
 
 \item{code}{the default is \code{NULL}. If data should be limited to a particular species, enter

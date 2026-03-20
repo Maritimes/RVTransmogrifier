@@ -33,11 +33,13 @@ no catch data points will be plotted.}
 \item{plotNullSets}{the default is \code{TRUE}.  If TRUE, sets where the specified species was not
 caught will be plotted as '+'.  If FALSE, null sets will not be plotted.}
 
-\item{plotCatchStrata}{the default is \code{"MEAN_WGT"}, but can be any of \code{"TOTNO"}, \code{"TOTWGT"}, 
+\item{plotCatchStrata}{the default is \code{"MEAN_WGT"}, but can be any of \code{"TOTNO"}, \code{"TOTWGT"},
 \code{"MEAN_WGT"}, \code{"MEAN_NO"}, \code{"BIOMASS"}, or \code{"ABUND"}. If set to \code{NULL},
 no strata will be plotted by catch.}
 
-\item{catchStrataData}{the default is \code{NULL}. This is a stratified object resulting from running 
+\item{plotRaw}{the default is \code{FALSE}.  If true, the raw set locations from GSINF will be plotted.}
+
+\item{catchStrataData}{the default is \code{NULL}. This is a stratified object resulting from running
 \code{stratify}.  \code{stratify()} can generate multiple dfs within a list, but this parameter should
 be pointed to a single dataframe.}
 
@@ -46,7 +48,7 @@ be pointed to a single dataframe.}
 \item{labelStrata}{the default is \code{TRUE}. If they are shown, should Maritimes strata be labelled?}
 
 \item{plotBathy}{the default is \code{"FILL"}, but can be any of \code{"FILL"}, \code{"LINES"} or \code{NULL}.
-FILL results in progressively darker blue areas as depth increases. 
+FILL results in progressively darker blue areas as depth increases.
 LINES results in contour lines.
 NULL does not show any bathymetric information.}
 
@@ -56,13 +58,20 @@ NULL does not show any bathymetric information.}
 
 \item{labelNAFO}{the default is \code{TRUE}. If they are shown, should NAFO areas be labelled?}
 
+\item{title}{the default is \code{NULL}. This is the title you would like to appear on the map.}
+
+\item{path}{the default is \code{NULL}. If \code{path} and \code{filename} are provided, a png file named
+\code{filename} will be saved in \code{path}.}
+
+\item{filename}{the default is \code{NULL}.}
+
 \item{...}{other arguments passed to methods (e.g.'taxa', 'code', 'aphiaid', debug' and 'quiet')}
 }
 \value{
 a ggplot object showing the positions of the data.  Null sets will be shown as + signs.
 }
 \description{
-This function can plot the list data resulting from \code{get_survey()} or from 
+This function can plot the list data resulting from \code{get_survey()} or from
 \code{propagateChanges()}.
 }
 \author{

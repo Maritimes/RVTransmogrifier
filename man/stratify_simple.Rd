@@ -9,14 +9,18 @@ stratify_simple(
   df = NULL,
   towDist_NM = 1.75,
   areaField = "AREA_KM2",
-  areaFieldUnits = c("KM2", "NM2"),
+  areaFieldUnits = c("KM2", "NM2", "M2"),
+  inc_limits = T,
+  conf_limits = 95,
   debug = F
 )
 }
 \arguments{
-\item{tblList}{the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using easyFlatten().}
+\item{tblList}{the default is \code{NULL}. A list of RV dataframes. If provided, data will be flattened using
+easyFlatten().}
 
-\item{df}{the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.  The df must contain the following fields:
+\item{df}{the default is \code{NULL}. A data frame containing pre-flattened RV data. Used if tblList is NULL.  The
+df must contain the following fields:
 \itemize{
   \item \code{SPEC} or \code{TAXA_}
   \item \code{DIST}
@@ -33,18 +37,29 @@ stratify_simple(
 
 \item{areaField}{the default is \code{"AREA_KM2"}. The name of the field containing area values.}
 
-\item{areaFieldUnits}{the default is \code{c("KM2","NM2")}. The units of the area field. Must be either "KM2" or "NM2".}
+\item{areaFieldUnits}{the default is \code{c("KM2","NM2","M2")}. The units of the area field. Must be either "KM2",
+"M2" or "NM2".}
+
+\item{inc_limits}{the default is \code{TRUE}.  This indicates whether or not the confidence interval values will be
+included in the output .}
+
+\item{conf_limits}{the default is \code{95}.  These are the are confidence intervals that will be calculated.}
 
 \item{debug}{the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.}
 }
 \value{
-A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level summaries), and OVERALL_SUMMARY (overall statistics with confidence intervals).
+A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level
+summaries), and OVERALL_SUMMARY (overall statistics with confidence intervals).
 }
 \description{
-Calculate stratified estimates of biomass and abundance from RV survey data. This function handles taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with confidence intervals.
+Calculate stratified estimates of biomass and abundance from RV survey data. This function   handles
+taxa-level or species-level data without detailed length/age information. It standardizes catches to a common tow
+distance, calculates per-unit-area densities, and generates stratified and overall summary statistics with
+confidence intervals.
 }
 \note{
-This function should be used for taxa-level data or when GSDET has no records. For species-level data with length/age information, use stratify_detailed() instead.
+This function should be used for taxa-level data or when GSDET has no records. For species-level data with
+length/age information, use stratify_detailed() instead.
 }
 \author{
 Mike McMahon, \email{Mike.McMahon@dfo-mpo.gc.ca}

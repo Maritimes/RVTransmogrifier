@@ -53,7 +53,6 @@ age_strat <- widen_data(age_strat,
                         level = "strata",
                         by_sex = FALSE)
 }
-
 }
 \author{
 Mike McMahon, \email{Mike.McMahon@dfo-mpo.gc.ca}

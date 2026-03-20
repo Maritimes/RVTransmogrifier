@@ -7,7 +7,7 @@
 getSpInfo(taxa = NULL, tblList)
 }
 \arguments{
-\item{taxa}{the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM", "PHYLUM", "CLASS", "ORDER", 
+\item{taxa}{the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM", "PHYLUM", "CLASS", "ORDER",
 "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})}
 
 \item{tblList}{the default is \code{NULL}. This is a list populated with all RV dataframes that
@@ -26,7 +26,7 @@ getSpInfo(taxa ="mich", tblList=data_2025)
     CODE APHIA_ID      COMM                          SPEC  KINGDOM     PHYLUM       CLASS
   604   126306 SNIPE EEL        NEMICHTHYS SCOLOPACEUS ANIMALIA   CHORDATA   TELEOSTEI
  2056   106182      <NA> ARCOSCALPELLUM MICHELOTTIANUM ANIMALIA ARTHROPODA THECOSTRACA
- 
+
  ORDER        FAMILY          GENUS
  ANGUILLIFORMES NEMICHTHYIDAE     NEMICHTHYS
  SCALPELLOMORPHA  SCALPELLIDAE ARCOSCALPELLUM

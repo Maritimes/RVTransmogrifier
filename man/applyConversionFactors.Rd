@@ -7,8 +7,8 @@
 applyConversionFactors(cxn = NULL, tblList)
 }
 \arguments{
-\item{cxn}{A valid Oracle connection object. This parameter allows you to 
-pass an existing connection, reducing the need to establish a new connection 
+\item{cxn}{A valid Oracle connection object. This parameter allows you to
+pass an existing connection, reducing the need to establish a new connection
 within the function. If provided, it takes precedence over the connection-
 related parameters.}
 

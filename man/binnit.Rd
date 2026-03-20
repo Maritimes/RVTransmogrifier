@@ -15,10 +15,11 @@ binnit(data, bin_size = 1)
 The input data frame with an added column \code{FLEN_BIN} indicating the bin assignment for each fish length.
 }
 \description{
-Assigns each FLEN to a length bin using the specified bin size. Bin values are calculated as the lower 
-edge of each bin, using the formula 1 + bin_size * floor(FLEN / bin_size). This approach is consistent with legacy 
+Assigns each FLEN to a length bin using the specified bin size. Bin values are calculated as the lower
+edge of each bin, using the formula 1 + bin_size * floor(FLEN / bin_size). This approach is consistent with legacy
 APL code, but bins do not necessarily start at the minimum observed length.
 }
 \author{
 Mike McMahon, \email{Mike.McMahon@dfo-mpo.gc.ca}
+importFrom dplyr mutate
 }

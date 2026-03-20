@@ -7,6 +7,7 @@ Description: This package works with the RVSurveyData package to query and refor
 Depends:
     R (>= 4.1.0)
 Imports:
+  cowplot,
   data.table,
   dplyr,
   geosphere, 
@@ -17,16 +18,19 @@ Imports:
   sf,
   stats,
   suncalc,
+  tibble,
   tidyr,
-  utils
+  tidyselect,
+  utils,
+  zoo
 Suggests:
   Mar.data,
 Remotes:
   Maritimes/Mar.data,
   Maritimes/Mar.utils
 Encoding: UTF-8
-License: MIT + file LICENSE
 LazyData: true
 LazyDataCompression: xz
 URL: https://github.com/Maritimes/RVTransmogrifier/
 RoxygenNote: 7.3.3
+License: MIT + file LICENSE
