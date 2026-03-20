@@ -20,6 +20,10 @@ stratify_detailed(
 
 \item{by_sex}{the default is \code{FALSE}. If TRUE, calculations are grouped by sex (FSEX) in addition to other grouping variables.}
 
+\item{conf_limits}{the default is \code{95}}
+
+\item{inc_limits}{the default is \code{TRUE}}
+
 \item{bin_size}{the default is \code{1}.}
 }
 \value{

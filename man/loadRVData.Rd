@@ -7,25 +7,25 @@
 loadRVData(cxn = NULL, force.extract = FALSE, stock = NULL, ...)
 }
 \arguments{
-\item{cxn}{A valid Oracle connection object. This parameter allows you to 
-pass an existing connection, reducing the need to establish a new connection 
+\item{cxn}{A valid Oracle connection object. This parameter allows you to
+pass an existing connection, reducing the need to establish a new connection
 within the function. If provided, it takes precedence over the connection-
 related parameters.}
 
 \item{force.extract}{the default is \code{FALSE}.}
 
-\item{stock}{Optional. A valid stock name from `stock_map`. If provided, it overrides 
+\item{stock}{Optional. A valid stock name from `stock_map`. If provided, it overrides
 manually specified parameters like `code`, `months`, `strata`, etc.}
 
 \item{...}{other arguments passed to methods (i.e. 'keep_nullsets', debug' and 'quiet')}
 }
 \value{
-a list of dataframes which have been filtered to only include data related to the 
+a list of dataframes which have been filtered to only include data related to the
 specified survey and years
 }
 \description{
-A survey is a defined by a combination of a range of months, a selection of strata, 
-and a tow 'type'. This function ensures that all those values are combined correctly to get the 
+A survey is a defined by a combination of a range of months, a selection of strata,
+and a tow 'type'. This function ensures that all those values are combined correctly to get the
 valid data for a survey.
 }
 \author{

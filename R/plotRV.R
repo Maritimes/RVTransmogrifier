@@ -1,5 +1,5 @@
 #' @title plotRV
-#' @description This function can plot the list data resulting from \code{get_survey()} or from 
+#' @description This function can plot the list data resulting from \code{get_survey()} or from
 #' \code{propagateChanges()}.
 #' @param tblList the default is \code{NULL}. This is a list populated with all RV dataframes that
 #' should have filtering applied to them.
@@ -7,18 +7,23 @@
 #' no catch data points will be plotted.
 #' @param plotNullSets   the default is \code{TRUE}.  If TRUE, sets where the specified species was not
 #' caught will be plotted as '+'.  If FALSE, null sets will not be plotted.
-#' @param plotCatchStrata the default is \code{"MEAN_WGT"}, but can be any of \code{"TOTNO"}, \code{"TOTWGT"}, 
+#' @param plotCatchStrata the default is \code{"MEAN_WGT"}, but can be any of \code{"TOTNO"}, \code{"TOTWGT"},
 #' \code{"MEAN_WGT"}, \code{"MEAN_NO"}, \code{"BIOMASS"}, or \code{"ABUND"}. If set to \code{NULL},
 #' no strata will be plotted by catch.
-#' @param catchStrataData the default is \code{NULL}. This is a stratified object resulting from running 
+#' @param catchStrataData the default is \code{NULL}. This is a stratified object resulting from running
 #' \code{stratify}.  \code{stratify()} can generate multiple dfs within a list, but this parameter should
 #' be pointed to a single dataframe.
+#' @param plotRaw the default is \code{FALSE}.  If true, the raw set locations from GSINF will be plotted.
 #' @param plotStrata the default is \code{TRUE}. Should Maritimes strata be shown?
 #' @param labelStrata the default is \code{TRUE}. If they are shown, should Maritimes strata be labelled?
 #' @param plotNAFO the default is \code{TRUE}. Should NAFO areas be shown?
 #' @param labelNAFO the default is \code{TRUE}. If they are shown, should NAFO areas be labelled?
-#' @param plotBathy the default is \code{"FILL"}, but can be any of \code{"FILL"}, \code{"LINES"} or \code{NULL}.  
-#' FILL results in progressively darker blue areas as depth increases. 
+#' @param title the default is \code{NULL}. This is the title you would like to appear on the map.
+#' @param path the default is \code{NULL}. If \code{path} and \code{filename} are provided, a png file named
+#' \code{filename} will be saved in \code{path}.
+#' @param filename the default is \code{NULL}.
+#' @param plotBathy the default is \code{"FILL"}, but can be any of \code{"FILL"}, \code{"LINES"} or \code{NULL}.
+#' FILL results in progressively darker blue areas as depth increases.
 #' LINES results in contour lines.
 #' NULL does not show any bathymetric information.
 #' @param bathyIntervals the default is \code{100} (m).  This is the difference in depth between contour lines.
@@ -26,27 +31,43 @@
 #' @returns a ggplot object showing the positions of the data.  Null sets will be shown as + signs.
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-plotRV <- function(tblList = NULL, 
-                   plotSets = "TOTWGT", plotNullSets = TRUE,
-                   plotCatchStrata = "MEAN_WGT", plotRaw = FALSE, catchStrataData = NULL,
-                   plotStrata = TRUE,labelStrata=TRUE,
-                   plotBathy = "FILL", bathyIntervals=200,
-                   plotNAFO=FALSE, labelNAFO = FALSE, title = NULL, 
-                   path = NULL, filename = NULL, ...){
+plotRV <- function(
+  tblList = NULL,
+  plotSets = "TOTWGT",
+  plotNullSets = TRUE,
+  plotCatchStrata = "MEAN_WGT",
+  plotRaw = FALSE,
+  catchStrataData = NULL,
+  plotStrata = TRUE,
+  labelStrata = TRUE,
+  plotBathy = "FILL",
+  bathyIntervals = 200,
+  plotNAFO = FALSE,
+  labelNAFO = FALSE,
+  title = NULL,
+  path = NULL,
+  filename = NULL,
+  ...
+) {
   args <- list(...)
-  if (dev.cur() == 0) png(filename = "temp.png", width = 800, height = 600)
+  if (dev.cur() == 0) {
+    png(filename = "temp.png", width = 800, height = 600)
+  }
 
-  debug <- ifelse(is.null(args$debug), F, args$debug) 
+  debug <- ifelse(is.null(args$debug), F, args$debug)
   quiet <- ifelse(is.null(args$quiet), F, args$quiet)
-  
-  if(!is.null(args$taxa)|!is.null(args$code)|!is.null(args$aphiaid)){
-    tblList      <- filterSpecies(tblList,
-                                  taxa = args$taxa,
-                                  code = args$code,
-                                  aphiaid = args$aphiaid)
-    if (inherits(tblList,"numeric"))stop("Requested filter removed all species")
-    tblList      <- aggregateByTaxa(tblList = tblList,
-                                    code = args$code)
+
+  if (!is.null(args$taxa) | !is.null(args$code) | !is.null(args$aphiaid)) {
+    tblList <- filterSpecies(
+      tblList,
+      taxa = args$taxa,
+      code = args$code,
+      aphiaid = args$aphiaid
+    )
+    if (inherits(tblList, "numeric")) {
+      stop("Requested filter removed all species")
+    }
+    tblList <- aggregateByTaxa(tblList = tblList, code = args$code)
   }
 
   # if (!is.null(tblList) & !is.null(plotSets)) {
@@ -56,7 +77,7 @@ plotRV <- function(tblList = NULL,
   if (!is.null(tblList)) {
     # Step 1: Start with polygon bounds from sampled strata
     limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
-    
+
     # Step 2: Expand based on symbolized points (GSCAT), if available
     if (!is.null(plotSets) & "GSCAT" %in% names(tblList)) {
       catches <- merge(
@@ -72,7 +93,7 @@ plotRV <- function(tblList = NULL,
         max(limits1[4], max(catches$SLAT_DD, na.rm = TRUE))
       )
     }
-    
+
     # Step 3: Expand based on raw points (`GSINF`), if plotRaw is TRUE
     if (plotRaw) {
       limits1 <- c(
@@ -83,98 +104,173 @@ plotRV <- function(tblList = NULL,
       )
     }
   }
-  
+
   if (!is.null(catchStrataData)) {
-    if (inherits(catchStrataData,"list") & length(catchStrataData)>1){
-      message("catchStrataData can contain multiple data frames, but only the first of these will be plotted (i.e.",names(catchStrataData[1]),").  To plot a different one, please set catchStrataData to the specific data frame you want to plot")
+    if (inherits(catchStrataData, "list") & length(catchStrataData) > 1) {
+      message(
+        "catchStrataData can contain multiple data frames, but only the first of these will be plotted (i.e.",
+        names(catchStrataData[1]),
+        ").  To plot a different one, please set catchStrataData to the specific data frame you want to plot"
+      )
       catchStrataData <- catchStrataData[[1]]
-    } else if (inherits(catchStrataData,"list")){
+    } else if (inherits(catchStrataData, "list")) {
       catchStrataData <- catchStrataData[[1]]
     }
-    
-    if (is.null(plotSets)) limits1 <- sort(getBbox(filterVals = unique(catchStrataData$STRAT)))
+
+    if (is.null(plotSets)) {
+      limits1 <- sort(getBbox(filterVals = unique(catchStrataData$STRAT)))
+    }
     #if we have stratified catch data, we can't have filled contours
-    if(plotBathy == "FILL")plotBathy <- "LINES"
+    if (plotBathy == "FILL") plotBathy <- "LINES"
   }
-  
-  limits <- c(roundDD2Min(limits1[1],nearestMin=15, how = "floor"), 
-              roundDD2Min(limits1[2],nearestMin=15, how = "ceiling"), 
-              roundDD2Min(limits1[3],nearestMin=15, how = "floor"), 
-              roundDD2Min(limits1[4],nearestMin=15, how = "ceiling"))
-  
+
+  limits <- c(
+    roundDD2Min(limits1[1], nearestMin = 15, how = "floor"),
+    roundDD2Min(limits1[2], nearestMin = 15, how = "ceiling"),
+    roundDD2Min(limits1[3], nearestMin = 15, how = "floor"),
+    roundDD2Min(limits1[4], nearestMin = 15, how = "ceiling")
+  )
+
   #add plot elements to this list.
   ggItems <- list()
   sf::sf_use_s2(FALSE)
   #set up the basic plot
-  
-  p <-ggplot2::ggplot() + ggplot2::theme_bw()
+
+  p <- ggplot2::ggplot() + ggplot2::theme_bw()
   # ggItems[["bathy"]]      <- ggBathy(plotBathy=plotBathy, bathyIntervals=bathyIntervals)
-  ggItems[["bkgdStrata"]] <- suppressWarnings({ggStrata(plotStrata=plotStrata, plotLabels=labelStrata, filter=unique(tblList$GSINF$STRAT))})
-   ggItems[["bkgdNAFO"]]   <- suppressWarnings({ggNAFO(plotNAFO=plotNAFO, plotLabels=labelNAFO, filter=NULL)})
-  if (!is.null(catchStrataData) & plotCatchStrata %in% c("TOTNO", "TOTWGT", "MEAN_WGT", "MEAN_NO", "BIOMASS",  "ABUNDANCE")){
+  ggItems[["bkgdStrata"]] <- suppressWarnings({
+    ggStrata(
+      plotStrata = plotStrata,
+      plotLabels = labelStrata,
+      filter = unique(tblList$GSINF$STRAT)
+    )
+  })
+  ggItems[["bkgdNAFO"]] <- suppressWarnings({
+    ggNAFO(plotNAFO = plotNAFO, plotLabels = labelNAFO, filter = NULL)
+  })
+  if (
+    !is.null(catchStrataData) &
+      plotCatchStrata %in%
+        c("TOTNO", "TOTWGT", "MEAN_WGT", "MEAN_NO", "BIOMASS", "ABUNDANCE")
+  ) {
     #if (plotCatchStrata == "BIOMASS")plotCatchStrata="BIOMASS_T"
     #   #can't plot bkgrd strata if the strata are to be plotted by catch
     ggItems[["bkgdStrata"]] <- NULL
-    ggItems[["gg_stratData"]] <- suppressWarnings({ggStrataData(catchStrataData = catchStrataData, plotField = plotCatchStrata, filter=unique(tblList$GSINF$STRAT))})
-  }else{
-    ggItems[["gg_stratData"]]<- NULL
-  } 
+    ggItems[["gg_stratData"]] <- suppressWarnings({
+      ggStrataData(
+        catchStrataData = catchStrataData,
+        plotField = plotCatchStrata,
+        filter = unique(tblList$GSINF$STRAT)
+      )
+    })
+  } else {
+    ggItems[["gg_stratData"]] <- NULL
+  }
 
   #ensure specified variables are plottable
-   if (!plotRaw) {
-  if (is.null(plotSets)){
-    #don't plot sets
-    catLeg<- NULL
-  }else if(!is.null(plotSets) & plotSets %in% c("TOTNO", "TOTWGT", "ALL")){
-    catches <- tblList$GSCAT
-    if ("SPEC" %in% names(catches)){
-      catches <- merge(catches, tblList$GSSPECIES_NEW[,c("CODE","SPEC", "COMM", "APHIA_ID")], by.x="SPEC", by.y="CODE")
-      colnames(catches)[colnames(catches)=="SPEC.y"] <- "SCI"
-      t_field <- c("SCI", "SPEC")
-    }else{
-      #if 2 fields sent, the format will be "t_field1 (t_field2)"
-      t_field <- "TAXA_"
-    }
-
-    catches <- merge(catches, tblList$GSINF[,c("MISSION", "SETNO",'SLONG_DD', 'SLAT_DD')], by=c("MISSION", "SETNO"),all.y=T)
-
-    
-    if (plotSets %in% c("TOTNO", "TOTWGT")) {
-      catLeg <- ifelse(plotSets == "TOTWGT", "Total Weight (kgs)","Total Number")
-      ggItems[["catchPts"]] <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar=plotSets, colourVar = t_field, return="CATCHES")})
-      if (plotNullSets)  ggItems[["nullSets"]]   <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar="TOTNO", colourVar = t_field[1], return="NULLSETS")})
-      
-    }else if (plotSets == "ALL"){
+  if (!plotRaw) {
+    if (is.null(plotSets)) {
+      #don't plot sets
       catLeg <- NULL
-      ggItems[["allPts"]] <- suppressWarnings({ggCatchPts(catchdata = catches, sizeVar="TOTNO", colourVar = NULL, return="ALLSETS")})
-    }
-     ggItems[["catchLabels"]] <- ggplot2::guides(color = ggplot2::guide_legend(title = "Taxa", order=1), 
-                                                 size = ggplot2::guide_legend(title = catLeg, order=2))
-  }
-} else {
-  # Adding raw data as black dots to the plot
-  rawData <- tblList$GSINF
-  if (!is.null(rawData)) {
-    ggItems[["rawData"]] <- ggplot2::geom_point(
-      data = rawData,
-      ggplot2::aes(x = SLONG_DD, y = SLAT_DD),
-      colour = "gray37", size = 0.4
-    )
-  }
-}
-  
-  ggItems[["land"]]   <- ggplot2::geom_sf(data = Mar.data::coast_lores_sf, fill = "darkgrey", color = NA)
-  ggItems[["extent"]] <- ggplot2::coord_sf(xlim = c(limits[1],limits[2]), ylim = c(limits[3], limits[4]))
-  ggItems[["labels"]] <- suppressWarnings({ggplot2::labs(x="Longitude", y="Latitude", title = title)})
-  p<-p+ggItems
+    } else if (!is.null(plotSets) & plotSets %in% c("TOTNO", "TOTWGT", "ALL")) {
+      catches <- tblList$GSCAT
+      if ("SPEC" %in% names(catches)) {
+        catches <- merge(
+          catches,
+          tblList$GSSPECIES_NEW[, c("CODE", "SPEC", "COMM", "APHIA_ID")],
+          by.x = "SPEC",
+          by.y = "CODE"
+        )
+        colnames(catches)[colnames(catches) == "SPEC.y"] <- "SCI"
+        t_field <- c("SCI", "SPEC")
+      } else {
+        #if 2 fields sent, the format will be "t_field1 (t_field2)"
+        t_field <- "TAXA_"
+      }
 
-    if (exists("temp_device")) dev.off()
+      catches <- merge(
+        catches,
+        tblList$GSINF[, c("MISSION", "SETNO", 'SLONG_DD', 'SLAT_DD')],
+        by = c("MISSION", "SETNO"),
+        all.y = T
+      )
+
+      if (plotSets %in% c("TOTNO", "TOTWGT")) {
+        catLeg <- ifelse(
+          plotSets == "TOTWGT",
+          "Total Weight (kgs)",
+          "Total Number"
+        )
+        ggItems[["catchPts"]] <- suppressWarnings({
+          ggCatchPts(
+            catchdata = catches,
+            sizeVar = plotSets,
+            colourVar = t_field,
+            return = "CATCHES"
+          )
+        })
+        if (plotNullSets) {
+          ggItems[["nullSets"]] <- suppressWarnings({
+            ggCatchPts(
+              catchdata = catches,
+              sizeVar = "TOTNO",
+              colourVar = t_field[1],
+              return = "NULLSETS"
+            )
+          })
+        }
+      } else if (plotSets == "ALL") {
+        catLeg <- NULL
+        ggItems[["allPts"]] <- suppressWarnings({
+          ggCatchPts(
+            catchdata = catches,
+            sizeVar = "TOTNO",
+            colourVar = NULL,
+            return = "ALLSETS"
+          )
+        })
+      }
+      ggItems[["catchLabels"]] <- ggplot2::guides(
+        color = ggplot2::guide_legend(title = "Taxa", order = 1),
+        size = ggplot2::guide_legend(title = catLeg, order = 2)
+      )
+    }
+  } else {
+    # Adding raw data as black dots to the plot
+    rawData <- tblList$GSINF
+    if (!is.null(rawData)) {
+      ggItems[["rawData"]] <- ggplot2::geom_point(
+        data = rawData,
+        ggplot2::aes(x = SLONG_DD, y = SLAT_DD),
+        colour = "gray37",
+        size = 0.4
+      )
+    }
+  }
+
+  ggItems[["land"]] <- ggplot2::geom_sf(
+    data = Mar.data::coast_lores_sf,
+    fill = "darkgrey",
+    color = NA
+  )
+  ggItems[["extent"]] <- ggplot2::coord_sf(
+    xlim = c(limits[1], limits[2]),
+    ylim = c(limits[3], limits[4])
+  )
+  ggItems[["labels"]] <- suppressWarnings({
+    ggplot2::labs(x = "Longitude", y = "Latitude", title = title)
+  })
+  p <- p + ggItems
+
+  if (exists("temp_device")) {
+    dev.off()
+  }
   # Save to file if `path` and `filename` are specified
   if (!is.null(path) && !is.null(filename)) {
-    save_path <- file.path(path, paste0(filename,".png"))
+    save_path <- file.path(path, paste0(filename, ".png"))
     ggplot2::ggsave(save_path, plot = p, width = 8, height = 6)
   }
-  # 
+  #
   print(p)
   # invisible(p)
 }

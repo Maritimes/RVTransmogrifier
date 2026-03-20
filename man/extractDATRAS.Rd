@@ -21,10 +21,10 @@ HH files. Single years are fine, as are vectors (e.g. \code{c(2011,1015)}, \code
 \item{survey}{default is \code{NULL}. This specifies the survey(s) for which you'd like to generate
 HH files.  Valid values are
 \itemize{
-\item \code{4X} - Type 1; Spring (i.e. months 1:4); 2008+; not strata 5Z* 
+\item \code{4X} - Type 1; Spring (i.e. months 1:4); 2008+; not strata 5Z*
 \item \code{GEORGES} - Type 1; Spring (i.e. months 1:4);  2008+; strata 5Z*
-\item \code{SPRING} - Type 1; Spring (i.e. months 1:4); pre-2008; specific strata 
-\item \code{4VSW}  - Type 1; Spring (i.e. months 1:4); 4VSW strata;  
+\item \code{SPRING} - Type 1; Spring (i.e. months 1:4); pre-2008; specific strata
+\item \code{4VSW}  - Type 1; Spring (i.e. months 1:4); 4VSW strata;
 \item \code{SUMMER} - Type 1; Summer (i.e. months 5:8); specific strata
 \item \code{FALL} - Type 1; Fall (i.e. months 9:12)
 }}
@@ -32,8 +32,8 @@ HH files.  Valid values are
 \item{csv}{default is \code{TRUE}.  If \code{TRUE}, csv files are generated for each HH code.  If
 \code{FALSE}, the output exists only in the resultant list.}
 
-\item{cxn}{A valid Oracle connection object. This parameter allows you to 
-pass an existing connection, reducing the need to establish a new connection 
+\item{cxn}{A valid Oracle connection object. This parameter allows you to
+pass an existing connection, reducing the need to establish a new connection
 within the function. If provided, it takes precedence over the connection-
 related parameters.}
 
@@ -42,7 +42,7 @@ rdata files}
 
 \item{path}{the default is \code{NULL}. This is the path where you would like your output files created.}
 
-\item{debug}{The default is \code{F}. Setting this to TRUE will limit the 
+\item{debug}{The default is \code{F}. Setting this to TRUE will limit the
 results to a single set for a single species.}
 }
 \value{
