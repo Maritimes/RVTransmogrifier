@@ -10,8 +10,8 @@ stratify_simple(
   towDist_NM = 1.75,
   areaField = "AREA_KM2",
   areaFieldUnits = c("KM2", "NM2", "M2"),
-  inc_limits = T,
   conf_limits = 95,
+  totwgt_units = c("kg", "ton"),
   debug = F
 )
 }
@@ -39,9 +39,6 @@ df must contain the following fields:
 
 \item{areaFieldUnits}{the default is \code{c("KM2","NM2","M2")}. The units of the area field. Must be either "KM2",
 "M2" or "NM2".}
-
-\item{inc_limits}{the default is \code{TRUE}.  This indicates whether or not the confidence interval values will be
-included in the output .}
 
 \item{conf_limits}{the default is \code{95}.  These are the are confidence intervals that will be calculated.}
 

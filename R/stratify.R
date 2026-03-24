@@ -22,8 +22,6 @@
 #' @param areaField the default is \code{"AREA_KM2"}. The name of the field containing area values.
 #' @param areaFieldUnits the default is \code{c("KM2","NM2","M2")}. The units of the area field. Must be either "KM2",
 #' "M2" or "NM2".
-#' @param inc_limits the default is \code{TRUE}.  This indicates whether or not the confidence interval values will be
-#' included in the output .
 #' @param conf_limits the default is \code{95}.  These are the are confidence intervals that will be calculated.
 #' @param debug the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.
 #' @return A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level
@@ -40,8 +38,8 @@ stratify_simple <- function(
   towDist_NM = 1.75,
   areaField = "AREA_KM2",
   areaFieldUnits = c("KM2", "NM2", "M2"),
-  inc_limits = T,
   conf_limits = 95,
+  totwgt_units = c("kg", "ton"),
   debug = F
 ) {
   if (!is.null(tblList)) {
@@ -76,19 +74,23 @@ stratify_simple <- function(
       stop("Column SETNO not found in data frame")
     }
 
-    if ("SPEC" %in% names(df) & length(unique(df$SPEC) == 1)) {
-      df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
-    } else if ("TAXA_" %in% names(df) & length(unique(df$SPEC) == 1)) {
-      df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
-    } else {
-      stop(
-        "This analytic can only be used on a single SPEC or taxonomic group at a time"
-      )
-    }
-
     df[is.na(df$DIST), "DIST"] <- towDist_NM
     df[is.na(df$TOTNO), "TOTNO"] <- 0
     df[is.na(df$TOTWGT), "TOTWGT"] <- 0
+  }
+  totwgt_units <- match.arg(totwgt_units)
+  if(totwgt_units=="kgs"){
+    df$TOTWGT <- df$TOTWGT/1000
+    message("TOTWGT converted from kg to tons")
+  }
+  if ("SPEC" %in% names(df) & length(unique(df$SPEC) == 1)) {
+    df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
+  } else if ("TAXA_" %in% names(df) & length(unique(df$SPEC) == 1)) {
+    df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
+  } else {
+    stop(
+      "This analytic can only be used on a single SPEC or taxonomic group at a time"
+    )
   }
 
   areaFieldUnits <- match.arg(areaFieldUnits)
@@ -161,7 +163,6 @@ stratify_simple <- function(
 
   df_strat <- df_complete |>
     dplyr::mutate(YEAR = as.integer(substr(MISSION, 4, 7))) |>
-    #group_by(.data[[species_col]], MISSION, STRAT, AREA_KM2) |>
     dplyr::group_by(.data[[species_col]], YEAR, STRAT, AREA_KM2) |>
     dplyr::summarise(
       COUNT = dplyr::n(),
@@ -185,154 +186,170 @@ stratify_simple <- function(
     ) |>
     as.data.frame()
 
-  AREA_KM_OVERALL <- sum(df_strat$AREA_KM2, na.rm = TRUE)
-  COUNT_OVERALL <- sum(df_strat$COUNT, na.rm = TRUE)
-  TOTWGT_OVERALL <- sum(df_strat$TOTWGT_SUM, na.rm = TRUE)
-  TOTNO_OVERALL <- sum(df_strat$TOTNO_SUM, na.rm = TRUE)
-
-  TOTWGT_MEAN <- calcYearSummary(
-    df_strat,
-    valueField = "TOTWGT_MEAN",
-    seField = "TOTWGT_MEAN_SE",
-    areaField = "AREA_KM2",
-    level = conf_limits / 100,
-    is_mean = TRUE
-  )
-  TOTNO_MEAN <- calcYearSummary(
-    df_strat,
-    valueField = "TOTNO_MEAN",
-    seField = "TOTNO_MEAN_SE",
-    areaField = "AREA_KM2",
-    level = conf_limits / 100,
-    is_mean = TRUE
-  )
-  TOTWGT_SQKM_MEAN <- calcYearSummary(
-    df_strat,
-    valueField = "TOTWGT_SQKM_STRAT_MEAN",
-    seField = "TOTWGT_SQKM_STRAT_MEAN_SE",
-    level = conf_limits / 100,
-    areaField = "AREA_KM2",
-    is_mean = TRUE
-  )
-  TOTNO_SQKM_MEAN <- calcYearSummary(
-    df_strat,
-    valueField = "TOTNO_SQKM_STRAT_MEAN",
-    seField = "TOTNO_SQKM_STRAT_MEAN_SE",
-    level = conf_limits / 100,
-    areaField = "AREA_KM2",
-    is_mean = TRUE
-  )
-  BIOMASS_OVERALL <- calcYearSummary(
-    df_strat,
-    valueField = "BIOMASS",
-    seField = "BIOMASS_SE",
-    areaField = "AREA_KM2",
-    level = conf_limits / 100,
-    is_mean = FALSE
-  )
-  ABUNDANCE_OVERALL <- calcYearSummary(
-    df_strat,
-    valueField = "ABUNDANCE",
-    seField = "ABUNDANCE_SE",
-    areaField = "AREA_KM2",
-    level = conf_limits / 100,
-    is_mean = FALSE
-  )
-
-  overall <- data.frame(
-    AREA_KM_OVERALL = AREA_KM_OVERALL,
-    COUNT_OVERALL = COUNT_OVERALL,
-    TOTWGT_OVERALL = TOTWGT_OVERALL,
-    TOTNO_OVERALL = TOTNO_OVERALL,
-    TOTWGT_MEAN = TOTWGT_MEAN$value,
-    TOTWGT_MEAN_SE = TOTWGT_MEAN$se,
-    TOTWGT_MEAN_LOW = TOTWGT_MEAN$low,
-    TOTWGT_MEAN_HIGH = TOTWGT_MEAN$high,
-    TOTNO_MEAN = TOTNO_MEAN$value,
-    TOTNO_MEAN_SE = TOTNO_MEAN$se,
-    TOTNO_MEAN_LOW = TOTNO_MEAN$low,
-    TOTNO_MEAN_HIGH = TOTNO_MEAN$high,
-    TOTNO_SQKM_MEAN_LOW = TOTNO_SQKM_MEAN$low,
-    TOTNO_SQKM_MEAN_HIGH = TOTNO_SQKM_MEAN$high,
-    TOTWGT_SQKM_MEAN = TOTWGT_SQKM_MEAN$value,
-    TOTWGT_SQKM_MEAN_SE = TOTWGT_SQKM_MEAN$se,
-    TOTWGT_SQKM_MEAN_LOW = TOTWGT_SQKM_MEAN$low,
-    TOTWGT_SQKM_MEAN_HIGH = TOTWGT_SQKM_MEAN$high,
-    TOTNO_SQKM_MEAN = TOTNO_SQKM_MEAN$value,
-    TOTNO_SQKM_MEAN_SE = TOTNO_SQKM_MEAN$se,
-    BIOMASS = round(BIOMASS_OVERALL$value, 0),
-    BIOMASS_SE = round(BIOMASS_OVERALL$se, 1),
-    BIOMASS_LOW = round(BIOMASS_OVERALL$low, 1),
-    BIOMASS_HIGH = round(BIOMASS_OVERALL$high, 1),
-    ABUNDANCE = round(ABUNDANCE_OVERALL$value, 0),
-    ABUNDANCE_SE = round(ABUNDANCE_OVERALL$se, 1),
-    ABUNDANCE_LOW = round(ABUNDANCE_OVERALL$low, 1),
-    ABUNDANCE_HIGH = round(ABUNDANCE_OVERALL$high, 1)
-  )
-
-  strat_stratified <- df_strat |>
-    dplyr::add_row(
-      SPEC = NA,
-      STRAT = "TOTAL",
-      AREA_KM2 = overall$AREA_KM_OVERALL,
-      COUNT = overall$COUNT_OVERALL,
-      TOTWGT_MEAN = overall$TOTWGT_MEAN,
-      TOTNO_MEAN = overall$TOTNO_MEAN,
-      TOTWGT_MEAN_SE = overall$TOTWGT_MEAN_SE,
-      TOTNO_MEAN_SE = overall$TOTNO_MEAN_SE,
-      TOTWGT_SQKM_STRAT_MEAN = overall$TOTWGT_SQKM_MEAN,
-      TOTWGT_SQKM_STRAT_MEAN_SE = overall$TOTWGT_SQKM_MEAN_SE,
-      TOTNO_SQKM_STRAT_MEAN = overall$TOTNO_SQKM_MEAN,
-      TOTNO_SQKM_STRAT_MEAN_SE = overall$TOTNO_SQKM_MEAN_SE,
-      BIOMASS = overall$BIOMASS,
-      BIOMASS_SE = overall$BIOMASS_SE,
-      ABUNDANCE = overall$ABUNDANCE,
-      ABUNDANCE_SE = overall$ABUNDANCE_SE
+  results_by_year <- df_strat |>
+    dplyr::group_by(YEAR) |>
+    dplyr::summarise(
+      AREA_KM_OVERALL = sum(AREA_KM2, na.rm = TRUE),
+      COUNT_OVERALL = sum(COUNT, na.rm = TRUE),
+      TOTWGT_OVERALL = sum(TOTWGT_SUM, na.rm = TRUE),
+      TOTNO_OVERALL = sum(TOTNO_SUM, na.rm = TRUE),
+      
+      TOTWGT_MEAN_RESULT = list(calcYearSummary(
+        theDataByStrat = dplyr::pick(dplyr::everything()),
+        valueField = "TOTWGT_MEAN",
+        seField = "TOTWGT_MEAN_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      TOTNO_MEAN_RESULT = list(calcYearSummary(
+        theDataByStrat = dplyr::pick(dplyr::everything()),
+        valueField = "TOTNO_MEAN",
+        seField = "TOTNO_MEAN_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      
+      TOTWGT_SQKM_STRAT_MEAN_RESULT = list(calcYearSummary(
+        theDataByStrat = dplyr::pick(dplyr::everything()),
+        valueField = "TOTWGT_SQKM_STRAT_MEAN",
+        seField = "TOTWGT_SQKM_STRAT_MEAN_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      TOTNO_SQKM_STRAT_MEAN_RESULT = list(calcYearSummary(
+        theDataByStrat =  dplyr::pick(dplyr::everything()),
+        valueField = "TOTNO_SQKM_STRAT_MEAN",
+        seField = "TOTNO_SQKM_STRAT_MEAN_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      BIOMASS_RESULT = list(calcYearSummary(
+        theDataByStrat = dplyr::pick(dplyr::everything()),
+        valueField = "BIOMASS",
+        seField = "BIOMASS_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      ABUNDANCE_RESULT = list(calcYearSummary(
+        theDataByStrat = dplyr::pick(dplyr::everything()),
+        valueField = "ABUNDANCE",
+        seField = "ABUNDANCE_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      .groups = "drop"
     ) |>
-    dplyr::select(
-      SPEC,
-      STRAT,
-      YEAR,
-      AREA_KM2,
-      COUNT,
-      TOTWGT_MEAN,
-      TOTWGT_MEAN_SE,
-      TOTWGT_SQKM_STRAT_MEAN,
-      TOTNO_SQKM_STRAT_MEAN_SE,
-      BIOMASS,
-      BIOMASS_SE,
-      TOTNO_MEAN,
-      TOTNO_MEAN_SE,
-      TOTNO_SQKM_STRAT_MEAN,
-      TOTNO_SQKM_STRAT_MEAN_SE,
-      ABUNDANCE,
-      ABUNDANCE_SE
-    )
+    # Extract values from the list columns into individual columns
+    dplyr::mutate(
+      TOTWGT_MEAN = purrr::map_dbl(TOTWGT_MEAN_RESULT, "value"),
+      TOTWGT_MEAN_SE = purrr::map_dbl(TOTWGT_MEAN_RESULT, "se"),
+      TOTWGT_MEAN_LOW = purrr::map_dbl(TOTWGT_MEAN_RESULT, "low"),
+      TOTWGT_MEAN_HIGH = purrr::map_dbl(TOTWGT_MEAN_RESULT, "high"),
+      TOTNO_MEAN = purrr::map_dbl(TOTNO_MEAN_RESULT, "value"),
+      TOTNO_MEAN_SE = purrr::map_dbl(TOTNO_MEAN_RESULT, "se"),
+      TOTNO_MEAN_LOW = purrr::map_dbl(TOTNO_MEAN_RESULT, "low"),
+      TOTNO_MEAN_HIGH = purrr::map_dbl(TOTNO_MEAN_RESULT, "high"),
+      TOTWGT_SQKM_STRAT_MEAN = purrr::map_dbl(TOTWGT_SQKM_STRAT_MEAN_RESULT, "value"),
+      TOTWGT_SQKM_STRAT_MEAN_SE = purrr::map_dbl(TOTWGT_SQKM_STRAT_MEAN_RESULT, "se"),
+      TOTWGT_SQKM_STRAT_MEAN_LOW = purrr::map_dbl(TOTWGT_SQKM_STRAT_MEAN_RESULT, "low"),
+      TOTWGT_SQKM_STRAT_MEAN_HIGH = purrr::map_dbl(TOTWGT_SQKM_STRAT_MEAN_RESULT, "high"),
+      TOTNO_SQKM_STRAT_MEAN = purrr::map_dbl(TOTNO_SQKM_STRAT_MEAN_RESULT, "value"),
+      TOTNO_SQKM_STRAT_MEAN_SE = purrr::map_dbl(TOTNO_SQKM_STRAT_MEAN_RESULT, "se"),
+      TOTNO_SQKM_STRAT_MEAN_LOW = purrr::map_dbl(TOTNO_SQKM_STRAT_MEAN_RESULT, "low"),
+      TOTNO_SQKM_STRAT_MEAN_HIGH = purrr::map_dbl(TOTNO_SQKM_STRAT_MEAN_RESULT, "high"),
+      BIOMASS = purrr::map_dbl(BIOMASS_RESULT, "value"),
+      BIOMASS_SE = purrr::map_dbl(BIOMASS_RESULT, "se"),
+      BIOMASS_LOW = purrr::map_dbl(BIOMASS_RESULT, "low"),
+      BIOMASS_HIGH = purrr::map_dbl(BIOMASS_RESULT, "high"),
+      ABUNDANCE = purrr::map_dbl(ABUNDANCE_RESULT, "value"),
+      ABUNDANCE_SE = purrr::map_dbl(ABUNDANCE_RESULT, "se"),
+      ABUNDANCE_LOW = purrr::map_dbl(ABUNDANCE_RESULT, "low"),
+      ABUNDANCE_HIGH = purrr::map_dbl(ABUNDANCE_RESULT, "high")
+      
+    ) |>
+    dplyr::select(-c(TOTWGT_MEAN_RESULT, TOTNO_MEAN_RESULT, TOTWGT_SQKM_STRAT_MEAN_RESULT, TOTNO_SQKM_STRAT_MEAN_RESULT, BIOMASS_RESULT, ABUNDANCE_RESULT))
 
-  max_min_fields <- c(
-    "TOTWGT_MEAN_LOW",
-    "TOTWGT_MEAN_HIGH",
-    "TOTNO_MEAN_LOW",
-    "TOTNO_MEAN_HIGH",
-    "TOTWGT_SQKM_MEAN_LOW",
-    "TOTWGT_SQKM_MEAN_HIGH",
-    "TOTNO_SQKM_MEAN_LOW",
-    "TOTNO_SQKM_MEAN_HIGH",
-    "BIOMASS_LOW",
-    "BIOMASS_HIGH",
-    "ABUNDANCE_LOW",
-    "ABUNDANCE_HIGH"
+  # Step 2: Calculate overall metrics for the whole dataset
+overall_results <- df_strat |>
+  dplyr::summarise(
+    AREA_KM_OVERALL = sum(AREA_KM2, na.rm = TRUE),
+    COUNT_OVERALL = sum(COUNT, na.rm = TRUE),
+    TOTWGT_OVERALL = sum(TOTWGT_SUM, na.rm = TRUE),
+    TOTNO_OVERALL = sum(TOTNO_SUM, na.rm = TRUE),
+    # Call calcYearSummary once for TOTWGT_MEAN
+    TOTWGT_MEAN_RESULT = list(calcYearSummary(
+      theDataByStrat =  dplyr::pick(dplyr::everything()),
+      valueField = "TOTWGT_MEAN",
+      seField = "TOTWGT_MEAN_SE",
+      areaField = "AREA_KM2",
+      level = conf_limits / 100,
+      is_mean = TRUE
+    )),
+    # Call calcYearSummary once for TOTNO_MEAN
+    TOTNO_MEAN_RESULT = list(calcYearSummary(
+      theDataByStrat =  dplyr::pick(dplyr::everything()),
+      valueField = "TOTNO_MEAN",
+      seField = "TOTNO_MEAN_SE",
+      areaField = "AREA_KM2",
+      level = conf_limits / 100,
+      is_mean = TRUE
+    )),
+    # Call calcYearSummary once for BIOMASS
+    BIOMASS_RESULT = list(calcYearSummary(
+      theDataByStrat =  dplyr::pick(dplyr::everything()),
+      valueField = "BIOMASS",
+      seField = "BIOMASS_SE",
+      areaField = "AREA_KM2",
+      level = conf_limits / 100,
+      is_mean = FALSE
+    )),
+    # Call calcYearSummary once for ABUNDANCE
+    ABUNDANCE_RESULT = list(calcYearSummary(
+      theDataByStrat =  dplyr::pick(dplyr::everything()),
+      valueField = "ABUNDANCE",
+      seField = "ABUNDANCE_SE",
+      areaField = "AREA_KM2",
+      level = conf_limits / 100,
+      is_mean = FALSE
+    )),
+    .groups = "drop"
+  ) |>
+  # Extract values from each list column into separate flat columns
+  dplyr::mutate(
+    TOTWGT_MEAN = purrr::map_dbl(TOTWGT_MEAN_RESULT, "value"),
+    TOTWGT_MEAN_SE = purrr::map_dbl(TOTWGT_MEAN_RESULT, "se"),
+    TOTWGT_MEAN_LOW = purrr::map_dbl(TOTWGT_MEAN_RESULT, "low"),
+    TOTWGT_MEAN_HIGH = purrr::map_dbl(TOTWGT_MEAN_RESULT, "high"),
+    TOTNO_MEAN = purrr::map_dbl(TOTNO_MEAN_RESULT, "value"),
+    TOTNO_MEAN_SE = purrr::map_dbl(TOTNO_MEAN_RESULT, "se"),
+    TOTNO_MEAN_LOW = purrr::map_dbl(TOTNO_MEAN_RESULT, "low"),
+    TOTNO_MEAN_HIGH = purrr::map_dbl(TOTNO_MEAN_RESULT, "high"),
+    BIOMASS = purrr::map_dbl(BIOMASS_RESULT, "value"),
+    BIOMASS_SE = purrr::map_dbl(BIOMASS_RESULT, "se"),
+    BIOMASS_LOW = purrr::map_dbl(BIOMASS_RESULT, "low"),
+    BIOMASS_HIGH = purrr::map_dbl(BIOMASS_RESULT, "high"),
+    ABUNDANCE = purrr::map_dbl(ABUNDANCE_RESULT, "value"),
+    ABUNDANCE_SE = purrr::map_dbl(ABUNDANCE_RESULT, "se"),
+    ABUNDANCE_LOW = purrr::map_dbl(ABUNDANCE_RESULT, "low"),
+    ABUNDANCE_HIGH = purrr::map_dbl(ABUNDANCE_RESULT, "high")
+  ) |>
+  # Drop the intermediate list columns to tidy up the final output
+  dplyr::select(
+    -c(TOTWGT_MEAN_RESULT, TOTNO_MEAN_RESULT, BIOMASS_RESULT, ABUNDANCE_RESULT)
   )
+
   results <- list()
-
-  results$set_stratified <- setRes
-
-  if (!inc_limits) {
-    results$overall <- strat_stratified |>
-      dplyr::select(-dplyr::all_of(max_min_fields))
-  } else {
-    results$overall <- strat_stratified
-  }
+  results$stratified_by_set <- setRes
+  results$stratified_by_strat <- df_strat
+  results$results_by_year <- results_by_year
+  results$stratified_summary <- overall_results
+  
 
   return(results)
 }
@@ -360,8 +377,7 @@ stratify_detailed <- function(
   stratSimp <- stratify_simple(
     tblList = tblList,
     towDist_NM = towDist,
-    conf_limits = conf_limits,
-    inc_limits = inc_limits
+    conf_limits = conf_limits
   )
 
   totals <- standardize_catch_counts(

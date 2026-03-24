@@ -14,6 +14,7 @@ plotRVSummary(
   stock = NULL,
   cxn = NULL,
   years = NULL,
+  show_error = FALSE,
   use_new_areas = FALSE
 )
 }
@@ -46,10 +47,12 @@ related parameters.}
 
 \item{years}{the default is \code{NULL}.}
 
-\item{use_new_areas}{the default is \code{FALSE}.}
+\item{show_error}{the default is \code{FALSE}.  If confidence intervals should be shown on the plot, set this to TRUE.}
+
+\item{use_new_areas}{the default is \code{FALSE}. This is a development parameter.  It won't work for most users.}
 }
 \value{
-a list including a plot and the strtatified biomass/abundance data behind the plot
+a list including a plot and the stratified biomass/abundance data behind the plot
 }
 \description{
 plotRVSummary
