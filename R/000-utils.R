@@ -71,7 +71,13 @@ utils::globalVariables(c(
   "BIOMASS_set",
   "ABUNDANCE_set",
   "TOTWGT_SQKM_STRAT_MEAN",
-  "TOTNO_SQKM_STRAT_MEAN"
+  "TOTNO_SQKM_STRAT_MEAN",
+  "TOTWGT_MEAN_RESULT",
+  "TOTNO_MEAN_RESULT",
+  "TOTWGT_SQKM_STRAT_MEAN_RESULT",
+  "TOTNO_SQKM_STRAT_MEAN_RESULT",
+  "BIOMASS_RESULT",
+  "ABUNDANCE_RESULT"
 ))
 #ggStrata
 utils::globalVariables(c("StrataID"))
@@ -226,7 +232,12 @@ utils::globalVariables(c(
   "BIOMASS",
   "ABUNDANCE",
   "GEO_MEAN_BIOMASS",
-  "GEO_MEAN_ABUNDANCE"
+  "GEO_MEAN_ABUNDANCE",
+  "BIOMASS_LOW",
+  "BIOMASS_HIGH",
+  "ABUNDANCE_LOW",
+  "ABUNDANCE_HIGH"
+  
 ))
 # calclYearSummary
 utils::globalVariables(c())

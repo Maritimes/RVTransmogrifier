@@ -1,5 +1,8 @@
 #' @title plotRVSummary
-#'
+#' @param cxn  the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
+#' pass an existing connection, reducing the need to establish a new connection
+#' within the function. If provided, it takes precedence over the connection-
+#' related parameters.
 #' @param code  the default is \code{NULL}. If data should be limited to a particular species, enter
 #' the species code here
 #' @param taxa  the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
@@ -14,14 +17,11 @@
 #' @param species_name   the default is \code{NULL}. This will be used in the plot title.
 #' @param stock  the default is \code{NULL}. A valid stock name from `stock_map`. If provided, it overrides
 #' manually specified parameters like `code`, `months`, `strata`, etc.
-#' @param cxn  the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
-#' pass an existing connection, reducing the need to establish a new connection
-#' within the function. If provided, it takes precedence over the connection-
-#' related parameters.
 #' @param years  the default is \code{NULL}.
-#' @param use_new_areas  the default is \code{FALSE}.
+#' @param use_new_areas  the default is \code{FALSE}. This is a development parameter.  It won't work for most users.
+#' @param show_error  the default is \code{FALSE}.  If confidence intervals should be shown on the plot, set this to TRUE.
 #'
-#' @returns a list including a plot and the strtatified biomass/abundance data behind the plot
+#' @returns a list including a plot and the stratified biomass/abundance data behind the plot
 #' @export
 
 plotRVSummary <- function(
@@ -34,6 +34,7 @@ plotRVSummary <- function(
   stock = NULL,
   cxn = NULL,
   years = NULL,
+  show_error = FALSE,
   use_new_areas = FALSE
 ) {
   # Optional validation to avoid conflicting parameters
@@ -51,8 +52,6 @@ plotRVSummary <- function(
     types <- NULL
   }
 
-  message("draft function!")
-
   # Load data (now includes years parameter)
   results_all <- loadRVData(
     cxn = cxn,
@@ -67,23 +66,22 @@ plotRVSummary <- function(
 
   # add this bit to allow use of updated UTMZ20N areas --------------------------------------------------------------
 
-  newStrataAreas <- utils::read.csv(
-    file = "c:/Users/mcmahonm/OneDrive - DFO-MPO/Support/!group_Groundfish/strataInvestigation/GSSTRATUM_COMPARE.csv"
-  )
-
-  results_all$GSINF <-
-    results_all$GSINF |>
-    dplyr::rename(AREA_KM2_GSSTRATUM = AREA_KM2) |>
-    dplyr::left_join(
-      newStrataAreas[, c("STRAT", "strata_2014_UTM20_M2")],
-      by = "STRAT"
-    ) |>
-    dplyr::mutate(
-      AREA_KM2_CALCULATED = round(strata_2014_UTM20_M2 / 1000000, 4)
+  if (use_new_areas) {
+    message("The new areas currently exist only on Mike's computer")
+    newStrataAreas <- utils::read.csv(
+      file = "c:/Users/mcmahonm/OneDrive - DFO-MPO/Support/!group_Groundfish/strataInvestigation/GSSTRATUM_COMPARE.csv"
     )
 
-  if (use_new_areas) {
-    print("using new")
+    results_all$GSINF <-
+      results_all$GSINF |>
+      dplyr::rename(AREA_KM2_GSSTRATUM = AREA_KM2) |>
+      dplyr::left_join(
+        newStrataAreas[, c("STRAT", "strata_2014_UTM20_M2")],
+        by = "STRAT"
+      ) |>
+      dplyr::mutate(
+        AREA_KM2_CALCULATED = round(strata_2014_UTM20_M2 / 1000000, 4)
+      )
     results_strat <- stratify_simple(
       tblList = results_all,
       towDist_NM = 1.75,
@@ -91,7 +89,9 @@ plotRVSummary <- function(
       areaFieldUnits = "KM2"
     )
   } else {
-    print("using original")
+    results_all$GSINF <-
+      results_all$GSINF |>
+      dplyr::rename(AREA_KM2_GSSTRATUM = AREA_KM2)
 
     results_strat <- stratify_simple(
       tblList = results_all,
@@ -100,64 +100,22 @@ plotRVSummary <- function(
       areaFieldUnits = "KM2"
     )
   }
+
   res <- list()
-  res$results_strat <- results_strat
-  # Run stratify_simple
-
-  # Summarize by year
-
-  results_str <- results_strat$overall |>
-    # mutate(YEAR = as.integer(stringr::str_extract(MISSION, "\\d{4}")))|>
-    dplyr::group_by(YEAR) |>
-    dplyr::summarize(
-      BIOMASS = sum(BIOMASS, na.rm = TRUE),
-      ABUNDANCE = sum(ABUNDANCE, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::arrange(YEAR)
-
-  # Filter by years vector, if provided
-  if (!is.null(years)) {
-    if (!is.numeric(years)) {
-      stop(
-        "`years` must be a numeric vector (e.g., years = 1985:2021 or years = c(1985, 1990))."
-      )
-    }
-    results_str <- results_str |> dplyr::filter(YEAR %in% years)
-  }
-  res$summary <- results_str
-
-  # Calculate long-term geometric mean (1987-2020) for each metric
+  # # Calculate long-term geometric mean (1987-2020) for each metric
   geometric_mean <- function(x) exp(mean(log(x[x > 0]), na.rm = TRUE)) # Avoid log(0)
+  
   mean_BIOMASS_1987_2020 <- geometric_mean(
-    results_str |>
+    results_strat$results_by_year |>
       dplyr::filter(YEAR >= 1987 & YEAR <= 2020) |>
       dplyr::pull(BIOMASS)
-  )
+  ) |> round(0)
+  
   mean_ABUNDANCE_1987_2020 <- geometric_mean(
-    results_str |>
+    results_strat$results_by_year |>
       dplyr::filter(YEAR >= 1987 & YEAR <= 2020) |>
       dplyr::pull(ABUNDANCE)
-  )
-
-  # Add 3-year rolling geometric mean for each metric
-  results_str <- results_str |>
-    dplyr::mutate(
-      GEO_MEAN_BIOMASS = zoo::rollapply(
-        BIOMASS,
-        width = 3,
-        FUN = geometric_mean,
-        fill = NA,
-        align = "center"
-      ),
-      GEO_MEAN_ABUNDANCE = zoo::rollapply(
-        ABUNDANCE,
-        width = 3,
-        FUN = geometric_mean,
-        fill = NA,
-        align = "center"
-      )
-    )
+  ) |> round(0)
 
   # Pick an informative default species name if not specified
   if (is.null(species_name)) {
@@ -170,25 +128,44 @@ plotRVSummary <- function(
     } else {
       species_name <- "Species"
     }
-    species_name <- paste0(
-      species_name,
-      " (",
-      survey,
-      if (!is.null(strata)) paste0("; strata=", paste(strata, collapse = ' ')),
-      "",
-      "; stratified)"
-    )
+    species_name <- species_name
   }
 
+  results_strat$results_by_year <- results_strat$results_by_year |>
+    dplyr::mutate(
+      GEO_MEAN_BIOMASS = round(
+        zoo::rollapply(
+          BIOMASS,
+          width = 3,
+          FUN = geometric_mean,
+          fill = NA,
+          align = "center"
+        ),
+        0
+      ),
+      GEO_MEAN_ABUNDANCE = round(
+        zoo::rollapply(
+          ABUNDANCE,
+          width = 3,
+          FUN = geometric_mean,
+          fill = NA,
+          align = "center"
+        ),
+        0
+      )
+    )
+  
   # Make plots
-  results_str <- results_str |> dplyr::mutate(YEAR = as.integer(YEAR))
-  results_str <- results_str |>
-    dplyr::filter(!is.na(GEO_MEAN_BIOMASS) & !is.na(GEO_MEAN_ABUNDANCE))
-  # Plot for Total Weight
   p_biomass <- ggplot2::ggplot(
-    results_str,
+    results_strat$results_by_year,
     ggplot2::aes(x = YEAR, y = BIOMASS)
   ) +
+    {if (show_error) 
+    ggplot2::geom_ribbon(
+      ggplot2::aes(ymin = BIOMASS_LOW, ymax = BIOMASS_HIGH),
+      fill = "blue",
+      alpha = 0.2
+    ) else NULL} +
     ggplot2::geom_point(size = 2) +
     ggplot2::geom_line(
       ggplot2::aes(y = GEO_MEAN_BIOMASS),
@@ -204,7 +181,8 @@ plotRVSummary <- function(
       yintercept = mean_BIOMASS_1987_2020 * 0.4,
       linetype = "dotted",
       color = "red"
-    ) + # 40% line
+    ) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
     ggplot2::labs(
       title = paste0(
         "Total Biomass of ",
@@ -214,20 +192,29 @@ plotRVSummary <- function(
         ")"
       ),
       x = "Year",
-      y = "Total Biomass"
+      y = "Total Biomass (tons)"
     ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1))
 
   # Plot for Total Number
   p_abundance <- ggplot2::ggplot(
-    results_str,
+    results_strat$results_by_year,
     ggplot2::aes(x = YEAR, y = ABUNDANCE)
   ) +
+    {if (show_error) 
+      ggplot2::geom_ribbon(
+      ggplot2::aes(
+        ymin = ABUNDANCE_LOW,
+        ymax = ABUNDANCE_HIGH
+      ),
+      fill = "blue",
+      alpha = 0.2
+      ) else NULL} +
     ggplot2::geom_point(size = 2) +
     ggplot2::geom_line(
       ggplot2::aes(y = GEO_MEAN_ABUNDANCE),
-      size = 1,
+      linewidth = 1,
       color = "black"
     ) + # Geometric mean line
     ggplot2::geom_hline(
@@ -239,15 +226,10 @@ plotRVSummary <- function(
       yintercept = mean_ABUNDANCE_1987_2020 * 0.4,
       linetype = "dotted",
       color = "red"
-    ) + # 40% line
+    ) +
+    ggplot2::scale_y_continuous(labels = scales::comma) +
     ggplot2::labs(
-      title = paste0(
-        "Total Abundance of ",
-        species_name,
-        " by Year (",
-        survey,
-        ")"
-      ),
+      title = paste0("Total Abundance of ", species_name," by Year (", survey, ")"),
       x = "Year",
       y = "Total Abundance"
     ) +
@@ -255,45 +237,8 @@ plotRVSummary <- function(
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1))
 
   # Combine plots vertically
+  res$results_strat <- results_strat
   res$plot <- cowplot::plot_grid(p_biomass, p_abundance, ncol = 1, align = 'v')
 
   return(res)
 }
-
-# For code, survey, strata
-# plotRVSummary(
-#   code = 11,
-#   survey = "SUMMER",
-#   strata = c("5Z1", "5Z2", "5Z3", "5Z4"),
-#   types = 1,
-#   species_name = "Haddock"
-# )
-#
-# # For taxa, survey, strata
-# plotRVSummary(
-#   taxa = "GADIFORMES",
-#   survey = "GEORGES",
-#   strata = c("5Z1", "5Z2", "5Z3", "5Z4"),
-#   types = 1
-# )
-#
-# # For code only (no strata)
-# plotRVSummary(
-#   code = 23,
-#   survey = "SUMMER",
-#   types = 1,
-#   species_name = "Redfish"
-# )
-#
-# # For taxa only (no strata)
-# plotRVSummary(
-#   taxa = "MYCTOPHIFORMES",
-#   survey = "SUMMER",
-#   types = 1
-# )
-#
-# plotRVSummary(
-#   code = 40,
-#   survey = "SUMMER",
-#   types = 1
-# )
