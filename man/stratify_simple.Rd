@@ -37,10 +37,11 @@ df must contain the following fields:
 
 \item{areaField}{the default is \code{"AREA_KM2"}. The name of the field containing area values.}
 
-\item{areaFieldUnits}{the default is \code{c("KM2","NM2","M2")}. The units of the area field. Must be either "KM2",
-"M2" or "NM2".}
+\item{areaFieldUnits}{The units of the area field. Must be  \code{c("KM2","NM2","M2")}.}
 
 \item{conf_limits}{the default is \code{95}.  These are the are confidence intervals that will be calculated.}
+
+\item{totwgt_units}{The units of the \code{TOTWGT} field. Must be  \code{c("kg","ton")}.}
 
 \item{debug}{the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.}
 }

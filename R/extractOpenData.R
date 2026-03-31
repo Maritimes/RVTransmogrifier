@@ -106,7 +106,6 @@ extractOpenData <- function(
     ) |>
     dplyr::rename(DEPTH = DEPTH_M) |>
     dplyr::arrange(MISSION, SETNO)
-
   this$GSDET <- merge(
     this$GSDET,
     this$GSMATURITY,
@@ -158,9 +157,7 @@ extractOpenData <- function(
       by.x = "FSEX",
       by.y = "CODE"
     )
-    colnames(this$GSDET_CONV)[
-      colnames(this$GSDET_CONV) == "DESCRIPTION"
-    ] <- "SEX"
+    colnames(this$GSDET_CONV)[colnames(this$GSDET_CONV) == "DESCRIPTION"] <- "SEX"
     this$GSDET_CONV <- this$GSDET_CONV |>
       dplyr::select(
         MISSION,

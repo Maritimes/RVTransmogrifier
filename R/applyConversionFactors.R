@@ -7,10 +7,25 @@
 #' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.
 #' @return A data frame containing standardized catch data with vessel conversion factors applied, including fields for raw and converted abundance (TOTNO) and biomass (TOTWGT), along with metadata indicating which conversion factors were used.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
-#' @note This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
+#' @note This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It 
+#' handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
+#' 
+#' The differences in the record counts between GSCAT/GSDET and GSCAT_CONV/GSDET_CONV arise from several key 
+#' transformations performed by the applyConversionFactors() function. For GSDET, records are filtered based on the 
+#' availability of required fields, such as fish lengths (FLEN) and counts-at-length (CLEN), which are essential for 
+#' applying species-specific or gear-specific conversions. Records may also be dropped if they represent species that 
+#' do not require conversions or fall into excluded categories (e.g., unidentified species or invalid data points). 
+#' Furthermore, GSDET_CONV integrates and applies length-weight relationships using "A" and "B" coefficients or other 
+#' scaling factors, which may modify the final set of records. For GSCAT, the conversions involve recalculating weight 
+#' and numbers data while grouping and aggregating records by fields such as MISSION, SETNO, and SPEC. This grouping 
+#' process can consolidate multiple input rows into a single output row, reducing the overall record count. 
+#' Additionally, the function filters out records attributed to invalid or unnecessary species, adds derived fields, 
+#' and integrates data from other tables, all of which can influence the final number of output rows. These 
+#' transformations collectively ensure the resulting datasets are both standardized and adjusted for comparability 
+#' across different vessels and gears.
 #' @export
 applyConversionFactors <- function(cxn = NULL, tblList) {
-  season <- unique(tblList$GSMISSION$SEASON)
+  season <- unique(tblList$GSMISSIONS$SEASON)
   if (length(season) > 1) {
     stop("The function can only handle a single season of data")
   }
@@ -37,14 +52,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     dplyr::rename(FSEX_key = FSEX)
 
   # retain data for SPECs that have conversion factors based on FLENs for the TEL/VEN to CAR/CAB and the NED/TEM to TEL/VEN
-  GSCAT_SPEC_LIST_TELVEN <- subset(
-    GSCONVERSIONS,
-    !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "TEL_VEN"
-  )
-  GSCAT_SPEC_LIST_NEDTEM <- subset(
-    GSCONVERSIONS,
-    !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "NED_TEM"
-  )
+  GSCAT_SPEC_LIST_TELVEN <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "TEL_VEN")
+  GSCAT_SPEC_LIST_NEDTEM <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "NED_TEM")
 
   #########################################################################
   ########   Applying Sample ratios to CLENs ##############################
@@ -327,26 +336,11 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   #FIXED THIS SO ATC AND HAM WOULD BE IN LINE WITH OTHER DATA FRAMES
 
   #First lets do all LDM models
-  TELVEN_TO_CARCAB_ABUND_CONV_LDM <- subset(
-    TELVEN_TO_CARCAB_ABUND_CONV,
-    !is.na(FLEN)
-  )
-  NEDTEM_TO_CARCAB_ABUND_CONV_LDM <- subset(
-    NEDTEM_TO_CARCAB_ABUND_CONV,
-    !is.na(FLEN)
-  )
-  ATCHAM_TO_CARCAB_ABUND_CONV_LDM <- subset(
-    ATCHAM_TO_CARCAB_ABUND_CONV,
-    !is.na(FLEN)
-  )
-  NEDTEM_TO_TELVEN_ABUND_CONV_LDM <- subset(
-    NEDTEM_TO_TELVEN_ABUND_CONV,
-    !is.na(FLEN)
-  )
-  ATCHAM_TO_TELVEN_ABUND_CONV_LDM <- subset(
-    ATCHAM_TO_TELVEN_ABUND_CONV,
-    !is.na(FLEN)
-  )
+  TELVEN_TO_CARCAB_ABUND_CONV_LDM <- subset(TELVEN_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
+  NEDTEM_TO_CARCAB_ABUND_CONV_LDM <- subset(NEDTEM_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
+  ATCHAM_TO_CARCAB_ABUND_CONV_LDM <- subset(ATCHAM_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
+  NEDTEM_TO_TELVEN_ABUND_CONV_LDM <- subset(NEDTEM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
+  ATCHAM_TO_TELVEN_ABUND_CONV_LDM <- subset(ATCHAM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
 
   LF_Data_All <- merge(
     CATDET,

@@ -20,9 +20,9 @@
 #' }
 #' @param towDist_NM the default is \code{1.75}. The standard tow distance in nautical miles used for standardization.
 #' @param areaField the default is \code{"AREA_KM2"}. The name of the field containing area values.
-#' @param areaFieldUnits the default is \code{c("KM2","NM2","M2")}. The units of the area field. Must be either "KM2",
-#' "M2" or "NM2".
+#' @param areaFieldUnits The units of the area field. Must be  \code{c("KM2","NM2","M2")}. 
 #' @param conf_limits the default is \code{95}.  These are the are confidence intervals that will be calculated.
+#' @param totwgt_units The units of the \code{TOTWGT} field. Must be  \code{c("kg","ton")}. 
 #' @param debug the default is \code{FALSE}. If TRUE, additional diagnostic information is printed.
 #' @return A list containing three elements: stratified_bySet (set-level calculations), stratified_byStrat (strata-level
 #' summaries), and OVERALL_SUMMARY (overall statistics with confidence intervals).
@@ -386,11 +386,11 @@ stratify_detailed <- function(
     by_sex = by_sex
   )
 
-  all_sets <- stratSimp$set_stratified |>
+  all_sets <- stratSimp$stratified_by_set |>
     dplyr::select(MISSION, SETNO, STRAT, AREA_KM2) |>
     dplyr::distinct()
 
-  spec_only <- stratSimp$set_stratified |>
+  spec_only <- stratSimp$stratified_by_set |>
     dplyr::select(SPEC) |>
     dplyr::distinct()
 

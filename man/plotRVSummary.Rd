@@ -5,6 +5,8 @@
 \title{plotRVSummary}
 \usage{
 plotRVSummary(
+  tblList = NULL,
+  cxn = NULL,
   code = NULL,
   taxa = NULL,
   survey = NULL,
@@ -12,13 +14,19 @@ plotRVSummary(
   types = 1,
   species_name = NULL,
   stock = NULL,
-  cxn = NULL,
   years = NULL,
   show_error = FALSE,
   use_new_areas = FALSE
 )
 }
 \arguments{
+\item{tblList}{the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.}
+
+\item{cxn}{the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
+pass an existing connection, reducing the need to establish a new connection
+within the function. If provided, it takes precedence over the connection-
+related parameters.}
+
 \item{code}{the default is \code{NULL}. If data should be limited to a particular species, enter
 the species code here}
 
@@ -39,11 +47,6 @@ data will be filtered to only that/those set types (via GSINF$TYPE)}
 
 \item{stock}{the default is \code{NULL}. A valid stock name from `stock_map`. If provided, it overrides
 manually specified parameters like `code`, `months`, `strata`, etc.}
-
-\item{cxn}{the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
-pass an existing connection, reducing the need to establish a new connection
-within the function. If provided, it takes precedence over the connection-
-related parameters.}
 
 \item{years}{the default is \code{NULL}.}
 

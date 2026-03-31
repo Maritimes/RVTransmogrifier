@@ -21,7 +21,22 @@ A data frame containing standardized catch data with vessel conversion factors a
 Apply vessel conversion factors to standardize catch data across different research vessels. Merges GSDET and GSCAT data, applies length-weight relationships, calculates sample ratios, and applies vessel-specific conversion factors for abundance and biomass to standardize historical data to current vessel (CAR/CAB) equivalents.
 }
 \note{
-This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
+This function downloads additional reference tables (GSCONVERSIONS, GSSPEC2) if not already available. It 
+handles seasonal differences (SPRING/SUMMER) and multiple vessel transitions (NED/TEM to TEL/VEN to CAR/CAB).
+
+The differences in the record counts between GSCAT/GSDET and GSCAT_CONV/GSDET_CONV arise from several key 
+transformations performed by the applyConversionFactors() function. For GSDET, records are filtered based on the 
+availability of required fields, such as fish lengths (FLEN) and counts-at-length (CLEN), which are essential for 
+applying species-specific or gear-specific conversions. Records may also be dropped if they represent species that 
+do not require conversions or fall into excluded categories (e.g., unidentified species or invalid data points). 
+Furthermore, GSDET_CONV integrates and applies length-weight relationships using "A" and "B" coefficients or other 
+scaling factors, which may modify the final set of records. For GSCAT, the conversions involve recalculating weight 
+and numbers data while grouping and aggregating records by fields such as MISSION, SETNO, and SPEC. This grouping 
+process can consolidate multiple input rows into a single output row, reducing the overall record count. 
+Additionally, the function filters out records attributed to invalid or unnecessary species, adds derived fields, 
+and integrates data from other tables, all of which can influence the final number of output rows. These 
+transformations collectively ensure the resulting datasets are both standardized and adjusted for comparability 
+across different vessels and gears.
 }
 \author{
 Mike McMahon, \email{Mike.McMahon@dfo-mpo.gc.ca}

@@ -1,4 +1,5 @@
 #' @title plotRVSummary
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.
 #' @param cxn  the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
 #' pass an existing connection, reducing the need to establish a new connection
 #' within the function. If provided, it takes precedence over the connection-
@@ -25,6 +26,8 @@
 #' @export
 
 plotRVSummary <- function(
+  tblList = NULL,
+  cxn = NULL,
   code = NULL,
   taxa = NULL,
   survey = NULL,
@@ -32,37 +35,41 @@ plotRVSummary <- function(
   types = 1,
   species_name = NULL,
   stock = NULL,
-  cxn = NULL,
   years = NULL,
   show_error = FALSE,
   use_new_areas = FALSE
 ) {
-  # Optional validation to avoid conflicting parameters
-  if (!is.null(stock)) {
-    if (
-      !is.null(code) || !is.null(taxa) || !is.null(strata) || !is.null(types)
-    ) {
-      warning(
-        "When 'stock' is provided, 'code', 'taxa', 'strata', and 'types' will be ignored."
-      )
+  if(!is.null(tblList)){
+    results_all <- tblList
+  }else{  
+    # Optional validation to avoid conflicting parameters
+    if (!is.null(stock)) {
+      if (
+        !is.null(code) || !is.null(taxa) || !is.null(strata) || !is.null(types)
+      ) {
+        warning(
+          "When 'stock' is provided, 'code', 'taxa', 'strata', and 'types' will be ignored."
+        )
+      }
+      code <- NULL
+      taxa <- NULL
+      strata <- NULL
+      types <- NULL
     }
-    code <- NULL
-    taxa <- NULL
-    strata <- NULL
-    types <- NULL
+    
+    # Load data (now includes years parameter)
+    results_all <- loadRVData(
+      cxn = cxn,
+      stock = stock,
+      code = code,
+      taxa = taxa,
+      survey = survey,
+      strata = strata,
+      types = types,
+      years = years # Changed here
+    ) 
   }
 
-  # Load data (now includes years parameter)
-  results_all <- loadRVData(
-    cxn = cxn,
-    stock = stock,
-    code = code,
-    taxa = taxa,
-    survey = survey,
-    strata = strata,
-    types = types,
-    years = years # Changed here
-  )
 
   # add this bit to allow use of updated UTMZ20N areas --------------------------------------------------------------
 
