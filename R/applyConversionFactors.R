@@ -23,6 +23,23 @@
 #' and integrates data from other tables, all of which can influence the final number of output rows. These 
 #' transformations collectively ensure the resulting datasets are both standardized and adjusted for comparability 
 #' across different vessels and gears.
+#' @importFrom dplyr arrange
+#' @importFrom dplyr mutate
+#' @importFrom dplyr if_else
+#' @importFrom dplyr filter
+#' @importFrom dplyr group_by
+#' @importFrom dplyr ungroup
+#' @importFrom dplyr rename
+#' @importFrom dplyr select
+#' @importFrom dplyr left_join
+#' @importFrom dplyr bind_rows
+#' @importFrom dplyr anti_join
+#' @importFrom dplyr summarise
+#' @importFrom dplyr across
+#' @importFrom dplyr all_of
+#' @importFrom dplyr distinct
+#' @importFrom dplyr case_when
+#' @importFrom Mar.utils get_data_tables
 #' @export
 applyConversionFactors <- function(cxn = NULL, tblList) {
   season <- unique(tblList$GSMISSIONS$SEASON)
@@ -33,201 +50,45 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     stop("This function can only handle SUMMER or SPRING/GEORGES")
   }
   
-  # retain copies of originals ----------------------------------------------
-  tblList$GSCAT_CONV <- tblList$GSCAT  
-  tblList$GSDET_CONV <- tblList$GSDET  
-  tblList$GSCAT <- tblList$GSCAT |> dplyr::arrange(MISSION, SETNO, SPEC, SIZE_CLASS)
-  tblList$GSDET <- tblList$GSDET |> dplyr::arrange(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, FWT)
-  
   # get a few extra tables we'll need
-  Mar.utils::get_data_tables('groundfish', cxn = cxn, data.dir = get_pesd_rvt_dir(), tables = c("GSCONVERSIONS", "GSSPEC2"), force.extract = F)
-  
-  # GSCAT - grab the raw TOTNO and TOTWGT and sufficient fields to re-attach them later ----------------
-  rawGSCAT <- tblList$GSCAT_CONV |> 
-    dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS,TOTWGT, TOTNO) |> #SAMPWGT, 
-    dplyr::rename(FWT_RAW = TOTWGT,
-                  CLEN_RAW = TOTNO)
-  # GSCAT - For unconvertable spp codes, capture them in a df, and remove from the df that will be processed -----------------------
-  nonSppGSCAT <- tblList$GSCAT_CONV |> dplyr::filter(SPEC >= 9400 | SPEC %in% c(1091:1092)) 
-  tblList$GSCAT_CONV <- tblList$GSCAT_CONV |>
-    dplyr::anti_join(nonSppGSCAT, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS","TOTWGT", "TOTNO"))
-  
-  # GSDET - grab the raw CLEN and FWT and sufficient fields to re-attach them later ----------------  
-  rawGSDET <- tblList$GSDET_CONV |> 
-    dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS,FLEN, FSEX, SPECIMEN_ID, FWT, CLEN) |> 
-    dplyr::mutate(FSEX = dplyr::if_else(is.na(FSEX), 77L, FSEX)) |>
-    dplyr::rename(FWT_RAW = FWT,
-                  CLEN_RAW = CLEN)
-  # GSDET - For unconvertable spp codes, capture them in a df, and remove from the df that will be processed -----------------------
-  nonSppGSDET <- tblList$GSDET_CONV |> dplyr::filter(SPEC >= 9400 | SPEC %in% c(1091:1092)) 
-  tblList$GSDET_CONV <- tblList$GSDET_CONV |>
-    dplyr::anti_join(nonSppGSDET, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS","FSEX", "FWT", "CLEN"))
-  
-  tblList$GSDET_CONV <- tblList$GSDET_CONV |> dplyr::mutate(FSEX_OG = FSEX) 
-  nonSppGSDET <- nonSppGSDET |> dplyr::mutate(FSEX_OG = FSEX) 
-  
-  # pull the As and Bs for the selected season (summer or winter).
-  # If multiple exist (for the same SPEC/SEX) choose the higher R2 value
-  ABs <- GSSPEC2 |>
-    dplyr::filter(SEASON == ifelse(season == "SUMMER", "SUMMER", "WINTER")) |>
-    dplyr::group_by(SPEC, FSEX) |>
-    dplyr::filter(R2 == max(R2)) |>
-    dplyr::ungroup() |>
-    dplyr::rename(FSEX_key = FSEX)
+  get_data_tables('groundfish', cxn = cxn, data.dir = get_pesd_rvt_dir(), tables = c("GSCONVERSIONS", "GSSPEC2","GSCONVERSIONS_RAW"), force.extract = F)
   
   # retain data for SPECs that have conversion factors based on FLENs for the TEL/VEN to CAR/CAB and the NED/TEM to TEL/VEN
   GSCAT_SPEC_LIST_TELVEN <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "TEL_VEN")
   GSCAT_SPEC_LIST_NEDTEM <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "NED_TEM")
   
-  #########################################################################
-  ########   Applying Sample ratios to CLENs ##############################
-  #########################################################################
-  # Adjust for sample_ratio from gscat
-  # Sample weight may also be 0 if it was the same as total weight
-  # if total weight is 0. this sets it to one
-  GSCAT_mrg <- tblList$GSCAT_CONV |>
-    dplyr::mutate( 
-      SRC="GSCAT",
-      SAMPWGT = dplyr::if_else(SAMPWGT == 0 | is.na(SAMPWGT), TOTWGT, SAMPWGT),
-      SAMPTOT_Ratio = dplyr::if_else(
-        is.nan(TOTWGT / SAMPWGT),
-        1,
-        TOTWGT / SAMPWGT
-      ),
-      SAMPTOT_Ratio = dplyr::if_else(
-        is.na(TOTWGT / SAMPWGT),
-        1,
-        TOTWGT / SAMPWGT
-      )
-    )
+  # pull the As and Bs for the selected season (summer or winter).
+  # If multiple exist (for the same SPEC/SEX) choose the higher R2 value
+  ABs <- GSSPEC2 |>
+    filter(SEASON == ifelse(season == "SUMMER", "SUMMER", "WINTER")) |>
+    group_by(SPEC, FSEX) |>
+    filter(R2 == max(R2)) |>
+    ungroup() |>
+    rename(FSEX_key = FSEX)
   
-  #########################################################################
-  ########   Handle GSDET ##############################
-  #########################################################################
-  # ensure that berried females count as females
-  # ensure that a value for sex exists
-  # Remove records that will use data from GSCAT
-  # filter out any species that don't need conversions done by FLEN (i.e. GSCAT_SPEC_LIST_*)
-  # If a species requires a conversion factor for the TEL/VEN to CAR/CAB, those species have to have those conversion
-  # factors applied to all of the historical vessels used so that's why the NED, TEM, ATC and HAM all get the same treatment here.
+  tblList$GSCAT <- tblList$GSCAT |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS)
+  tblList$GSDET <- tblList$GSDET |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, FWT)
   
-  nonRatioedGSDET <- tblList$GSDET_CONV |>
-    dplyr::filter(!((grepl("TEL|VEN|NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) | 
-                      (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC))) 
-  
-  GSDET_ratioed <- tblList$GSDET_CONV |>
-    dplyr::mutate(
-      SRC="GSDET",
-      FSEX = dplyr::case_when(
-        FSEX == 3 ~ 2,
-        FSEX %in% c(1, 2) ~ FSEX,
-        .default = 0
-      )
-    ) |>
-    dplyr::filter((grepl("TEL|VEN|NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) | (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC)) |>
-    dplyr::left_join(
-      GSCAT_mrg |>
-        dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPTOT_Ratio),
-      by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
-    ) |>
-    dplyr::mutate(CLEN = round(CLEN * SAMPTOT_Ratio, 3)) |>
-    dplyr::select(-SAMPTOT_Ratio)
-  
-  # find records in GSCAT that don't have associated data in GSDET
-  GSCAT_mrg <- GSCAT_mrg |>
-    dplyr::anti_join(GSDET_ratioed, by = c("MISSION", "SETNO", "SPEC","SIZE_CLASS")) |>
-    dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO, SIZE_CLASS, SRC) |> 
-    dplyr::mutate(
-      FWT = TOTWGT*1000, # Convert FWT from kg to g
-      CLEN = TOTNO,
-      SRC = "GSCAT", # Note source for unanticipated debugging
-      FLEN = NA, # GSCAT does not have values the fields below - all set to NA
-      FSEX = NA,
-      FSEX_OG = NA,
-      AGMAT = NA,
-      AGE = NA,   
-      FMAT = NA,
-      AGER = NA,
-      CHKMRK = NA,
-      EDGE = NA,
-      FSHNO = NA,
-      NANN = NA,
-      REMARKS = NA,
-      SPECIMEN_ID = NA
-    )
-  
-  message("Some recs had weight = 9999 (e.g. snowcrab, scallops). Placeholder?")
-  
-  # CATDET - merge the AB info with GSDET/GSCAT
-  # - first, attempt to merge on sex
-  # - any records that couldn't be merged on SPEC and FSEX should be merged on SPEC alone
-  # - any records that could not be merged on SPEC are retained
-  # where possible, if FWT is blank, calculate it, convert to kgs
-  # add FROM_VESSEL
-  # "AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID"
-  
-  CATDET_base <- dplyr::bind_rows(
-    GSCAT_mrg,
-    GSDET_ratioed |>
-      dplyr::select(
-        MISSION,
-        SETNO,
-        SPEC,
-        SIZE_CLASS,
-        FSEX,
-        FSEX_OG,
-        FWT,
-        FLEN,
-        CLEN,
-        SRC,
-        AGMAT,
-        AGE,
-        FMAT,
-        AGER,
-        NANN,
-        CHKMRK,
-        EDGE,
-        FSHNO,
-        REMARKS,
-        SPECIMEN_ID
-      )
-  ) |>
-    dplyr::filter(
-      SPEC < 9500, # remove these records that aren't actually species
-      !SPEC %in% c(1091:1095), # these are unidentified species - not helpful
-      SPEC != 9400 # this is literal trash
-    ) |>
-    dplyr::left_join(
-      ABs |> dplyr::select(SPEC, FSEX_key, LENWT_A, LENWT_B),
-      by = c("SPEC" = "SPEC", "FSEX" = "FSEX_key")
-    )
-  message("I think we should be seeing values for LENWT_A and B for species like cod, but I'm not")
-  CATDET <- dplyr::bind_rows(
-    CATDET_base |> dplyr::filter(!is.na(LENWT_A), !is.na(LENWT_B)),
-    CATDET_base |> dplyr::filter(is.na(LENWT_A), is.na(LENWT_B)) |>
-      dplyr::select(dplyr::any_of(names(GSDET_ratioed))) |>
-      dplyr::left_join(
-        ABs |>
-          dplyr::filter(FSEX_key == 0) |>
-          dplyr::select(SPEC, LENWT_A, LENWT_B) |>
-          dplyr::distinct(),
-        by = "SPEC"
-      )
-  ) |>
-    dplyr::mutate(
-      FWT = dplyr::if_else(
-        is.na(FWT) | FWT == 0,
-        LENWT_A * (FLEN^LENWT_B),
-        FWT
-      ),
-      FWT = FWT / 1000
-    ) |>
-    dplyr::left_join(
-      tblList$GSMISSIONS |> dplyr::select(MISSION, VESEL, YEAR),
+  ogGSCAT <- tblList$GSCAT |> 
+              select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTNO, TOTWGT, SAMPWGT) |>
+              rename(TOTNO_OG = TOTNO,
+                     TOTWGT_OG = TOTWGT,
+                     SAMPWGT_OG = SAMPWGT)
+              
+  ogGSDET <- tblList$GSDET |> 
+              select(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, SPECIMEN_ID, FWT, CLEN) |> 
+              rename(FWT_OG = FWT,
+                     CLEN_OG = CLEN)
+  # GSCAT -------------------------------------------------------------------
+  # retain copies of original GSCAT and apply sample ratio where approp 
+  raw_GSCAT <- tblList$GSCAT |> 
+    select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPWGT, TOTWGT, TOTNO) |> 
+    left_join(
+      tblList$GSMISSIONS |> select(MISSION, VESEL, YEAR),
       by = "MISSION"
-    ) |>
-    dplyr::mutate(
-      FROM_VESSEL = dplyr::case_when(
+    ) |> 
+    mutate(
+      FROM_VESSEL = case_when(
         VESEL == "A" ~ "ATC_HAM",
         VESEL == "H" ~ "ATC_HAM",
         VESEL == "J" ~ "CAR_CAB", # <<CARTIER>>
@@ -237,73 +98,257 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
         VESEL == "T" ~ "NED_TEM",
         VESEL == "V" ~ "TEL_VEN", # not in data, but putting here anyways
         .default = NA_character_
+      ),
+      SAMPWGT = 1000*SAMPWGT,
+      TOTWGT = 1000*TOTWGT,
+      SAMPWGT = if_else(SAMPWGT == 0 | is.na(SAMPWGT), TOTWGT, SAMPWGT),
+      SAMPTOT_Ratio = if_else(is.nan(TOTWGT / SAMPWGT), 1, TOTWGT / SAMPWGT),
+      SAMPTOT_Ratio = if_else(is.na(TOTWGT / SAMPWGT),  1, TOTWGT / SAMPWGT)
+    ) 
+  # separate recs into convertible and unconvertible -------------------------
+  GSCAT_unconv  <- raw_GSCAT|> 
+    filter(SPEC >= 9400 | SPEC %in% c(1091:1092))|> 
+    mutate(SRC = "GSCAT: unconverted") |> 
+    select(-SAMPWGT,-SAMPTOT_Ratio , -VESEL, -YEAR)
+  
+  GSCAT_forconv_pre <- raw_GSCAT |> anti_join(GSCAT_unconv, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS","TOTWGT", "TOTNO"))   |> 
+    mutate(SRC = "GSCAT: converted") 
+  
+  # GSDET -------------------------------------------------------------------
+  # limit to particular fields
+  raw_GSDET <- tblList$GSDET |> 
+    select(MISSION, SETNO, SPEC, SIZE_CLASS,FLEN, FSEX, SPECIMEN_ID, FWT, CLEN, AGE, FMAT, FSHNO) |> 
+    left_join(
+      tblList$GSMISSIONS |> select(MISSION, VESEL, YEAR),
+      by = "MISSION"
+    ) |> 
+    mutate(SRC="GSDET",
+           FROM_VESSEL = case_when(
+             VESEL == "A" ~ "ATC_HAM",
+             VESEL == "H" ~ "ATC_HAM",
+             VESEL == "J" ~ "CAR_CAB", # <<CARTIER>>
+             VESEL == "B" ~ "CAR_CAB",
+             VESEL == "N" ~ "NED_TEM",
+             VESEL == "S" ~ "TEL_VEN",
+             VESEL == "T" ~ "NED_TEM",
+             VESEL == "V" ~ "TEL_VEN", # not in data, but putting here anyways
+             .default = NA_character_
+           ))
+  
+  # separate recs into convertible and unconvertible
+  # put spp that should use GSCAT processing into GSDET_unconv (i.e. c(2212,2214,2415, ...))  
+  # put recs that don't need conversions done by FLEN (i.e. GSCAT_SPEC_LIST_*)  
+  # If a species requires a conversion factor for the TEL/VEN to CAR/CAB, those species have to have those conversion
+  # factors applied to all of the historical vessels used so t[hat's why the NED, TEM, ATC and HAM all get the same treatment here.
+  GSDET_forconv_pre <- raw_GSDET |> filter((grepl("TEL|VEN|NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) |
+                                             (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC))  |>  
+    filter( !( SPEC %in% c(2212,2214,2415,2555,4521,4536,8500,8601,6411,6500,6511) | 
+                 SPEC >= 9400 | 
+                 SPEC %in% c(1091,1092) ) )
+  
+  GSDET_unconv <- raw_GSDET |> 
+    anti_join(GSDET_forconv_pre, by = c("MISSION", "SETNO", "SPEC", "SRC",  "SPECIMEN_ID", "SIZE_CLASS","FSEX", "FWT", "CLEN")) |> 
+    rename(TOTWGT = FWT,
+           TOTNO = CLEN) |> 
+    mutate(SRC = "GSDET: unconverted",
+           CF_USED = "None") |> 
+    select(-YEAR, -VESEL)
+  
+  # ensure that berried females count as females and that a value for sex exists
+  GSDET_forconv_pre <- GSDET_forconv_pre |>
+    mutate(
+      FSEX = case_when(
+        FSEX == 3 ~ 2,
+        FSEX %in% c(1, 2) ~ FSEX,
+        .default = 0
       )
+    ) |>
+    left_join(
+      GSCAT_forconv_pre |>
+        select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPTOT_Ratio),
+      by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
+    ) |>
+    mutate(CLEN = CLEN * SAMPTOT_Ratio,
+           SRC = "GSDET: converted") |>
+    select(-SAMPTOT_Ratio) 
+  
+  # find records in GSCAT that don't have associated data in GSDET
+  GSCAT_forconv<- GSCAT_forconv_pre |>
+    anti_join(GSDET_forconv_pre, by = c("MISSION", "SETNO", "SPEC","SIZE_CLASS")) |>
+    rename(FWT = TOTWGT, CLEN = TOTNO) |>
+    select(MISSION, SETNO, SPEC, FWT, CLEN, FROM_VESSEL, SIZE_CLASS) |>
+    mutate(
+      FWT = FWT, 
+      SRC = "GSCAT: converted", # Note source for unanticipated debugging
+      FLEN = NA, # GSCAT does not have values the fields below - all set to NA
+      AGE = NA,
+      FMAT = NA,
+      FSEX = NA,
+      FSHNO = NA,
+      SPECIMEN_ID = NA
+    )
+  # find records in GSCAT that DO have associated data in GSDET
+  GSCAT_useGSDET <- GSCAT_forconv_pre  |>  
+    semi_join(GSDET_forconv_pre, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")) |>
+    mutate(SRC = "GSCAT: converted using GSDET records not GSCAT",
+           TOTWGT = NA,
+           TOTNO = NA) |>
+    select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTWGT, TOTNO, FROM_VESSEL, SRC)
+  
+  # message("Some recs had weight = 9999 (e.g. snowcrab, scallops). Placeholder?")
+  
+  # CATDET - merge the AB info with GSDET/GSCAT
+  # - first, attempt to merge on sex
+  # - any records that couldn't be merged on SPEC and FSEX should be merged on SPEC alone
+  # - any records that could not be merged on SPEC are retained
+  # where possible, if FWT is blank, calculate it, convert to kgs
+  # add FROM_VESSEL
+  # "AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID"
+  
+  CATDET_base <- bind_rows(
+    GSCAT_forconv,
+    GSDET_forconv_pre 
+  ) |>
+    left_join(
+      ABs |> select(SPEC, FSEX_key, LENWT_A, LENWT_B),
+      by = c("SPEC" = "SPEC", "FSEX" = "FSEX_key")
     )
   
+  CATDET <- bind_rows(
+    CATDET_base |> filter(!is.na(LENWT_A), !is.na(LENWT_B)),
+    CATDET_base |> filter(is.na(LENWT_A), is.na(LENWT_B)) |>
+      select(any_of(names(GSDET_forconv_pre))) |>
+      left_join(
+        ABs |>
+          filter(FSEX_key == 0) |>
+          select(SPEC, LENWT_A, LENWT_B) |>
+          distinct(),
+        by = "SPEC"
+      )
+  ) |>
+    mutate(
+      FWT = if_else(
+        is.na(FWT) | FWT == 0,
+        LENWT_A * (FLEN^LENWT_B),
+        FWT
+      ),
+      FWT = FWT
+    ) |>
+    left_join(
+      tblList$GSMISSIONS |> select(MISSION, VESEL, YEAR),
+      by = "MISSION"
+    ) 
   rm(list = c("CATDET_base"))
   
   # from/to logic
   # to teleost:
   # from cam/hammond -> needler/templeman -> venture/teleost -> cabot/cartier
   # anywhere where the inversions is done, swap the from and to vessels?
+  
+  if(F){
+    #Mike, I think this is the best spot to start introducing the backup biomass 
+    #conversions. Once they get uploaded to the new RAW Table we can really test it 
+    #out. but for now I just made some dummy data on the troublesome species.
+    
+    #For some species with length disaggregated conversion factors there is missing 
+    #detailed data on lengths required to use conversion factors. Therefore, it is 
+    #necessary to use supplemental conversion factors for biomass from overall 
+    #catch weights to maintain an in-tact time series. 
+    
+    Backup_Biomass_Conversions<- GSCONVERSIONS_RAW %>%
+      filter(CF_METRIC=="BIOMASS") %>%
+      select(-c(CI_UPPER,CI_LOWER,ASSEMBLAGE_ID))
+    
+    
+    #This is all dummy data and can be deleted once we get the tables updated but I 
+    #left it here in case you wanted to test some #########################
+    Tester<-head(Backup_Biomass_Conversions,4)
+    new_vals<-c(2550, 2513, 2511, 11)
+    
+    Tester$SPEC[1:4] <- new_vals
+    TesterA<-Tester  
+    TesterA$CF_METRIC<-"ABUNDANCE"
+    browser()
+    Backup_Biomass_Conversions<-rbind(Backup_Biomass_Conversions,Tester,TesterA)
+    ##################################################################################################
+    
+    Backup_Biomass_Conversions<- Backup_Biomass_Conversions[Backup_Biomass_Conversions$SPEC %in% GSCONVERSIONS$SPEC[GSCONVERSIONS$CF_MODEL_TYPE=="LDM"], ]
+    GSCONVERSIONS<-rbind(GSCONVERSIONS,Backup_Biomass_Conversions)
+  }
+  #round value or we get duplicate conv factors for the same sp and joins start adding rows
+  GSCONVERSIONS[!is.na(GSCONVERSIONS$CF_VALUE),"CF_VALUE"]<- round(GSCONVERSIONS[!is.na(GSCONVERSIONS$CF_VALUE),"CF_VALUE"],8)
+  GSCONVERSIONS <- GSCONVERSIONS |> unique()
+  
   # First lets deal with all the to cartier/cabot conversions we need to account for
   TELVEN_TO_CARCAB_ABUND_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(TELVEN_TO_CARCAB_ABUND = CF_VALUE)
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(TELVEN_TO_CARCAB_ABUND = CF_VALUE)
   
   NEDTEM_TO_CARCAB_ABUND_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(NEDTEM_TO_CARCAB_ABUND = CF_VALUE) |>
-    dplyr::mutate(FROM_VESSEL = "NED_TEM")
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(NEDTEM_TO_CARCAB_ABUND = CF_VALUE) |>
+    mutate(FROM_VESSEL = "NED_TEM")
   
   ATCHAM_TO_CARCAB_ABUND_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(ATCHAM_TO_CARCAB_ABUND = CF_VALUE) |>
-    dplyr::mutate(FROM_VESSEL = "ATC_HAM")
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(ATCHAM_TO_CARCAB_ABUND = CF_VALUE) |>
+    mutate(FROM_VESSEL = "ATC_HAM")
   
   TELVEN_TO_CARCAB_BMASS_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(TELVEN_TO_CARCAB_BMASS = CF_VALUE)
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(TELVEN_TO_CARCAB_BMASS = CF_VALUE)
   
-  NEDTEM_TO_CARCAB_BMASS_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(NEDTEM_TO_CARCAB_BMASS = CF_VALUE) |>
-    dplyr::mutate(FROM_VESSEL = "NED_TEM")
+  NEDTEM_TO_CARCAB_BMASS_CONV <- GSCONVERSIONS |>    
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(NEDTEM_TO_CARCAB_BMASS = CF_VALUE) |>
+    mutate(FROM_VESSEL = "NED_TEM")
   
-  ATCHAM_TO_CARCAB_BMASS_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(ATCHAM_TO_CARCAB_BMASS = CF_VALUE) |>
-    dplyr::mutate(FROM_VESSEL = "ATC_HAM")
+  ATCHAM_TO_CARCAB_BMASS_CONV <- GSCONVERSIONS |>    
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "TEL_VEN" & TO_VESSEL == "CAR_CAB") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(ATCHAM_TO_CARCAB_BMASS = CF_VALUE) |>
+    mutate(FROM_VESSEL = "ATC_HAM")
   
   #Now for the NEDTEM to TELVEN
   
   NEDTEM_TO_TELVEN_ABUND_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(NEDTEM_TO_TELVEN_ABUND = CF_VALUE)
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(NEDTEM_TO_TELVEN_ABUND = CF_VALUE)
   
   ATCHAM_TO_TELVEN_ABUND_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(ATCHAM_TO_TELVEN_ABUND = CF_VALUE) |>
-    dplyr::mutate(FROM_VESSEL = "ATC_HAM")
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("ABUNDANCE") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN") |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(ATCHAM_TO_TELVEN_ABUND = CF_VALUE) |>
+    mutate(FROM_VESSEL = "ATC_HAM")
   
   NEDTEM_TO_TELVEN_BMASS_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(NEDTEM_TO_TELVEN_BMASS = CF_VALUE)
+    #Sandlance in summer is an oddball, we don't use the biomass conversion for it
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN" & !SPEC==610) |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(NEDTEM_TO_TELVEN_BMASS = CF_VALUE)
   
   ATCHAM_TO_TELVEN_BMASS_CONV <- GSCONVERSIONS |>
-    dplyr::filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN") |>
-    dplyr::select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
-    dplyr::rename(ATCHAM_TO_TELVEN_BMASS = CF_VALUE) |>
-    dplyr::mutate(FROM_VESSEL = "ATC_HAM")
+    #Sandlance in summer is an oddball, we don't use the biomass conversion for it
+    filter(grepl(paste(season, "ALL", sep = "|"), SEASON) & CF_METRIC %in% c("BIOMASS") & FROM_VESSEL == "NED_TEM" & TO_VESSEL == "TEL_VEN" & !SPEC==610) |>
+    select(SPEC, FLEN, CF_VALUE, FROM_VESSEL) |>
+    unique() |> 
+    rename(ATCHAM_TO_TELVEN_BMASS = CF_VALUE) |>
+    mutate(FROM_VESSEL = "ATC_HAM")
   
   # These are just the conversion factors for the few species for ATC/HAM to NED/TEM
   ATCHAM_TO_NEDTEM_ABUND_CONV <- data.frame(
@@ -320,69 +365,62 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   NEDTEM_TO_TELVEN_ABUND_CONV_LDM <- subset(NEDTEM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   ATCHAM_TO_TELVEN_ABUND_CONV_LDM <- subset(ATCHAM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   
-  LF_Data_All <- merge(CATDET, TELVEN_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_TELVEN_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE  )
+  LF_Data_All <- merge(CATDET, TELVEN_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_TELVEN_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
   
   #Second all LAM abundance models
-  TELVEN_TO_CARCAB_ABUND_CONV_LAM <- subset(TELVEN_TO_CARCAB_ABUND_CONV, is.na(FLEN)  )
+  TELVEN_TO_CARCAB_ABUND_CONV_LAM <- subset(TELVEN_TO_CARCAB_ABUND_CONV, is.na(FLEN))
   TELVEN_TO_CARCAB_ABUND_CONV_LAM <- TELVEN_TO_CARCAB_ABUND_CONV_LAM |>
-    dplyr::select(c(-FLEN)) |>
-    dplyr::rename("TELVEN_TO_CARCAB_ABUND_LAM" = "TELVEN_TO_CARCAB_ABUND")
+    select(c(-FLEN)) |>
+    unique() |> 
+    rename("TELVEN_TO_CARCAB_ABUND_LAM" = "TELVEN_TO_CARCAB_ABUND")
   
-  NEDTEM_TO_CARCAB_ABUND_CONV_LAM <- subset(NEDTEM_TO_CARCAB_ABUND_CONV, is.na(FLEN)  )
+  NEDTEM_TO_CARCAB_ABUND_CONV_LAM <- subset(NEDTEM_TO_CARCAB_ABUND_CONV, is.na(FLEN))
   NEDTEM_TO_CARCAB_ABUND_CONV_LAM <- NEDTEM_TO_CARCAB_ABUND_CONV_LAM |>
-    dplyr::select(c(-FLEN)) |>
-    dplyr::rename("NEDTEM_TO_CARCAB_ABUND_LAM" = "NEDTEM_TO_CARCAB_ABUND")
+    select(c(-FLEN)) |>
+    unique() |> 
+    rename("NEDTEM_TO_CARCAB_ABUND_LAM" = "NEDTEM_TO_CARCAB_ABUND")
   
-  ATCHAM_TO_CARCAB_ABUND_CONV_LAM <- subset(ATCHAM_TO_CARCAB_ABUND_CONV, is.na(FLEN)  )
+  ATCHAM_TO_CARCAB_ABUND_CONV_LAM <- subset(ATCHAM_TO_CARCAB_ABUND_CONV, is.na(FLEN))
   ATCHAM_TO_CARCAB_ABUND_CONV_LAM <- ATCHAM_TO_CARCAB_ABUND_CONV_LAM |>
-    dplyr::select(c(-FLEN)) |>
-    dplyr::rename("ATCHAM_TO_CARCAB_ABUND_LAM" = "ATCHAM_TO_CARCAB_ABUND")
+    select(c(-FLEN)) |>
+    unique() |> 
+    rename("ATCHAM_TO_CARCAB_ABUND_LAM" = "ATCHAM_TO_CARCAB_ABUND")
   
-  NEDTEM_TO_TELVEN_ABUND_CONV_LAM <- subset(NEDTEM_TO_TELVEN_ABUND_CONV, is.na(FLEN)  )
+  NEDTEM_TO_TELVEN_ABUND_CONV_LAM <- subset(NEDTEM_TO_TELVEN_ABUND_CONV, is.na(FLEN))
   NEDTEM_TO_TELVEN_ABUND_CONV_LAM <- NEDTEM_TO_TELVEN_ABUND_CONV_LAM |>
-    dplyr::select(c(-FLEN)) |>
-    dplyr::rename("NEDTEM_TO_TELVEN_ABUND_LAM" = "NEDTEM_TO_TELVEN_ABUND")
+    select(c(-FLEN)) |>
+    unique() |> 
+    rename("NEDTEM_TO_TELVEN_ABUND_LAM" = "NEDTEM_TO_TELVEN_ABUND")
   
-  ATCHAM_TO_TELVEN_ABUND_CONV_LAM <- subset(ATCHAM_TO_TELVEN_ABUND_CONV, is.na(FLEN)  )
-  ATCHAM_TO_TELVEN_ABUND_CONV_LAM <- ATCHAM_TO_TELVEN_ABUND_CONV_LAM |>
-    dplyr::select(c(-FLEN)) |>
-    dplyr::rename("ATCHAM_TO_TELVEN_ABUND_LAM" = "ATCHAM_TO_TELVEN_ABUND")
+  ATCHAM_TO_TELVEN_ABUND_CONV_LAM <- subset(ATCHAM_TO_TELVEN_ABUND_CONV, is.na(FLEN))
+  ATCHAM_TO_TELVEN_ABUND_CONV_LAM <- ATCHAM_TO_TELVEN_ABUND_CONV_LAM |> 
+    select(c(-FLEN)) |>
+    unique() |> 
+    rename("ATCHAM_TO_TELVEN_ABUND_LAM" = "ATCHAM_TO_TELVEN_ABUND")
   
   LF_Data_All <- merge(LF_Data_All, TELVEN_TO_CARCAB_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
-  
   LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
   LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
-  
   LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_CARCAB_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
   LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_TELVEN_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
   LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_NEDTEM_ABUND_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
   
   #Third all biomass
+  TELVEN_TO_CARCAB_BMASS_CONV <- TELVEN_TO_CARCAB_BMASS_CONV |> select(c(-FLEN)) |> unique()
+  NEDTEM_TO_CARCAB_BMASS_CONV <- NEDTEM_TO_CARCAB_BMASS_CONV |> select(c(-FLEN)) |> unique()
+  ATCHAM_TO_CARCAB_BMASS_CONV <- ATCHAM_TO_CARCAB_BMASS_CONV |> select(c(-FLEN)) |> unique()
+  NEDTEM_TO_TELVEN_BMASS_CONV <- NEDTEM_TO_TELVEN_BMASS_CONV |> select(c(-FLEN)) |> unique()
+  ATCHAM_TO_TELVEN_BMASS_CONV <- ATCHAM_TO_TELVEN_BMASS_CONV |> select(c(-FLEN)) |> unique()
   
-  TELVEN_TO_CARCAB_BMASS_CONV <- TELVEN_TO_CARCAB_BMASS_CONV |>
-    dplyr::select(c(-FLEN))
-  
-  NEDTEM_TO_CARCAB_BMASS_CONV <- NEDTEM_TO_CARCAB_BMASS_CONV |>
-    dplyr::select(c(-FLEN))
-  
-  ATCHAM_TO_CARCAB_BMASS_CONV <- ATCHAM_TO_CARCAB_BMASS_CONV |>
-    dplyr::select(c(-FLEN))
-  
-  NEDTEM_TO_TELVEN_BMASS_CONV <- NEDTEM_TO_TELVEN_BMASS_CONV |>
-    dplyr::select(c(-FLEN))
-  
-  ATCHAM_TO_TELVEN_BMASS_CONV <- ATCHAM_TO_TELVEN_BMASS_CONV |>
-    dplyr::select(c(-FLEN))
-  
-  LF_Data_All <- merge(LF_Data_All, TELVEN_TO_CARCAB_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_CARCAB_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
-  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_TELVEN_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
+  LF_Data_All <- merge(LF_Data_All, TELVEN_TO_CARCAB_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_CARCAB_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE)
+  LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_TELVEN_BMASS_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE)
   
   # This gets tricky here. TOTNO is easy, it gets calculated just by CLEN times the conversion factors, either LDM or
   # LAM conversion factors for abundance, all are in there and gets times across columns easy peazy.
@@ -409,23 +447,30 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   #         then TOTWGT is calculated as TOTNO times TOTWGT_RAW for NED_TEM and ATC_HAM
   # Step 4:
   
-  SpeciesB <- subset(GSCONVERSIONS, CF_METRIC == "BIOMASS" & !CF_VALUE == 1 & FROM_VESSEL == "NED_TEM"  )
+  SpeciesB <- subset(GSCONVERSIONS, CF_METRIC == "BIOMASS" & !CF_VALUE == 1 & FROM_VESSEL == "NED_TEM")
   Species_List_BMASS_NEDTEM <- unique(SpeciesB$SPEC)
   
-  SpeciesB <- subset(GSCONVERSIONS, CF_METRIC == "BIOMASS" & !CF_VALUE == 1 & FROM_VESSEL == "TEL_VEN"  )
+  SpeciesB <- subset(GSCONVERSIONS, CF_METRIC == "BIOMASS" & !CF_VALUE == 1 & FROM_VESSEL == "TEL_VEN")
   Species_List_BMASS_TELVEN <- unique(SpeciesB$SPEC)
   
   #Now we have to account for abundance ones
-  SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "NED_TEM"  )
+  SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "NED_TEM")
   Species_List_ABUND_NEDTEM <- unique(SpeciesA$SPEC)
   
-  SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "TEL_VEN"  )
+  SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "TEL_VEN")
   Species_List_ABUND_TELVEN <- unique(SpeciesA$SPEC)
   
+  #I added in these to deal with the new special circumstances when the backup biomass and backup abundance are reuired
+  SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "NED_TEM" & CF_MODEL_TYPE=="LDM" & !is.na(FLEN))  
+  Species_List_ABUND_NEDTEM_LDM <- unique(SpeciesA$SPEC)
+  
+  SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "TEL_VEN" & CF_MODEL_TYPE=="LDM" & !is.na(FLEN))
+  Species_List_ABUND_TELVEN_LDM <- unique(SpeciesA$SPEC)
+  
   LF_Data_All <- LF_Data_All |>
-    dplyr::mutate(
-      dplyr::across(c("FWT", "CLEN"), ~ ifelse(is.na(.), 0, .)),
-      dplyr::across(
+    mutate(
+      across(c("FWT", "CLEN"), ~ ifelse(is.na(.), 0, .)),
+      across(
         c(
           TELVEN_TO_CARCAB_ABUND,
           NEDTEM_TO_CARCAB_ABUND,
@@ -446,70 +491,76 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
         ),
         ~ ifelse(is.na(.), 1, .)
       ),
+      across( #New ifelse statement across all these columns. Right now the new backup biomass and abundance conversion factors get applied to all species with them even if the FLEN data is there. This is just an extra step to say if there is FLEN data, change the LAM abundace conversion factors to 1 so when the CLEN column gets converted it isn't doing more conversions then needed
+        c(
+          TELVEN_TO_CARCAB_ABUND_LAM,
+          NEDTEM_TO_CARCAB_ABUND_LAM,
+          ATCHAM_TO_CARCAB_ABUND_LAM,
+        ),
+        ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_TELVEN_LDM , 1, .)
+      ),
+      across(
+        c(
+          NEDTEM_TO_TELVEN_ABUND_LAM,
+          ATCHAM_TO_TELVEN_ABUND_LAM,
+          ATCHAM_TO_NEDTEM_ABUND_LAM
+        ),
+        ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_TELVEN_LDM , 1, .)
+      ),
+      TOTNO_RAW = CLEN,
+      TOTWGT_RAW = FWT,
       CF_USED = NA,
-      TOTNO = CLEN /
+      TOTNO = ifelse(
+        is.na(FLEN),
+        TOTNO_RAW /
+          TELVEN_TO_CARCAB_ABUND_LAM /
+          NEDTEM_TO_CARCAB_ABUND_LAM /
+          NEDTEM_TO_TELVEN_ABUND_LAM /
+          ATCHAM_TO_CARCAB_ABUND_LAM /
+          ATCHAM_TO_TELVEN_ABUND_LAM /
+          ATCHAM_TO_NEDTEM_ABUND_LAM,
         TELVEN_TO_CARCAB_ABUND /
-        NEDTEM_TO_CARCAB_ABUND /
-        NEDTEM_TO_TELVEN_ABUND /
-        ATCHAM_TO_CARCAB_ABUND /
-        ATCHAM_TO_TELVEN_ABUND /
-        TELVEN_TO_CARCAB_ABUND_LAM /
-        NEDTEM_TO_CARCAB_ABUND_LAM /
-        NEDTEM_TO_TELVEN_ABUND_LAM /
-        ATCHAM_TO_CARCAB_ABUND_LAM /
-        ATCHAM_TO_TELVEN_ABUND_LAM /
-        ATCHAM_TO_NEDTEM_ABUND_LAM,
+          NEDTEM_TO_CARCAB_ABUND /
+          NEDTEM_TO_TELVEN_ABUND /
+          ATCHAM_TO_CARCAB_ABUND /
+          ATCHAM_TO_TELVEN_ABUND /
+          TELVEN_TO_CARCAB_ABUND_LAM /
+          NEDTEM_TO_CARCAB_ABUND_LAM /
+          NEDTEM_TO_TELVEN_ABUND_LAM /
+          ATCHAM_TO_CARCAB_ABUND_LAM /
+          ATCHAM_TO_TELVEN_ABUND_LAM /
+          ATCHAM_TO_NEDTEM_ABUND_LAM),
       TOTWGT = ifelse(
         is.na(FLEN) &
           SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM),
-        FWT /
+        TOTWGT_RAW /
           TELVEN_TO_CARCAB_BMASS /
           NEDTEM_TO_CARCAB_BMASS /
           NEDTEM_TO_TELVEN_BMASS /
           ATCHAM_TO_CARCAB_BMASS /
           ATCHAM_TO_TELVEN_BMASS,
-        ifelse(
-          SPEC %in%
-            Species_List_ABUND_TELVEN &
-            !SRC %in% c("GSCAT") &
-            FROM_VESSEL %in% c("TEL_VEN", "NED_TEM", "ATC_HAM"),
-          CLEN * FWT,
-          ifelse(
-            SPEC %in%
-              Species_List_ABUND_NEDTEM &
-              !SRC %in% c("GSCAT") &
-              FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
-            CLEN * FWT,
-            ifelse(
-              SPEC %in%
-                Species_List_BMASS_TELVEN &
-                !SPEC %in% Species_List_ABUND_TELVEN &
-                FROM_VESSEL %in% c("TEL_VEN"),
-              FWT /
-                TELVEN_TO_CARCAB_BMASS /
-                NEDTEM_TO_CARCAB_BMASS /
-                NEDTEM_TO_TELVEN_BMASS /
-                ATCHAM_TO_CARCAB_BMASS /
-                ATCHAM_TO_TELVEN_BMASS,
-              ifelse(
-                SPEC %in%
-                  c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM) &
-                  !SPEC %in%
-                  c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) &
-                  FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
-                FWT /
-                  TELVEN_TO_CARCAB_BMASS /
-                  NEDTEM_TO_CARCAB_BMASS /
-                  NEDTEM_TO_TELVEN_BMASS /
-                  ATCHAM_TO_CARCAB_BMASS /
-                  ATCHAM_TO_TELVEN_BMASS,
-                FWT
-              )
-            )
-          )
+        ifelse(SPEC %in% Species_List_ABUND_TELVEN & substr(SRC, 1, 5) != "GSCAT" & FROM_VESSEL %in% c("TEL_VEN", "NED_TEM", "ATC_HAM"), TOTNO * TOTWGT_RAW,
+               ifelse(SPEC %in% Species_List_ABUND_NEDTEM & substr(SRC, 1, 5) != "GSCAT" & FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"), TOTNO * TOTWGT_RAW,
+                      ifelse(SPEC %in% Species_List_BMASS_TELVEN & !SPEC %in% Species_List_ABUND_TELVEN & FROM_VESSEL %in% c("TEL_VEN"),
+                             TOTWGT_RAW /
+                               TELVEN_TO_CARCAB_BMASS /
+                               NEDTEM_TO_CARCAB_BMASS /
+                               NEDTEM_TO_TELVEN_BMASS /
+                               ATCHAM_TO_CARCAB_BMASS /
+                               ATCHAM_TO_TELVEN_BMASS,
+                             ifelse(SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM) & !SPEC %in% c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) & FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
+                                    TOTWGT_RAW /
+                                      TELVEN_TO_CARCAB_BMASS /
+                                      NEDTEM_TO_CARCAB_BMASS /
+                                      NEDTEM_TO_TELVEN_BMASS /
+                                      ATCHAM_TO_CARCAB_BMASS /
+                                      ATCHAM_TO_TELVEN_BMASS,
+                                    TOTWGT_RAW
+                             )
+                      )
+               )
         )
       ),
-      
       CONV_USED = ifelse(
         FROM_VESSEL %in% c("NONE"),
         "NONE",
@@ -520,13 +571,13 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
           ifelse(
             SPEC %in%
               Species_List_ABUND_TELVEN &
-              !SRC %in% c("GSCAT") &
+              substr(SRC, 1, 5) != "GSCAT"&
               FROM_VESSEL %in% c("TEL_VEN", "NED_TEM", "ATC_HAM"),
             "ABUND",
             ifelse(
               SPEC %in%
                 Species_List_ABUND_NEDTEM &
-                !SRC %in% c("GSCAT") &
+                substr(SRC, 1, 5) != "GSCAT" &
                 FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
               "ABUND",
               ifelse(
@@ -551,21 +602,28 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       )
     )
   
-  message(
-    "How conversion factors are applied and how biomass is calculated can affect results. 
-This script applies conversion factors and calculates biomass in the following way:
-          1: All length disaggregated/aggregated abundance conversion factors are 
-          \tapplied to count at lengths or total number caught at the set level.
-          2: If count at length data is NOT available, Biomass conversions 
-          \tare used and biomass is calculated from total weight at the set level.
-          3: If count at length data and abundance conversion factors not 
-          \tequal to 1 are available, biomass is calculated by the sum of the product 
-          \tof count at lengths and fish weights (either by measured weight or derived 
-          \tfrom length to weight relationships when no weights were taken)."
-  )
+    message(
+      "How conversion factors are applied and how biomass is calculated can affect results.
+  This script applies conversion factors and calculates biomass in the following way:
+            1: All length disaggregated/aggregated abundance conversion factors are
+            \tapplied to count at lengths or total number caught at the set level.
+            2: If count at length data is NOT available, Biomass conversions
+            \tare used and biomass is calculated from total weight at the set level.
+            3: If count at length data and abundance conversion factors not
+            \tequal to 1 are available, biomass is calculated by the sum of the product
+            \tof count at lengths and fish weights (either by measured weight or derived
+            \tfrom length to weight relationships when no weights were taken).
+            4: If a species has both a biomass and abundance conversion factor that are not
+            \tequal to 1 and that species has length frequency data, only the abundance
+            \tconversion factor is applied to data and biomass is calculated as stated above.
+            \tAn exception to this rule is when that species has missing length frequency
+            \tdata for a given set, in which the biomass conversion is used instead.
+            5: For species without length frequency data, both biomass and abundance
+            \tconversion factors are applied when available."
+    )
   
   LF_Data_All <- LF_Data_All |>
-    dplyr::mutate(
+    mutate(
       # Intermediate variables for conditions
       neither_condition = (TELVEN_TO_CARCAB_ABUND *
                              NEDTEM_TO_CARCAB_ABUND *
@@ -602,7 +660,8 @@ This script applies conversion factors and calculates biomass in the following w
            NEDTEM_TO_TELVEN_BMASS *
            ATCHAM_TO_CARCAB_BMASS *
            ATCHAM_TO_TELVEN_BMASS !=
-           1),
+           1) &
+        (substr(SRC, 1, 5) == "GSCAT"),###### Had to change these since the backup biomass and abundance are now being used
       abundance_condition = (TELVEN_TO_CARCAB_ABUND *
                                NEDTEM_TO_CARCAB_ABUND *
                                NEDTEM_TO_TELVEN_ABUND *
@@ -615,12 +674,7 @@ This script applies conversion factors and calculates biomass in the following w
                                ATCHAM_TO_TELVEN_ABUND_LAM *
                                ATCHAM_TO_NEDTEM_ABUND_LAM !=
                                1) &
-        (TELVEN_TO_CARCAB_BMASS *
-           NEDTEM_TO_CARCAB_BMASS *
-           NEDTEM_TO_TELVEN_BMASS *
-           ATCHAM_TO_CARCAB_BMASS *
-           ATCHAM_TO_TELVEN_BMASS ==
-           1),
+        (substr(SRC, 1, 5) == "GDET"),
       biomass_condition = (TELVEN_TO_CARCAB_ABUND *
                              NEDTEM_TO_CARCAB_ABUND *
                              NEDTEM_TO_TELVEN_ABUND *
@@ -640,7 +694,7 @@ This script applies conversion factors and calculates biomass in the following w
            ATCHAM_TO_TELVEN_BMASS !=
            1),
       # CF_USED assignment
-      CF_USED = dplyr::case_when(
+      CF_USED = case_when(
         neither_condition & CLEN == 0 & FWT != 0 ~ "BIOMASS",
         neither_condition & CLEN != 0 & FWT == 0 ~ "ABUNDANCE",
         neither_condition ~ "NEITHER",
@@ -654,34 +708,24 @@ This script applies conversion factors and calculates biomass in the following w
         TRUE ~ CF_USED
       )
     ) |>
-    dplyr::select(
+    select(
       SPEC,
       FLEN,
       FROM_VESSEL,
       MISSION,
       FSEX,
-      FSEX_OG,
       SETNO,
       SRC,
-      AGMAT,
       AGE,
       FMAT,
-      VESEL,
-      YEAR,
-      TOTWGT,
       TOTNO,
+      TOTWGT,
       CF_USED,
-      AGER,
-      CHKMRK,
-      EDGE,
       FSHNO,
-      NANN,
-      REMARKS,
       SIZE_CLASS,
       SPECIMEN_ID
-    ) #
+    ) 
   
-  #NEDTEM_TO_TELVEN_ABUND, TELVEN_TO_CARCAB_ABUND, NEDTEM_TO_TELVEN_BMASS, TELVEN_TO_CARCAB_BMASS, LENWT_A, LENWT_B,
   
   message(
     "Note that for records where 'ABUNDANCE_PROBLEM'or 'BIOMASS_PROBLEM', 
@@ -689,127 +733,50 @@ the preferred CF will result in 0, while the other has a non-zero value."
   )
   
   taxAll <- data.frame()
-  if ("TAXA_" %in% names(tblList$GSDET_CONV)) {
-    taxAll <- tblList$GSDET_CONV |> dplyr::select(SPEC, TAXA_, TAXARANK_) |> unique()
+  if ("TAXA_" %in% names(tblList$GSDET)) {
+    taxAll <- tblList$GSDET |> select(SPEC, TAXA_, TAXARANK_) |> unique()
   }
-  if ("TAXA_" %in% names(tblList$GSCAT_CONV)) {
-    taxAll <- dplyr::bind_rows(
+  if ("TAXA_" %in% names(tblList$GSCAT)) {
+    taxAll <- bind_rows(
       taxAll,
-      tblList$GSCAT_CONV |> 
-        dplyr::select(SPEC, TAXA_, TAXARANK_)
+      tblList$GSCAT |> select(SPEC, TAXA_, TAXARANK_)
     ) |>
       unique()
   }
   
   if (nrow(taxAll) > 0) {
-    LF_Data_All <- LF_Data_All |> 
-      dplyr::left_join(taxAll, by = "SPEC")
+    LF_Data_All <- LF_Data_All |> left_join(taxAll, by = "SPEC")
   }
   
-  detcols <- c(
-    "MISSION",
-    "SETNO",
-    "SPEC",
-    "FLEN",
-    "FSEX",
-    "FSEX_OG",
-    "AGMAT",
-    "AGE",
-    "FMAT",
-    "VESEL",
-    "SRC",
-    "CF_USED",
-    "TOTNO",
-    "TOTWGT",
-    "AGER",
-    "CHKMRK",
-    "EDGE",
-    "FSHNO",
-    "NANN",
-    "REMARKS",
-    "SIZE_CLASS",
-    "SPECIMEN_ID"
-  )
-  catcols <- c(
-    "MISSION",
-    "SETNO",
-    "SPEC",
-    "SIZE_CLASS",
-    "TOTNO",
-    "TOTWGT"
-  )
-  catgrpcols <- c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
+  detcols <- c("MISSION", "SETNO", "SPEC", "FLEN", "FSEX", "AGE", "FMAT",  "SRC", "CF_USED", "TOTNO", "TOTWGT", "FSHNO", "SIZE_CLASS", "SPECIMEN_ID")
+  catcols <- c("MISSION", "SETNO", "SPEC", "TOTNO", "TOTWGT")
+
+  catgrpcols <- c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "SRC") #, "SAMPWGT"
   if ("TAXA_" %in% names(LF_Data_All)) {
     detcols <- append(detcols, c("TAXA_", "TAXARANK_"), after = 3)
     catcols <- append(catcols, c("TAXA_", "TAXARANK_"), after = 3)
     catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
   }
-  preGSDET_CONV <- LF_Data_All |>
-    dplyr::select(
-      dplyr::all_of(detcols),
-      TO_VESSEL = VESEL,
-      CLEN = TOTNO,
-      FWT = TOTWGT
-    ) |>
-    dplyr::mutate(
-      CLEN = round(CLEN, 3),
-      FWT = round(FWT, 3)
+  
+  newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",],
+                             GSDET_unconv)
+  newCat <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSCAT",c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "TOTWGT", "TOTNO", "FROM_VESSEL","SRC")] ,
+                             GSCAT_unconv)
+
+  newCat <- rbind.data.frame(newCat,
+                             GSCAT_useGSDET)
+  newCat <- newCat |>
+    mutate(
+      TOTWGT = TOTWGT / 1000
     )
-  preGSDET_CONV_GSDET <- preGSDET_CONV[preGSDET_CONV$SRC=="GSDET",]
-  preGSDET_CONV_GSCAT <- preGSDET_CONV[preGSDET_CONV$SRC=="GSCAT",]
   
-  unhandledGSDET <- rbind.data.frame(nonRatioedGSDET, nonSppGSDET)
-  if (nrow(unhandledGSDET)>0){
-    unhandledGSDET$CF_USED <- unhandledGSDET$TO_VESSEL <- unhandledGSDET$FWT <- unhandledGSDET$CLEN <- NA
-    unhandledGSDET$SRC <- "GSDET"
-  }else{
-    unhandledGSDET$SRC  <- character(0)
-  }
+  newDet <- newDet |> 
+    rename(CLEN = TOTNO,
+           FWT = TOTWGT)
   
-  preGSDET<- rbind.data.frame(preGSDET_CONV_GSDET, unhandledGSDET)
-  preGSDET<- merge(preGSDET, rawGSDET, by.x=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FLEN", "SPECIMEN_ID"), by.y=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS","FLEN", "SPECIMEN_ID"))
-  preGSDET$FSEX.x <- preGSDET$FSEX.y <- NULL
-  colnames(preGSDET)[colnames(preGSDET)=="FSEX_OG"] <- "FSEX"
-  
-  preGSDET_CAT <- merge(preGSDET_CONV_GSCAT, rawGSCAT, all.x=T, by=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS"))
-  preGSDET_CAT$FSEX_OG <- NULL
-  message("some wgt values show up in gsdet that are calculated from as and bs")
-  
-  tblList$GSDET_CONV<- rbind.data.frame(preGSDET_CAT, preGSDET )
-
-  tblList$GSCAT_CONV <- LF_Data_All |>
-    dplyr::select(dplyr::all_of(catcols)) |>
-    # dplyr::mutate(SAMPWGT = NA) |>
-    dplyr::group_by(dplyr::across(dplyr::all_of(catgrpcols))) |>
-    dplyr::summarise(
-      TOTNO = sum(TOTNO, na.rm = T),
-      TOTWGT = sum(TOTWGT, na.rm = T),
-      .groups = "keep"
-    ) |>
-    dplyr::ungroup() |>
-    dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTNO, TOTWGT) |>
-    dplyr::bind_rows(
-      nonSppGSCAT[,c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "TOTNO", "TOTWGT")]
-    ) |>
-    dplyr::left_join(
-      rawGSCAT,
-      by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
-    ) |>     
-    dplyr::rename(TOTWGT_RAW = FWT_RAW,
-                  TOTNO_RAW = CLEN_RAW) 
-
-  tblList$GSCAT <- tblList$GSCAT |>           dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTWGT, TOTNO, SAMPWGT, CALWT, MARKET, LENGTH_TYPE, LENGTH_UNITS, WEIGHT_TYPE, WEIGHT_UNITS, REMARKS)
-  tblList$GSCAT_CONV <- tblList$GSCAT_CONV |> dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTWGT, TOTNO, TOTWGT_RAW, TOTNO_RAW)
-
-  tblList$GSDET <- tblList$GSDET |>           dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, FSEX, FLEN, FSHNO, SPECIMEN_ID, FWT, CLEN, FMAT, AGMAT, NANN, EDGE, CHKMRK, AGE, AGER, REMARKS)
-  tblList$GSDET_CONV <- tblList$GSDET_CONV |> dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, FSEX, FLEN, TO_VESSEL, CF_USED, CLEN, FWT, CLEN_RAW, FWT_RAW, SRC, FMAT, AGMAT, NANN, EDGE, CHKMRK, AGE, AGER, REMARKS)  #FSHNO, SPECIMEN_ID,
-  
-  tblList$GSCAT_CONV <- tblList$GSCAT_CONV |> dplyr::arrange(MISSION, SETNO, SPEC, SIZE_CLASS)
-  tblList$GSDET_CONV <- tblList$GSDET_CONV |> dplyr::arrange(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, FWT)
-  #GSDET_CONV (CF_USED, CLEN_RAW, FWT_RAW, SRC, TO_VESSEL)
-  #GSDET      (SPEC, MISSION, SETNO, SIZE_CLASS, FLEN, FSEX, AGMAT, AGE, FMAT, TO_VESSEL,   SRC,   CF_USED,  CLEN,   FWT, AGER, CHKMRK, EDGE, FSHNO, NANN, REMARKS, SPECIMEN_ID, FWT_RAW, CLEN_RAW
-  
-  
-  tblList <- tblList[order(names(tblList))]
+  newDet <- merge(newDet, ogGSDET, by=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FLEN", "SPECIMEN_ID"))
+  newCat <- merge(newCat, ogGSCAT, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS"))
+  tblList$GSDET_CONV <-  newDet
+  tblList$GSCAT_CONV <- newCat
   return(tblList)
 }
