@@ -113,7 +113,6 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   
   GSCAT_forconv_pre <- raw_GSCAT |> anti_join(GSCAT_unconv, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS","TOTWGT", "TOTNO"))   |> 
     mutate(SRC = "GSCAT: converted") 
-  
   # GSDET -------------------------------------------------------------------
   # limit to particular fields
   raw_GSDET <- tblList$GSDET |> 
@@ -148,10 +147,10 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   
   GSDET_unconv <- raw_GSDET |> 
     anti_join(GSDET_forconv_pre, by = c("MISSION", "SETNO", "SPEC", "SRC",  "SPECIMEN_ID", "SIZE_CLASS","FSEX", "FWT", "CLEN")) |> 
-    rename(TOTWGT = FWT,
-           TOTNO = CLEN) |> 
+    rename(TOTWGT = FWT) |> #Deleted CLEN rename here
     mutate(SRC = "GSDET: unconverted",
-           CF_USED = "None") |> 
+           CF_USED = "None",
+           TOTNO= CLEN) |> #Added TOTNO here so we keep both CLEN and TOTNO
     select(-YEAR, -VESEL)
   
   # ensure that berried females count as females and that a value for sex exists
@@ -171,6 +170,30 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     mutate(CLEN = CLEN * SAMPTOT_Ratio,
            SRC = "GSDET: converted") |>
     select(-SAMPTOT_Ratio) 
+  
+  
+  #I added this to make sure the unconverted gsdet data we bind back in later is treated the same as the converted ones
+  # ensure that berried females count as females and that a value for sex exists
+  GSDET_unconv <- GSDET_unconv |>
+    mutate(
+      FSEX = case_when(
+        FSEX == 3 ~ 2,
+        FSEX %in% c(1, 2) ~ FSEX,
+        .default = 0
+      )
+    ) |>
+    left_join(
+      GSCAT_forconv_pre |>
+        select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPTOT_Ratio),
+      by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
+    ) |>
+    mutate(FWT=TOTWGT, #Added this to account for the actual weight of the fish
+      TOTNO = TOTNO * SAMPTOT_Ratio,
+           SRC = "GSDET: converted") |>
+    select(-SAMPTOT_Ratio) 
+  
+  
+  
   
   # find records in GSCAT that don't have associated data in GSDET
   GSCAT_forconv<- GSCAT_forconv_pre |>
@@ -204,7 +227,6 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   # where possible, if FWT is blank, calculate it, convert to kgs
   # add FROM_VESSEL
   # "AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID"
-  
   CATDET_base <- bind_rows(
     GSCAT_forconv,
     GSDET_forconv_pre 
@@ -227,6 +249,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       )
   ) |>
     mutate(
+      SRC= ifelse(is.na(FWT),paste(SRC,";Weight_Derived",sep=""),SRC),#Added this to highlight FWT was derived from As and Bs
       FWT = if_else(
         is.na(FWT) | FWT == 0,
         LENWT_A * (FLEN^LENWT_B),
@@ -255,8 +278,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     #necessary to use supplemental conversion factors for biomass from overall 
     #catch weights to maintain an in-tact time series. 
     
-    Backup_Biomass_Conversions<- GSCONVERSIONS_RAW %>%
-      filter(CF_METRIC=="BIOMASS") %>%
+    Backup_Biomass_Conversions<- GSCONVERSIONS_RAW |>
+      filter(CF_METRIC=="BIOMASS") |>
       select(-c(CI_UPPER,CI_LOWER,ASSEMBLAGE_ID))
     
     
@@ -268,7 +291,6 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     Tester$SPEC[1:4] <- new_vals
     TesterA<-Tester  
     TesterA$CF_METRIC<-"ABUNDANCE"
-    browser()
     Backup_Biomass_Conversions<-rbind(Backup_Biomass_Conversions,Tester,TesterA)
     ##################################################################################################
     
@@ -502,10 +524,9 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       across(
         c(
           NEDTEM_TO_TELVEN_ABUND_LAM,
-          ATCHAM_TO_TELVEN_ABUND_LAM,
-          ATCHAM_TO_NEDTEM_ABUND_LAM
+          ATCHAM_TO_TELVEN_ABUND_LAM
         ),
-        ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_TELVEN_LDM , 1, .)
+        ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_NEDTEM_LDM , 1, .)
       ),
       TOTNO_RAW = CLEN,
       TOTWGT_RAW = FWT,
@@ -519,7 +540,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
           ATCHAM_TO_CARCAB_ABUND_LAM /
           ATCHAM_TO_TELVEN_ABUND_LAM /
           ATCHAM_TO_NEDTEM_ABUND_LAM,
-        TELVEN_TO_CARCAB_ABUND /
+        TOTNO_RAW / #Added TOTNO_RAW here
+          TELVEN_TO_CARCAB_ABUND /
           NEDTEM_TO_CARCAB_ABUND /
           NEDTEM_TO_TELVEN_ABUND /
           ATCHAM_TO_CARCAB_ABUND /
@@ -718,6 +740,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       SRC,
       AGE,
       FMAT,
+      CLEN,#Added this to carry it through
+      FWT,#Added this to carry it through
       TOTNO,
       TOTWGT,
       CF_USED,
@@ -746,11 +770,12 @@ the preferred CF will result in 0, while the other has a non-zero value."
   
   if (nrow(taxAll) > 0) {
     LF_Data_All <- LF_Data_All |> left_join(taxAll, by = "SPEC")
+    GSDET_unconv <- GSDET_unconv |> left_join(taxAll, by = "SPEC")
   }
   
   detcols <- c("MISSION", "SETNO", "SPEC", "FLEN", "FSEX", "AGE", "FMAT",  "SRC", "CF_USED", "TOTNO", "TOTWGT", "FSHNO", "SIZE_CLASS", "SPECIMEN_ID")
   catcols <- c("MISSION", "SETNO", "SPEC", "TOTNO", "TOTWGT")
-
+  
   catgrpcols <- c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "SRC") #, "SAMPWGT"
   if ("TAXA_" %in% names(LF_Data_All)) {
     detcols <- append(detcols, c("TAXA_", "TAXARANK_"), after = 3)
@@ -758,23 +783,30 @@ the preferred CF will result in 0, while the other has a non-zero value."
     catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
   }
   
+  
+
+  
   newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",],
                              GSDET_unconv)
-  newCat <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSCAT",c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "TOTWGT", "TOTNO", "FROM_VESSEL","SRC")] ,
-                             GSCAT_unconv)
-
+  
+  newCat <- LF_Data_All |>
+    group_by(MISSION, SETNO, SPEC, FROM_VESSEL, SRC, SIZE_CLASS) |>
+    summarise(TOTWGT=sum(TOTWGT), TOTNO=sum(TOTNO))
+  
   newCat <- rbind.data.frame(newCat,
-                             GSCAT_useGSDET)
+                             GSCAT_unconv)
+  
   newCat <- newCat |>
     mutate(
       TOTWGT = TOTWGT / 1000
     )
   
-  newDet <- newDet |> 
-    rename(CLEN = TOTNO,
-           FWT = TOTWGT)
+  #newDet <- newDet |> #I think we can just delete this since we are carrying over both CLEN and TOTNO and FWT and TOTWGT now
+    #rename(CLEN = TOTNO)
+  #I don't think we need this anymore since we just carry over all the raw values now
+  #newDet <- merge(newDet, ogGSDET, by=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FLEN", "SPECIMEN_ID"))
   
-  newDet <- merge(newDet, ogGSDET, by=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FLEN", "SPECIMEN_ID"))
+  #This one seems fine since it can get merged up easily and we don't need the carryover
   newCat <- merge(newCat, ogGSCAT, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS"))
   tblList$GSDET_CONV <-  newDet
   tblList$GSCAT_CONV <- newCat
