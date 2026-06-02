@@ -795,12 +795,12 @@ the preferred CF will result in 0, while the other has a non-zero value."
   
   newCat <- rbind.data.frame(newCat,
                              GSCAT_unconv)
-  
-  newCat <- newCat |>
-    mutate(
-      TOTWGT = TOTWGT / 1000
-    )
-  
+  message("skipped conversion to kg")
+  # newCat <- newCat |>
+  #   mutate(
+  #     TOTWGT = TOTWGT / 1000
+  #   )
+  # 
   #newDet <- newDet |> #I think we can just delete this since we are carrying over both CLEN and TOTNO and FWT and TOTWGT now
     #rename(CLEN = TOTNO)
   #I don't think we need this anymore since we just carry over all the raw values now
