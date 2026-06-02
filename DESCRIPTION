@@ -1,7 +1,7 @@
 Package: RVTransmogrifier
 Title: A package for reformatting the DFO Maritimes Groundfish Survey Data
-Version: 2026.03.24
-Authors@R: c( person("Mike", "McMahon", email="Mike.McMahon@dfo-mpo.gc.ca", role=c("aut", "cre")) )
+Version: 2026.06.02
+Authors@R: c( person("Mike", "McMahon", email="Mike.McMahon@dfo-mpo.gc.ca", role=c("aut", "cre")),person("Eric", "Brunsdon", email="Eric.Brunsdon@dfo-mpo.gc.ca", role=c("aut"))  )
 Maintainer: Mike McMahon <Mike.McMahon@dfo-mpo.gc.ca>
 Description: This package works with the RVSurveyData package to query and reformat that data as needed by different partners.
 Depends:

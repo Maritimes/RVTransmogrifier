@@ -2,7 +2,6 @@
 
 export(aggregateByTaxa)
 export(applyConversionFactors)
-export(applyConversionFactors_MMM_preBrunsdon)
 export(binnit)
 export(calcTotalMean)
 export(calcTotalSE_stratified)
