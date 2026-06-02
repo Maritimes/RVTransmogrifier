@@ -40,4 +40,6 @@ across different vessels and gears.
 }
 \author{
 Mike McMahon, \email{Mike.McMahon@dfo-mpo.gc.ca}
+
+Eric Brunsdon, \email{Eric.Brunsdon@dfo-mpo.gc.ca}
 }
