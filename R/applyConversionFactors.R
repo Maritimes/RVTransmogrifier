@@ -792,16 +792,17 @@ the preferred CF will result in 0, while the other has a non-zero value."
   
   newCat <- LF_Data_All |>
     group_by(MISSION, SETNO, SPEC, FROM_VESSEL, SRC, SIZE_CLASS) |>
-    summarise(TOTWGT=sum(TOTWGT), TOTNO=sum(TOTNO))
-  
+    summarise(TOTWGT=sum(TOTWGT), TOTNO=sum(TOTNO),.groups = "drop_last") |> 
+    ungroup()
+
   newCat <- rbind.data.frame(newCat,
                              GSCAT_unconv)
-  message("skipped conversion to kg")
-  # newCat <- newCat |>
-  #   mutate(
-  #     TOTWGT = TOTWGT / 1000
-  #   )
-  # 
+
+  newCat <- newCat |>
+    mutate(
+      TOTWGT = TOTWGT / 1000
+    )
+  
   #newDet <- newDet |> #I think we can just delete this since we are carrying over both CLEN and TOTNO and FWT and TOTWGT now
     #rename(CLEN = TOTNO)
   #I don't think we need this anymore since we just carry over all the raw values now
