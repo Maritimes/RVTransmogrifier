@@ -784,12 +784,9 @@ the preferred CF will result in 0, while the other has a non-zero value."
     catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
   }
   
-  
-
-  
-  newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",],
-                             GSDET_unconv)
-  
+  newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",], GSDET_unconv)
+  browser()
+  LF_Data_All$SRC <- ifelse(LF_Data_All$SRC=="GSDET: converted:Weight_Derived","GSDET: converted",LF_Data_All$SRC)
   newCat <- LF_Data_All |>
     group_by(MISSION, SETNO, SPEC, FROM_VESSEL, SRC, SIZE_CLASS) |>
     summarise(TOTWGT=sum(TOTWGT), TOTNO=sum(TOTNO),.groups = "drop_last") |> 
