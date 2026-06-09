@@ -233,7 +233,7 @@ stratify_simple <- function(
         seField = "BIOMASS_SE",
         areaField = "AREA_KM2",
         level = conf_limits / 100,
-        is_mean = TRUE
+        is_mean = FALSE
       )),
       ABUNDANCE_RESULT = list(calcYearSummary(
         theDataByStrat = dplyr::pick(dplyr::everything()),
@@ -241,7 +241,7 @@ stratify_simple <- function(
         seField = "ABUNDANCE_SE",
         areaField = "AREA_KM2",
         level = conf_limits / 100,
-        is_mean = TRUE
+        is_mean = FALSE
       )),
       .groups = "drop"
     ) |>
