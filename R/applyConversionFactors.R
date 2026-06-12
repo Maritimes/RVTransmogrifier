@@ -71,15 +71,15 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   tblList$GSDET <- tblList$GSDET |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, FWT)
   
   ogGSCAT <- tblList$GSCAT |> 
-              select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTNO, TOTWGT, SAMPWGT) |>
-              rename(TOTNO_OG = TOTNO,
-                     TOTWGT_OG = TOTWGT,
-                     SAMPWGT_OG = SAMPWGT)
-              
+    select(MISSION, SETNO, SPEC, SIZE_CLASS, TOTNO, TOTWGT, SAMPWGT) |>
+    rename(TOTNO_OG = TOTNO,
+           TOTWGT_OG = TOTWGT,
+           SAMPWGT_OG = SAMPWGT)
+  
   ogGSDET <- tblList$GSDET |> 
-              select(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, SPECIMEN_ID, FWT, CLEN) |> 
-              rename(FWT_OG = FWT,
-                     CLEN_OG = CLEN)
+    select(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, SPECIMEN_ID, FWT, CLEN) |> 
+    rename(FWT_OG = FWT,
+           CLEN_OG = CLEN)
   # GSCAT -------------------------------------------------------------------
   # retain copies of original GSCAT and apply sample ratio where approp 
   raw_GSCAT <- tblList$GSCAT |> 
@@ -189,7 +189,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
     ) |>
     mutate(FWT=TOTWGT, #Added this to account for the actual weight of the fish
-      TOTNO = TOTNO * SAMPTOT_Ratio,
+           TOTNO = TOTNO * SAMPTOT_Ratio,
            SRC = "GSDET: converted") |>
     select(-SAMPTOT_Ratio) 
   
@@ -625,8 +625,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       )
     )
   
-    message(
-      "How conversion factors are applied and how biomass is calculated can affect results.
+  message(
+    "How conversion factors are applied and how biomass is calculated can affect results.
   This script applies conversion factors and calculates biomass in the following way:
             1: All length disaggregated/aggregated abundance conversion factors are
             \tapplied to count at lengths or total number caught at the set level.
@@ -643,7 +643,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
             \tdata for a given set, in which the biomass conversion is used instead.
             5: For species without length frequency data, both biomass and abundance
             \tconversion factors are applied when available."
-    )
+  )
   
   LF_Data_All <- LF_Data_All |>
     mutate(
@@ -785,23 +785,23 @@ the preferred CF will result in 0, while the other has a non-zero value."
   }
   
   newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",], GSDET_unconv)
-
+  
   LF_Data_All$SRC <- ifelse(LF_Data_All$SRC=="GSDET: converted;Weight_Derived","GSDET: converted",LF_Data_All$SRC)
   newCat <- LF_Data_All |>
     group_by(MISSION, SETNO, SPEC, FROM_VESSEL, SRC, SIZE_CLASS) |>
     summarise(TOTWGT=sum(TOTWGT), TOTNO=sum(TOTNO),.groups = "drop_last") |> 
     ungroup()
-
+  
   newCat <- rbind.data.frame(newCat,
                              GSCAT_unconv)
-
+  
   newCat <- newCat |>
     mutate(
       TOTWGT = TOTWGT / 1000
     )
   
   #newDet <- newDet |> #I think we can just delete this since we are carrying over both CLEN and TOTNO and FWT and TOTWGT now
-    #rename(CLEN = TOTNO)
+  #rename(CLEN = TOTNO)
   #I don't think we need this anymore since we just carry over all the raw values now
   #newDet <- merge(newDet, ogGSDET, by=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FLEN", "SPECIMEN_ID"))
   
