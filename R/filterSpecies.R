@@ -104,9 +104,7 @@ filterSpecies <- function(
     }
     req_Spp <- req_Spp_Taxa
   } else if (!is.null(code)) {
-    req_Spp <- tblList$GSSPECIES_NEW[
-      which(tblList$GSSPECIES_NEW$CODE %in% code),
-    ]
+    req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$CODE %in% code),]
     req_Spp$TAXA_ <- req_Spp$SPEC
     req_Spp$TAXARANK_ <- req_Spp$RANK
     if (length(code[!(code %in% tblList$GSSPECIES_NEW$CODE)]) > 0) {
