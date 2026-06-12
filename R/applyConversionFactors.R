@@ -157,6 +157,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   # ensure that berried females count as females and that a value for sex exists
   GSDET_forconv_pre <- GSDET_forconv_pre |>
     mutate(
+      CLEN_OG = CLEN,
       FSEX = case_when(
         FSEX == 3 ~ 2,
         FSEX %in% c(1, 2) ~ FSEX,
@@ -195,7 +196,6 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   
   
   
-  
   # find records in GSCAT that don't have associated data in GSDET
   GSCAT_forconv<- GSCAT_forconv_pre |>
     anti_join(GSDET_forconv_pre, by = c("MISSION", "SETNO", "SPEC","SIZE_CLASS")) |>
@@ -209,7 +209,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       FMAT = NA,
       FSEX = NA,
       FSHNO = NA,
-      SPECIMEN_ID = NA
+      SPECIMEN_ID = NA,
+      CLEN_OG = NA
     )
   # find records in GSCAT that DO have associated data in GSDET
   GSCAT_useGSDET <- GSCAT_forconv_pre  |>  
@@ -228,6 +229,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   # where possible, if FWT is blank, calculate it, convert to kgs
   # add FROM_VESSEL
   # "AGER", "CHKMRK", "EDGE", "FSHNO", "NANN", "REMARKS", "SIZE_CLASS", "SPECIMEN_ID"
+  
+  
   CATDET_base <- bind_rows(
     GSCAT_forconv,
     GSDET_forconv_pre 
@@ -257,11 +260,12 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
         FWT
       ),
       FWT = FWT
-    ) |>
-    left_join(
-      tblList$GSMISSIONS |> select(MISSION, VESEL, YEAR),
-      by = "MISSION"
     ) 
+  # |>
+  #   left_join(
+  #     tblList$GSMISSIONS |> select(MISSION, VESEL, YEAR),
+  #     by = "MISSION"
+  #   ) 
   rm(list = c("CATDET_base"))
   
   # from/to logic
@@ -387,7 +391,6 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   ATCHAM_TO_CARCAB_ABUND_CONV_LDM <- subset(ATCHAM_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
   NEDTEM_TO_TELVEN_ABUND_CONV_LDM <- subset(NEDTEM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   ATCHAM_TO_TELVEN_ABUND_CONV_LDM <- subset(ATCHAM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
-  
   LF_Data_All <- merge(CATDET, TELVEN_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
   LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
   LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
@@ -748,8 +751,17 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       CF_USED,
       FSHNO,
       SIZE_CLASS,
-      SPECIMEN_ID
+      SPECIMEN_ID,
+      CLEN_OG
     ) 
+  
+  LF_Data_All <- LF_Data_All |> 
+    mutate(
+      FWT = if_else(grepl("Weight_Derived", SRC), NA_real_, FWT),
+      CLEN = CLEN_OG
+    ) |> 
+    select(-CLEN_OG) |> 
+    arrange(MISSION, SETNO, SPEC, FLEN, FWT)
   
   
   message(
@@ -783,8 +795,13 @@ the preferred CF will result in 0, while the other has a non-zero value."
     catcols <- append(catcols, c("TAXA_", "TAXARANK_"), after = 3)
     catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
   }
-  
-  newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",], GSDET_unconv)
+
+  newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",], GSDET_unconv) |> 
+    rename(CLEN_OG = CLEN,
+           FWT_OG = FWT,
+           CLEN = TOTNO, 
+           FWT = TOTWGT,
+    )
   
   LF_Data_All$SRC <- ifelse(LF_Data_All$SRC=="GSDET: converted;Weight_Derived","GSDET: converted",LF_Data_All$SRC)
   newCat <- LF_Data_All |>

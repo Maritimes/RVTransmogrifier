@@ -4,3 +4,4 @@
 .Ruserdata
 /inst/frass*
 /inst*
+.RDataTmp
