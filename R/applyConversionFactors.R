@@ -795,7 +795,7 @@ the preferred CF will result in 0, while the other has a non-zero value."
     catcols <- append(catcols, c("TAXA_", "TAXARANK_"), after = 3)
     catgrpcols <- append(catgrpcols, c("TAXA_", "TAXARANK_"), after = 3)
   }
-
+  
   newDet <- rbind.data.frame(LF_Data_All[substr(LF_Data_All$SRC, 1,5)=="GSDET",], GSDET_unconv) |> 
     rename(CLEN_OG = CLEN,
            FWT_OG = FWT,

@@ -187,7 +187,7 @@ stratify_simple <- function(
     as.data.frame()
 
   results_by_year <- df_strat |>
-    dplyr::group_by(YEAR) |>
+    dplyr::group_by(.data[[species_col]],YEAR) |>
     dplyr::summarise(
       AREA_KM_OVERALL = sum(AREA_KM2, na.rm = TRUE),
       COUNT_OVERALL = sum(COUNT, na.rm = TRUE),
@@ -277,6 +277,7 @@ stratify_simple <- function(
 
   # Step 2: Calculate overall metrics for the whole dataset
 overall_results <- df_strat |>
+  dplyr::group_by(.data[[species_col]]) |> 
   dplyr::summarise(
     AREA_KM_OVERALL = sum(AREA_KM2, na.rm = TRUE),
     COUNT_OVERALL = sum(COUNT, na.rm = TRUE),
