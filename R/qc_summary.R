@@ -1,10 +1,20 @@
 #' @title Summarize Quality-Controlled Catch Data
 #'
 #' @description
-#' Computes summary statistics for quality-controlled RV survey data (GSCAT_CONV or GSDET_CONV format). Generates group-wise (by SPEC, YEAR, FROM_VESSEL) and overall aggregates, comparing standardized (`*_OG`) and converted (`*`) abundance/biomass (number and weight), including means, medians, standard deviations, differences, and ratios, as well as missing value counts. Designed to help diagnose the effect and quality of vessel conversion factor application.
+#' Computes summary statistics for quality-controlled RV survey data (GSCAT_CONV 
+#' or GSDET_CONV format). Generates group-wise (by SPEC, YEAR, FROM_VESSEL) and 
+#' overall aggregates, comparing original (`*_OG`) and converted (`*`) 
+#' abundance/biomass (number and weight), including means, medians, standard 
+#' deviations, differences, and ratios, as well as missing value counts. 
+#' Designed to help diagnose the effect and quality of vessel conversion factor 
+#' application.
 #'
-#' @param df A data frame in `GSCAT_CONV` or `GSDET_CONV` format. Must contain at minimum the columns: `"SPEC"`, `"MISSION"`, `"FROM_VESSEL"`, and either `("TOTWGT", "TOTNO", "TOTWGT_OG", "TOTNO_OG")` for GSCAT or `("FWT", "CLEN", "FWT_OG", "CLEN_OG")` for GSDET.
-#' @param annual Logical, defaults to \code{FALSE}. (Currently unused in function but reserved for future behavior with annual summaries.)
+#' @param df A data frame in `GSCAT_CONV` or `GSDET_CONV` format. Must contain 
+#' at minimum the columns: `"SPEC"`, `"MISSION"`, `"FROM_VESSEL"`, and either 
+#' `("TOTWGT", "TOTNO", "TOTWGT_OG", "TOTNO_OG")` for GSCAT or `("FWT", "CLEN", 
+#' "FWT_OG", "CLEN_OG")` for GSDET.
+#' @param annual Logical, defaults to \code{FALSE}. (Currently unused in 
+#' function but reserved for future behavior with annual summaries.)
 #'
 #' @return
 #' A named list with:
@@ -84,7 +94,7 @@ qc_summary <- function(df, annual=F) {
                .data[[theWeight]] / .data[[theWeight_og]],
                NA), na.rm = TRUE
       ),
-      
+      ratio_of_means_wt = mean(.data[[theWeight]], na.rm=TRUE) / mean(.data[[theWeight_og]], na.rm=TRUE),
       mean_num = mean(.data[[theNumber]], na.rm = TRUE),
       mean_num_OG = mean(.data[[theNumber_og]], na.rm = TRUE),
       median_num = median(.data[[theNumber]], na.rm = TRUE),
@@ -104,7 +114,7 @@ qc_summary <- function(df, annual=F) {
                .data[[theNumber]] / .data[[theNumber_og]],
                NA), na.rm = TRUE
       ),
-      
+      ratio_of_means_num = mean(.data[[theNumber]], na.rm=TRUE) / mean(.data[[theNumber_og]], na.rm=TRUE),
       # Missing value counts
       n_missing_wt = sum(is.na(.data[[theWeight]])),
       n_missing_wt_OG = sum(is.na(.data[[theWeight_og]])),

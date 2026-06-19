@@ -7,9 +7,13 @@
 qc_summary(df, annual = F)
 }
 \arguments{
-\item{df}{A data frame in `GSCAT_CONV` or `GSDET_CONV` format. Must contain at minimum the columns: `"SPEC"`, `"MISSION"`, `"FROM_VESSEL"`, and either `("TOTWGT", "TOTNO", "TOTWGT_OG", "TOTNO_OG")` for GSCAT or `("FWT", "CLEN", "FWT_OG", "CLEN_OG")` for GSDET.}
+\item{df}{A data frame in `GSCAT_CONV` or `GSDET_CONV` format. Must contain 
+at minimum the columns: `"SPEC"`, `"MISSION"`, `"FROM_VESSEL"`, and either 
+`("TOTWGT", "TOTNO", "TOTWGT_OG", "TOTNO_OG")` for GSCAT or `("FWT", "CLEN", 
+"FWT_OG", "CLEN_OG")` for GSDET.}
 
-\item{annual}{Logical, defaults to \code{FALSE}. (Currently unused in function but reserved for future behavior with annual summaries.)}
+\item{annual}{Logical, defaults to \code{FALSE}. (Currently unused in 
+function but reserved for future behavior with annual summaries.)}
 }
 \value{
 A named list with:
@@ -19,7 +23,13 @@ A named list with:
 }
 }
 \description{
-Computes summary statistics for quality-controlled RV survey data (GSCAT_CONV or GSDET_CONV format). Generates group-wise (by SPEC, YEAR, FROM_VESSEL) and overall aggregates, comparing standardized (`*_OG`) and converted (`*`) abundance/biomass (number and weight), including means, medians, standard deviations, differences, and ratios, as well as missing value counts. Designed to help diagnose the effect and quality of vessel conversion factor application.
+Computes summary statistics for quality-controlled RV survey data (GSCAT_CONV 
+or GSDET_CONV format). Generates group-wise (by SPEC, YEAR, FROM_VESSEL) and 
+overall aggregates, comparing original (`*_OG`) and converted (`*`) 
+abundance/biomass (number and weight), including means, medians, standard 
+deviations, differences, and ratios, as well as missing value counts. 
+Designed to help diagnose the effect and quality of vessel conversion factor 
+application.
 }
 \details{
 \itemize{
