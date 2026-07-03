@@ -9,6 +9,7 @@ plotRVSummary(
   cxn = NULL,
   code = NULL,
   taxa = NULL,
+  aphiaid = NULL,
   survey = NULL,
   strata = NULL,
   types = 1,

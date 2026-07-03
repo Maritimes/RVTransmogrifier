@@ -105,7 +105,7 @@ extractOpenData <- function(
       GEARDESC
     ) |>
     dplyr::rename(DEPTH = DEPTH_M) |>
-    dplyr::arrange(MISSION, SETNO)
+    dplyr::arrange(substr(MISSION, 4, 7), SETNO)
   this$GSDET <- merge(
     this$GSDET,
     this$GSMATURITY,
@@ -137,7 +137,7 @@ extractOpenData <- function(
       SEX,
       SPECIMEN_ID
     ) |>
-    dplyr::arrange(MISSION, SETNO, SPEC, FLEN, FWT, MATURITY, SEX)
+    dplyr::arrange(substr(MISSION, 4, 7), SETNO, SPEC, FLEN, FWT, MATURITY, SEX)
 
   if ("GSDET_CONV" %in% names(this)) {
     this$GSDET_CONV <- merge(
@@ -172,16 +172,16 @@ extractOpenData <- function(
         MATURITY,
         SEX
       ) |> #, FSHNO, SPECIMEN_ID
-      dplyr::arrange(MISSION, SETNO, SPEC, FLEN, MATURITY, SEX)
+      dplyr::arrange(substr(MISSION, 4, 7), SETNO, SPEC, FLEN, MATURITY, SEX)
   }
   this$GSCAT <- this$GSCAT |>
     dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO) |>
-    dplyr::arrange(MISSION, SETNO)
+    dplyr::arrange(substr(MISSION, 4, 7), SETNO,SPEC)
 
   if ("GSCAT_CONV" %in% names(this)) {
     this$GSCAT_CONV <- this$GSCAT_CONV |>
       dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO) |>
-      dplyr::arrange(MISSION, SETNO)
+      dplyr::arrange(substr(MISSION, 4, 7), SETNO, SPEC)
   }
 
   this$GSSPECIES_NEW <- this$GSSPECIES_NEW |>

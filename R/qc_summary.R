@@ -46,7 +46,7 @@
 qc_summary <- function(df, annual=F) {
   
   if (all(c("SPEC", "MISSION", "FROM_VESSEL", "TOTWGT", "TOTNO", "TOTWGT_OG", "TOTNO_OG") %in% names(df))){
-    print("GSCAT_CONV")
+    # print("GSCAT_CONV")
     theWeight <- "TOTWGT"
     theWeight_og <- "TOTWGT_OG"
     theNumber <-"TOTNO"
@@ -54,7 +54,7 @@ qc_summary <- function(df, annual=F) {
     wtName <- "TOTWGT"
     numName <- "TOTNO"
   }else if (all(c("SPEC", "MISSION", "FROM_VESSEL", "FWT", "CLEN", "FWT_OG", "CLEN_OG") %in% names(df))){
-    print("GSDET_CONV")
+    # print("GSDET_CONV")
     theWeight <- "FWT"
     theWeight_og <- "FWT_OG"
     theNumber <-"CLEN"
@@ -70,6 +70,16 @@ qc_summary <- function(df, annual=F) {
     mutate(
       YEAR = as.integer(substr(MISSION, 4, 7))
     )
+  
+  safe_min <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) == 0) NA_real_ else min(x, na.rm = TRUE)
+  }
+  
+  safe_max <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) == 0) NA_real_ else max(x, na.rm = TRUE)
+  }
   
   df <- df |>
     group_by(SPEC, YEAR, FROM_VESSEL) |>
@@ -123,7 +133,7 @@ qc_summary <- function(df, annual=F) {
       .groups = "drop"
     ) |>
     ungroup()
-
+# browser()
   df_overall <- df |>
     group_by(SPEC, FROM_VESSEL) |>
     summarise(
@@ -135,8 +145,8 @@ qc_summary <- function(df, annual=F) {
       overall_median_wt_OG = median(median_wt_OG, na.rm = TRUE),
       overall_mean_diff_wt = mean(mean_diff_wt, na.rm = TRUE),
       overall_mean_ratio_wt = mean(mean_ratio_wt[is.finite(mean_ratio_wt)], na.rm = TRUE),
-      min_mean_ratio_wt = min(mean_ratio_wt[is.finite(mean_ratio_wt)], na.rm = TRUE),
-      max_mean_ratio_wt = max(mean_ratio_wt[is.finite(mean_ratio_wt)], na.rm = TRUE),
+      min_mean_ratio_wt = safe_min(mean_ratio_wt),  #min(mean_ratio_wt[is.finite(mean_ratio_wt)], na.rm = TRUE),
+      max_mean_ratio_wt =  safe_max(mean_ratio_wt), #max(mean_ratio_wt[is.finite(mean_ratio_wt)], na.rm = TRUE),
       
       overall_mean_num = mean(mean_num, na.rm = TRUE),
       overall_mean_num_OG = mean(mean_num_OG, na.rm = TRUE),
@@ -144,8 +154,8 @@ qc_summary <- function(df, annual=F) {
       overall_median_num_OG = median(median_num_OG, na.rm = TRUE),
       overall_mean_diff_num = mean(mean_diff_num, na.rm = TRUE),
       overall_mean_ratio_num = mean(mean_ratio_num[is.finite(mean_ratio_num)], na.rm = TRUE),
-      min_mean_ratio_num = min(mean_ratio_num[is.finite(mean_ratio_num)], na.rm = TRUE),
-      max_mean_ratio_num = max(mean_ratio_num[is.finite(mean_ratio_num)], na.rm = TRUE),
+      min_mean_ratio_num = safe_min(mean_ratio_num), #min(mean_ratio_num[is.finite(mean_ratio_num)], na.rm = TRUE),
+      max_mean_ratio_num = safe_max(mean_ratio_num), #max(mean_ratio_num[is.finite(mean_ratio_num)], na.rm = TRUE),
       
       total_missing_wt = sum(n_missing_wt, na.rm = TRUE),
       total_missing_wt_OG = sum(n_missing_wt_OG, na.rm = TRUE),

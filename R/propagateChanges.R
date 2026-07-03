@@ -51,20 +51,21 @@
 #' @note GSWARPOUT, GSCRUISELIST and GSSPEC can NOT be used to filter the other tables.
 #' @export
 propagateChanges <- function(
-  tblList = NULL,
-  keep_nullsets = T,
-  survey = NULL,
-  years = NULL,
-  months = NULL,
-  missions = NULL,
-  strata = NULL,
-  types = 1,
-  areas = NULL,
-  code = NULL,
-  aphiaid = NULL,
-  taxa = NULL,
-  debug = F
+    tblList = NULL,
+    keep_nullsets = T,
+    survey = NULL,
+    years = NULL,
+    months = NULL,
+    missions = NULL,
+    strata = NULL,
+    types = 1,
+    areas = NULL,
+    code = NULL,
+    aphiaid = NULL,
+    taxa = NULL,
+    debug = F
 ) {
+
   if (!is.null(code) | !is.null(aphiaid) | !is.null(taxa)) {
     tblList <- filterSpecies(
       tblList = tblList,
@@ -74,21 +75,15 @@ propagateChanges <- function(
       debug = debug
     )
   }
-
-  if (!is.null(missions)) {
-    missions <- toupper(missions)
-  }
-  if (!is.null(survey)) {
-    survey <- toupper(survey)
-  }
-  if (!is.null(taxa)) {
-    taxa <- toupper(taxa)
-  }
-
+  
+  if (!is.null(missions)) missions <- toupper(missions)
+  if (!is.null(survey))     survey <- toupper(survey)
+  if (!is.null(taxa))         taxa <- toupper(taxa)
+  
   user_months <- months
   user_strata <- strata
   user_years <- years
-
+  
   ### do some filtering
   if (!is.null(survey) && survey %in% c("SUMMER")) {
     months <- c(5, 6, 7, 8)
@@ -97,123 +92,46 @@ propagateChanges <- function(
   } else if (!is.null(survey) && survey %in% c("4VSW", "GEORGES", "SPRING")) {
     months <- c(1, 2, 3, 4)
     if (survey == "4VSW") {
-      strata = c(
-        '396',
-        '397',
-        '398',
-        '399',
-        '400',
-        '401',
-        '402',
-        '403',
-        '404',
-        '405',
-        '406',
-        '407',
-        '408',
-        '409',
-        '410',
-        '411'
-      )
+      strata = c('396', '397', '398', '399', '400', '401', '402', '403', '404', '405', '406', '407', '408', '409', '410', '411')
     } else if (survey %in% c("GEORGES", "SPRING")) {
       years <- c(1978:lubridate::year(Sys.Date()))
-      strata <- tblList$GSSTRATUM[
-        !(tblList$GSSTRATUM$STRAT %in%
-          c(
-            '477',
-            '480',
-            '481',
-            '551',
-            '552',
-            '553',
-            '554',
-            '555',
-            '556',
-            '557',
-            '516',
-            '517',
-            '518',
-            '519',
-            '520',
-            '521',
-            '522'
-          )),
-        "STRAT"
-      ]
+      strata <- tblList$GSSTRATUM[!(tblList$GSSTRATUM$STRAT %in% c('477', '480', '481', '551', '552', '553', '554', '555', '556', '557', '516', '517', '518', '519', '520', '521', '522')), "STRAT"]
     }
   }
-
+  
   if (!is.null(user_months) && !is.null(survey)) {
     survey_months <- months
     if (length(intersect(user_months, survey_months)) == 0) {
-      warning(
-        "User-provided months (",
-        paste(user_months, collapse = ", "),
-        ") do not overlap with survey '",
-        survey,
-        "' months (",
-        paste(survey_months, collapse = ", "),
-        "). Using user-provided values."
-      )
+      warning("User-provided months (", paste(user_months, collapse = ", "), ") do not overlap with survey '", survey, "' months (",paste(survey_months, collapse = ", "), "). Using user-provided values.")
     }
   }
-
+  
   if (!is.null(user_strata) && !is.null(survey)) {
     survey_strata <- strata
     if (length(intersect(user_strata, survey_strata)) == 0) {
-      warning(
-        "User-provided strata (",
-        paste(user_strata, collapse = ", "),
-        ") do not overlap with survey '",
-        survey,
-        "' strata (",
-        paste(survey_strata, collapse = ", "),
-        "). Using user-provided values."
-      )
+      warning("User-provided strata (", paste(user_strata, collapse = ", "), ") do not overlap with survey '", survey, "' strata (",paste(survey_strata, collapse = ", "), "). Using user-provided values.")
     }
   }
-
-  if (!is.null(user_months)) {
-    months <- user_months
-  }
-  if (!is.null(user_strata)) {
-    strata <- user_strata
-  }
-  if (!is.null(user_years)) {
-    years <- user_years
-  }
-
-  if (!is.null(missions)) {
-    tblList$GSMISSIONS <- tblList$GSMISSIONS[
-      tblList$GSMISSIONS$MISSION %in% missions,
-    ]
-  }
-  if (!is.null(months)) {
-    tblList$GSINF <- tblList$GSINF[
-      lubridate::month(tblList$GSINF$SDATE) %in% months,
-    ]
-  }
-  if (!is.null(types)) {
-    tblList$GSINF <- tblList$GSINF[tblList$GSINF$TYPE %in% types, ]
-  }
-
-  if (!is.null(years)) {
-    tblList$GSMISSIONS <- tblList$GSMISSIONS[
-      tblList$GSMISSIONS$YEAR %in% years,
-    ]
-  }
-  if (!is.null(strata)) {
-    tblList$GSSTRATUM <- tblList$GSSTRATUM[
-      tblList$GSSTRATUM$STRAT %in% strata,
-    ]
-  }
+  
+  if (!is.null(user_months)) months <- user_months
+  if (!is.null(user_strata)) strata <- user_strata
+  if (!is.null(user_years))   years <- user_years
+  
+  if (!is.null(missions)) tblList$GSMISSIONS <- tblList$GSMISSIONS[tblList$GSMISSIONS$MISSION %in% missions,]
+  if (!is.null(months))        tblList$GSINF <- tblList$GSINF[lubridate::month(tblList$GSINF$SDATE) %in% months,]
+  if (!is.null(types))         tblList$GSINF <- tblList$GSINF[tblList$GSINF$TYPE %in% types, ]
+  
+  
+  if (!is.null(years)) tblList$GSMISSIONS <- tblList$GSMISSIONS[tblList$GSMISSIONS$YEAR %in% years,]
+  if (!is.null(strata)) tblList$GSSTRATUM <- tblList$GSSTRATUM[tblList$GSSTRATUM$STRAT %in% strata,]
+  
   #if (!is.null(areas)) tblList$GSINF  <- tblList$GSINF[tblList$GSINF$AREA %in% areas,]
-
+  
   # NEW CODE: Filter GSINF to valid STRAT-AREA combinations when both are specified
   # Get all data from specified areas (this has valid STRAT-AREA combos)
   # Get unique valid STRAT-AREA combinations
   # Filter GSINF to only these valid combinations
-
+  
   # Handle AREA filtering based on whether STRATA are also specified]
   # print(areas)
   # print(strata)
@@ -228,175 +146,59 @@ propagateChanges <- function(
     # ONLY areas specified (no strata): simple filter
     tblList$GSINF <- tblList$GSINF[tblList$GSINF$AREA %in% areas, ]
   }
-
+  
   LOOPAGAIN <- T
   while (LOOPAGAIN) {
     precnt = sum(sapply(tblList, NROW))
-
-    tblList$GSINF <- merge(
-      tblList$GSINF,
-      unique(tblList$GSCAT[, c("MISSION", "SETNO")]),
-      all.x = keep_nullsets
-    )
-    tblList$GSINF <- merge(
-      tblList$GSINF,
-      unique(tblList$GSMISSIONS[, "MISSION", drop = F])
-    )
-    tblList$GSINF <- merge(
-      tblList$GSINF,
-      unique(tblList$GSSTRATUM[, "STRAT", drop = F])
-    )
-    tblList$GSXTYPE <- merge(
-      tblList$GSXTYPE,
-      unique(tblList$GSINF[, "TYPE", drop = F]),
-      by.x = "XTYPE",
-      by.y = "TYPE"
-    )
-    tblList$GSSTRATUM <- merge(
-      tblList$GSSTRATUM,
-      unique(tblList$GSINF[, "STRAT", drop = F])
-    )
-    tblList$GSMISSIONS <- merge(
-      tblList$GSMISSIONS,
-      unique(tblList$GSINF[, "MISSION", drop = F])
-    )
-    tblList$GSWARPOUT <- merge(
-      tblList$GSWARPOUT,
-      unique(tblList$GSINF[, c("MISSION", "SETNO")])
-    )
-    tblList$GSCAT <- merge(
-      tblList$GSCAT,
-      unique(tblList$GSINF[, c("MISSION", "SETNO")]),
-      all.y = keep_nullsets
-    )
-    tblList$GSCAT <- merge(
-      tblList$GSCAT,
-      unique(tblList$GSMISSIONS[, "MISSION", drop = F]),
-      by = "MISSION"
-    )
-    tblList$GSDET <- merge(
-      tblList$GSDET,
-      unique(tblList$GSINF[, c("MISSION", "SETNO")]),
-      all.y = keep_nullsets
-    )
-    tblList$STOMACH_DATA_VW <- merge(
-      tblList$STOMACH_DATA_VW,
-      unique(tblList$GSMISSIONS[, "MISSION", drop = F])
-    )
-    tblList$STOMACH_DATA_VW <- merge(
-      tblList$STOMACH_DATA_VW,
-      unique(tblList$GSSTRATUM[, "STRAT", drop = F])
-    )
+    tblList$GSINF <- merge(tblList$GSINF, unique(tblList$GSCAT[, c("MISSION", "SETNO")]), all.x = keep_nullsets)
+    tblList$GSINF <- merge(tblList$GSINF, unique(tblList$GSMISSIONS[, "MISSION", drop = F]))
+    tblList$GSINF <- merge(tblList$GSINF, unique(tblList$GSSTRATUM[, "STRAT", drop = F]))
+    tblList$GSXTYPE <- merge(tblList$GSXTYPE, unique(tblList$GSINF[, "TYPE", drop = F]), by.x = "XTYPE", by.y = "TYPE")
+    tblList$GSSTRATUM <- merge(tblList$GSSTRATUM, unique(tblList$GSINF[, "STRAT", drop = F]))
+    tblList$GSMISSIONS <- merge(tblList$GSMISSIONS, unique(tblList$GSINF[, "MISSION", drop = F]))
+    tblList$GSWARPOUT <- merge(tblList$GSWARPOUT, unique(tblList$GSINF[, c("MISSION", "SETNO")]))
+    tblList$GSCAT <- merge(tblList$GSCAT, unique(tblList$GSINF[, c("MISSION", "SETNO")]), all.y = keep_nullsets)
+    tblList$GSCAT <- merge(tblList$GSCAT, unique(tblList$GSMISSIONS[, "MISSION", drop = F]), by = "MISSION")
     if ("GSCAT_CONV" %in% names(tblList)) {
-      tblList$GSCAT_CONV <- merge(
-        tblList$GSCAT_CONV,
-        unique(tblList$GSINF[, c("MISSION", "SETNO")]),
-        all.y = keep_nullsets
-      )
+      tblList$GSCAT_CONV <- merge(tblList$GSCAT_CONV, unique(tblList$GSINF[, c("MISSION", "SETNO")]), all.y = keep_nullsets)
+      tblList$GSCAT_CONV <- merge(tblList$GSCAT_CONV, unique(tblList$GSMISSIONS[, "MISSION", drop = F]), by = "MISSION")
     }
-    if ("GSCAT_CONV" %in% names(tblList)) {
-      tblList$GSCAT_CONV <- merge(
-        tblList$GSCAT_CONV,
-        unique(tblList$GSMISSIONS[, "MISSION", drop = F]),
-        by = "MISSION"
-      )
-    }
+    tblList$GSDET <- merge(tblList$GSDET, unique(tblList$GSINF[, c("MISSION", "SETNO")]), all.y = keep_nullsets)
     if ("GSDET_CONV" %in% names(tblList)) {
-      tblList$GSDET_CONV <- merge(
-        tblList$GSDET_CONV,
-        unique(tblList$GSINF[, c("MISSION", "SETNO")]),
-        all.y = keep_nullsets
-      )
+      tblList$GSDET_CONV <- merge(tblList$GSDET_CONV, unique(tblList$GSINF[, c("MISSION", "SETNO")]), all.y = keep_nullsets)
     }
-
+    tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSMISSIONS[, "MISSION", drop = F]))
+    tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSSTRATUM[, "STRAT", drop = F]))
     if (!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))) {
       #this will only be used when no species filtering has been done.  As soon as species filtering
       #is done, taxa_ and taxarank_ will exist
-      tblList$GSCAT <- merge(
-        tblList$GSCAT,
-        unique(tblList$GSSPECIES_NEW[, "CODE", drop = F]),
-        by.x = "SPEC",
-        by.y = "CODE"
-      )
-      tblList$GSDET <- merge(
-        tblList$GSDET,
-        unique(tblList$GSCAT[, c("MISSION", "SETNO", "SPEC")])
-      )
-      tblList$GSSPECIES_NEW <- merge(
-        tblList$GSSPECIES_NEW,
-        unique(tblList$GSCAT[, "SPEC", drop = F]),
-        by.x = "CODE",
-        by.y = "SPEC"
-      )
-      tblList$STOMACH_DATA_VW <- merge(
-        tblList$STOMACH_DATA_VW,
-        unique(tblList$GSCAT[, c("MISSION", "SETNO", "SPEC")])
-      )
-      tblList$STOMACH_DATA_VW <- merge(
-        tblList$STOMACH_DATA_VW,
-        unique(tblList$GSDET[, c("MISSION", "SETNO", "SPEC", "FSHNO")])
-      )
-      if ("GSCAT_CONV" %in% names(tblList)) {
-        tblList$GSCAT_CONV <- merge(
-          tblList$GSCAT_CONV,
-          unique(tblList$GSSPECIES_NEW[, "CODE", drop = F]),
-          by.x = "SPEC",
-          by.y = "CODE"
-        )
-      }
-      if ("GSDET_CONV" %in% names(tblList)) {
-        tblList$GSDET_CONV <- merge(
-          tblList$GSDET_CONV,
-          unique(tblList$GSCAT[, c("MISSION", "SETNO", "SPEC")])
-        )
-      }
+      tblList$GSCAT <- merge(tblList$GSCAT, unique(tblList$GSSPECIES_NEW[, "CODE", drop = F]), by.x = "SPEC", by.y = "CODE")
+      if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV <- merge(tblList$GSCAT_CONV, unique(tblList$GSSPECIES_NEW[, "CODE", drop = F]), by.x = "SPEC", by.y = "CODE")
+      tblList$GSDET <- merge(tblList$GSDET, unique(tblList$GSCAT[, c("MISSION", "SETNO", "SPEC")]))
+      if ("GSDET_CONV" %in% names(tblList)) tblList$GSDET_CONV <- merge(tblList$GSDET_CONV, unique(tblList$GSCAT_CONV[, c("MISSION", "SETNO", "SPEC")]))
+      tblList$GSSPECIES_NEW <- merge(tblList$GSSPECIES_NEW, unique(tblList$GSCAT[, "SPEC", drop = F]), by.x = "CODE", by.y = "SPEC")
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSCAT[, c("MISSION", "SETNO", "SPEC")]))
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSDET[, c("MISSION", "SETNO", "SPEC", "FSHNO")]))
     } else {
-      tblList$GSCAT <- merge(
-        tblList$GSCAT,
-        unique(tblList$GSSPECIES_NEW[, c("TAXA_", "TAXARANK_")])
-      )
-      tblList$GSDET <- merge(
-        tblList$GSDET,
-        unique(tblList$GSCAT[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")])
-      )
-      tblList$GSDET <- merge(
-        tblList$GSDET,
-        unique(tblList$GSDET[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")])
-      )
-      tblList$GSSPECIES_NEW <- merge(
-        tblList$GSSPECIES_NEW,
-        unique(tblList$GSCAT[, c("TAXA_", "TAXARANK_")])
-      )
-      tblList$STOMACH_DATA_VW <- merge(
-        tblList$STOMACH_DATA_VW,
-        unique(tblList$GSCAT[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")])
-      )
-      tblList$STOMACH_DATA_VW <- merge(
-        tblList$STOMACH_DATA_VW,
-        unique(tblList$GSDET[, c(
-          "MISSION",
-          "SETNO",
-          "TAXA_",
-          "TAXARANK_",
-          "FSHNO"
-        )])
-      )
-      if ("GSCAT_CONV" %in% names(tblList)) {
-        tblList$GSCAT_CONV <- merge(
-          tblList$GSCAT_CONV,
-          unique(tblList$GSSPECIES_NEW[, c("TAXA_", "TAXARANK_")])
-        )
-      }
+      tblList$GSCAT <- merge(tblList$GSCAT, unique(tblList$GSSPECIES_NEW[, c("TAXA_", "TAXARANK_")]))
+      if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV <- merge(tblList$GSCAT_CONV, unique(tblList$GSSPECIES_NEW[, c("TAXA_", "TAXARANK_")]))
+      tblList$GSDET <- merge(tblList$GSDET, unique(tblList$GSCAT[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$GSDET <- merge(tblList$GSDET, unique(tblList$GSDET[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")]))
       if ("GSDET_CONV" %in% names(tblList)) {
-        tblList$GSDET_CONV <- merge(
-          tblList$GSDET_CONV,
-          unique(tblList$GSCAT[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")])
-        )
+        tblList$GSDET_CONV <- merge(tblList$GSDET_CONV, unique(tblList$GSCAT_CONV[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")]))
+        tblList$GSDET_CONV <- merge(tblList$GSDET_CONV, unique(tblList$GSDET_CONV[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")]))
       }
+      tblList$GSSPECIES_NEW <- merge(tblList$GSSPECIES_NEW, unique(tblList$GSCAT[, c("TAXA_", "TAXARANK_")]))
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSCAT[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_")]))
+      tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSDET[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_", "FSHNO")]))
+      
     }
-
+    tblList <- aggregateByTaxa(tblList = tblList,
+                               taxa = taxa,
+                               code = code,
+                               aphiaid = aphiaid)
     postcnt = sum(sapply(tblList, NROW))
-
+    
     if (nrow(tblList$GSCAT) == 0 | nrow(tblList$GSINF) == 0) {
       warning("Filtered out all catches and/or sets")
       return(tblList)
@@ -407,6 +209,6 @@ propagateChanges <- function(
       if (debug) print(sapply(tblList, NROW))
     }
   }
-
+  
   return(tblList)
 }

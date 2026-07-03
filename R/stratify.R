@@ -33,66 +33,48 @@
 #' @export
 
 stratify_simple <- function(
-  tblList = NULL,
-  df = NULL,
-  towDist_NM = 1.75,
-  areaField = "AREA_KM2",
-  areaFieldUnits = c("KM2", "NM2", "M2"),
-  conf_limits = 95,
-  totwgt_units = c("kg", "ton"),
-  debug = F
+    tblList = NULL,
+    df = NULL,
+    towDist_NM = 1.75,
+    areaField = "AREA_KM2",
+    areaFieldUnits = c("KM2", "NM2", "M2"),
+    conf_limits = 95,
+    totwgt_units = c("kg", "ton"),
+    debug = F
 ) {
   if (!is.null(tblList)) {
     df <- easyFlatten(tblList)
     df <- df[df$TYPE == 1, ]
   } else {
+    # Validation checks
     if (!any(c("SPEC", "TAXA_") %in% names(df))) {
       stop("Either SPEC or TAXA_ must exist in the data frame")
     }
-    if (!"DIST" %in% names(df)) {
-      stop("Column DIST not found in data frame")
+    required_cols <- c("DIST", "WINGSPREAD_FT", "TOTNO", "TOTWGT", "STRAT", "MISSION", "SETNO", areaField)
+    missing_cols <- setdiff(required_cols, names(df))
+    if (length(missing_cols) > 0) {
+      stop(sprintf("Missing required columns: %s", paste(missing_cols, collapse = ", ")))
     }
-    if (!"WINGSPREAD_FT" %in% names(df)) {
-      stop("Column WINGSPREAD_FT not found in data frame")
-    }
-    if (!"TOTNO" %in% names(df)) {
-      stop("Column TOTNO not found in data frame")
-    }
-    if (!"TOTWGT" %in% names(df)) {
-      stop("Column TOTWGT not found in data frame")
-    }
-    if (!areaField %in% names(df)) {
-      stop(sprintf("Column %s not found in data frame", areaField))
-    }
-    if (!"STRAT" %in% names(df)) {
-      stop("Column STRAT not found in data frame")
-    }
-    if (!"MISSION" %in% names(df)) {
-      stop("Column MISSION not found in data frame")
-    }
-    if (!"SETNO" %in% names(df)) {
-      stop("Column SETNO not found in data frame")
-    }
-
+    
     df[is.na(df$DIST), "DIST"] <- towDist_NM
     df[is.na(df$TOTNO), "TOTNO"] <- 0
     df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   }
+  
   totwgt_units <- match.arg(totwgt_units)
   if(totwgt_units=="kgs"){
     df$TOTWGT <- df$TOTWGT/1000
     message("TOTWGT converted from kg to tons")
   }
-  if ("SPEC" %in% names(df) & length(unique(df$SPEC) == 1)) {
-    df$SPEC[is.na(df$SPEC)] <- unique(df$SPEC[!is.na(df$SPEC)])
-  } else if ("TAXA_" %in% names(df) & length(unique(df$SPEC) == 1)) {
-    df$TAXA_[is.na(df$TAXA_)] <- unique(df$TAXA_[!is.na(df$TAXA_)])
+  
+  species_col <- if ("SPEC" %in% names(df)) {
+    "SPEC"
+  } else if ("TAXA_" %in% names(df)) {
+    "TAXA_"
   } else {
-    stop(
-      "This analytic can only be used on a single SPEC or taxonomic group at a time"
-    )
+    stop("Either SPEC or TAXA_ must exist in the data frame")
   }
-
+  
   areaFieldUnits <- match.arg(areaFieldUnits)
   if (areaFieldUnits == "NM2") {
     df$AREA_KM2 <- sqNMToSqKm(field = df[[areaField]])
@@ -101,7 +83,7 @@ stratify_simple <- function(
   } else if (areaFieldUnits == "KM2") {
     df$AREA_KM2 <- df[[areaField]]
   }
-
+  
   df$TOTWGT_sqkm <- valPerSqKm(
     df$TOTWGT,
     towDist_NM = df$DIST,
@@ -114,14 +96,7 @@ stratify_simple <- function(
   )
   df$BIOMASS_set <- df$TOTWGT_sqkm * df$AREA_KM2
   df$ABUNDANCE_set <- df$TOTNO_sqkm * df$AREA_KM2
-
-  species_col <- if ("SPEC" %in% names(df)) {
-    "SPEC"
-  } else if ("TAXA_" %in% names(df)) {
-    "TAXA_"
-  } else {
-    NULL
-  }
+  
   setRes <- df |>
     dplyr::select(
       dplyr::all_of(species_col),
@@ -135,18 +110,18 @@ stratify_simple <- function(
       TOTNO_sqkm
     ) |>
     dplyr::arrange(STRAT, SETNO)
-
+  
   all_sets <- df |>
     dplyr::select(MISSION, SETNO, STRAT, AREA_KM2) |>
     dplyr::distinct()
-
+  
   spec_only <- df |>
     dplyr::select(dplyr::all_of(species_col)) |>
     dplyr::distinct()
-
+  
   weight_grid <- all_sets |>
     tidyr::crossing(spec_only)
-
+  
   df_complete <- weight_grid |>
     dplyr::left_join(
       df,
@@ -160,7 +135,7 @@ stratify_simple <- function(
       BIOMASS_set = ifelse(is.na(BIOMASS_set), 0, BIOMASS_set),
       ABUNDANCE_set = ifelse(is.na(ABUNDANCE_set), 0, ABUNDANCE_set)
     )
-
+  
   df_strat <- df_complete |>
     dplyr::mutate(YEAR = as.integer(substr(MISSION, 4, 7))) |>
     dplyr::group_by(.data[[species_col]], YEAR, STRAT, AREA_KM2) |>
@@ -185,7 +160,7 @@ stratify_simple <- function(
       ABUNDANCE = round(TOTNO_SQKM_STRAT_MEAN * AREA_KM2, 5)
     ) |>
     as.data.frame()
-
+  
   results_by_year <- df_strat |>
     dplyr::group_by(.data[[species_col]],YEAR) |>
     dplyr::summarise(
@@ -210,7 +185,6 @@ stratify_simple <- function(
         level = conf_limits / 100,
         is_mean = TRUE
       )),
-      
       TOTWGT_SQKM_STRAT_MEAN_RESULT = list(calcYearSummary(
         theDataByStrat = dplyr::pick(dplyr::everything()),
         valueField = "TOTWGT_SQKM_STRAT_MEAN",
@@ -274,85 +248,92 @@ stratify_simple <- function(
       
     ) |>
     dplyr::select(-c(TOTWGT_MEAN_RESULT, TOTNO_MEAN_RESULT, TOTWGT_SQKM_STRAT_MEAN_RESULT, TOTNO_SQKM_STRAT_MEAN_RESULT, BIOMASS_RESULT, ABUNDANCE_RESULT))
-
-  # Step 2: Calculate overall metrics for the whole dataset
-overall_results <- df_strat |>
-  dplyr::group_by(.data[[species_col]]) |> 
-  dplyr::summarise(
-    AREA_KM_OVERALL = sum(AREA_KM2, na.rm = TRUE),
-    COUNT_OVERALL = sum(COUNT, na.rm = TRUE),
-    TOTWGT_OVERALL = sum(TOTWGT_SUM, na.rm = TRUE),
-    TOTNO_OVERALL = sum(TOTNO_SUM, na.rm = TRUE),
-    # Call calcYearSummary once for TOTWGT_MEAN
-    TOTWGT_MEAN_RESULT = list(calcYearSummary(
-      theDataByStrat =  dplyr::pick(dplyr::everything()),
-      valueField = "TOTWGT_MEAN",
-      seField = "TOTWGT_MEAN_SE",
-      areaField = "AREA_KM2",
-      level = conf_limits / 100,
-      is_mean = TRUE
-    )),
-    # Call calcYearSummary once for TOTNO_MEAN
-    TOTNO_MEAN_RESULT = list(calcYearSummary(
-      theDataByStrat =  dplyr::pick(dplyr::everything()),
-      valueField = "TOTNO_MEAN",
-      seField = "TOTNO_MEAN_SE",
-      areaField = "AREA_KM2",
-      level = conf_limits / 100,
-      is_mean = TRUE
-    )),
-    # Call calcYearSummary once for BIOMASS
-    BIOMASS_RESULT = list(calcYearSummary(
-      theDataByStrat =  dplyr::pick(dplyr::everything()),
-      valueField = "BIOMASS",
-      seField = "BIOMASS_SE",
-      areaField = "AREA_KM2",
-      level = conf_limits / 100,
-      is_mean = FALSE
-    )),
-    # Call calcYearSummary once for ABUNDANCE
-    ABUNDANCE_RESULT = list(calcYearSummary(
-      theDataByStrat =  dplyr::pick(dplyr::everything()),
-      valueField = "ABUNDANCE",
-      seField = "ABUNDANCE_SE",
-      areaField = "AREA_KM2",
-      level = conf_limits / 100,
-      is_mean = FALSE
-    )),
-    .groups = "drop"
-  ) |>
-  # Extract values from each list column into separate flat columns
-  dplyr::mutate(
-    TOTWGT_MEAN = purrr::map_dbl(TOTWGT_MEAN_RESULT, "value"),
-    TOTWGT_MEAN_SE = purrr::map_dbl(TOTWGT_MEAN_RESULT, "se"),
-    TOTWGT_MEAN_LOW = purrr::map_dbl(TOTWGT_MEAN_RESULT, "low"),
-    TOTWGT_MEAN_HIGH = purrr::map_dbl(TOTWGT_MEAN_RESULT, "high"),
-    TOTNO_MEAN = purrr::map_dbl(TOTNO_MEAN_RESULT, "value"),
-    TOTNO_MEAN_SE = purrr::map_dbl(TOTNO_MEAN_RESULT, "se"),
-    TOTNO_MEAN_LOW = purrr::map_dbl(TOTNO_MEAN_RESULT, "low"),
-    TOTNO_MEAN_HIGH = purrr::map_dbl(TOTNO_MEAN_RESULT, "high"),
-    BIOMASS = purrr::map_dbl(BIOMASS_RESULT, "value"),
-    BIOMASS_SE = purrr::map_dbl(BIOMASS_RESULT, "se"),
-    BIOMASS_LOW = purrr::map_dbl(BIOMASS_RESULT, "low"),
-    BIOMASS_HIGH = purrr::map_dbl(BIOMASS_RESULT, "high"),
-    ABUNDANCE = purrr::map_dbl(ABUNDANCE_RESULT, "value"),
-    ABUNDANCE_SE = purrr::map_dbl(ABUNDANCE_RESULT, "se"),
-    ABUNDANCE_LOW = purrr::map_dbl(ABUNDANCE_RESULT, "low"),
-    ABUNDANCE_HIGH = purrr::map_dbl(ABUNDANCE_RESULT, "high")
-  ) |>
-  # Drop the intermediate list columns to tidy up the final output
-  dplyr::select(
-    -c(TOTWGT_MEAN_RESULT, TOTNO_MEAN_RESULT, BIOMASS_RESULT, ABUNDANCE_RESULT)
-  )
-
-  results <- list()
-  results$stratified_by_set <- setRes
-  results$stratified_by_strat <- df_strat
-  results$results_by_year <- results_by_year
-  results$stratified_summary <- overall_results
   
-
-  return(results)
+  # Step 2: Calculate overall metrics for the whole dataset
+  overall_results <- df_strat |>
+    dplyr::group_by(.data[[species_col]]) |> 
+    dplyr::summarise(
+      AREA_KM_OVERALL = sum(AREA_KM2, na.rm = TRUE),
+      COUNT_OVERALL = sum(COUNT, na.rm = TRUE),
+      TOTWGT_OVERALL = sum(TOTWGT_SUM, na.rm = TRUE),
+      TOTNO_OVERALL = sum(TOTNO_SUM, na.rm = TRUE),
+      # Call calcYearSummary once for TOTWGT_MEAN
+      TOTWGT_MEAN_RESULT = list(calcYearSummary(
+        theDataByStrat =  dplyr::pick(dplyr::everything()),
+        valueField = "TOTWGT_MEAN",
+        seField = "TOTWGT_MEAN_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      # Call calcYearSummary once for TOTNO_MEAN
+      TOTNO_MEAN_RESULT = list(calcYearSummary(
+        theDataByStrat =  dplyr::pick(dplyr::everything()),
+        valueField = "TOTNO_MEAN",
+        seField = "TOTNO_MEAN_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = TRUE
+      )),
+      # Call calcYearSummary once for BIOMASS
+      BIOMASS_RESULT = list(calcYearSummary(
+        theDataByStrat =  dplyr::pick(dplyr::everything()),
+        valueField = "BIOMASS",
+        seField = "BIOMASS_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = FALSE
+      )),
+      # Call calcYearSummary once for ABUNDANCE
+      ABUNDANCE_RESULT = list(calcYearSummary(
+        theDataByStrat =  dplyr::pick(dplyr::everything()),
+        valueField = "ABUNDANCE",
+        seField = "ABUNDANCE_SE",
+        areaField = "AREA_KM2",
+        level = conf_limits / 100,
+        is_mean = FALSE
+      )),
+      .groups = "drop"
+    ) |>
+    # Extract values from each list column into separate flat columns
+    dplyr::mutate(
+      TOTWGT_MEAN = purrr::map_dbl(TOTWGT_MEAN_RESULT, "value"),
+      TOTWGT_MEAN_SE = purrr::map_dbl(TOTWGT_MEAN_RESULT, "se"),
+      TOTWGT_MEAN_LOW = purrr::map_dbl(TOTWGT_MEAN_RESULT, "low"),
+      TOTWGT_MEAN_HIGH = purrr::map_dbl(TOTWGT_MEAN_RESULT, "high"),
+      TOTNO_MEAN = purrr::map_dbl(TOTNO_MEAN_RESULT, "value"),
+      TOTNO_MEAN_SE = purrr::map_dbl(TOTNO_MEAN_RESULT, "se"),
+      TOTNO_MEAN_LOW = purrr::map_dbl(TOTNO_MEAN_RESULT, "low"),
+      TOTNO_MEAN_HIGH = purrr::map_dbl(TOTNO_MEAN_RESULT, "high"),
+      BIOMASS = purrr::map_dbl(BIOMASS_RESULT, "value"),
+      BIOMASS_SE = purrr::map_dbl(BIOMASS_RESULT, "se"),
+      BIOMASS_LOW = purrr::map_dbl(BIOMASS_RESULT, "low"),
+      BIOMASS_HIGH = purrr::map_dbl(BIOMASS_RESULT, "high"),
+      ABUNDANCE = purrr::map_dbl(ABUNDANCE_RESULT, "value"),
+      ABUNDANCE_SE = purrr::map_dbl(ABUNDANCE_RESULT, "se"),
+      ABUNDANCE_LOW = purrr::map_dbl(ABUNDANCE_RESULT, "low"),
+      ABUNDANCE_HIGH = purrr::map_dbl(ABUNDANCE_RESULT, "high")
+    ) |>
+    # Drop the intermediate list columns to tidy up the final output
+    dplyr::select(
+      -c(TOTWGT_MEAN_RESULT, TOTNO_MEAN_RESULT, BIOMASS_RESULT, ABUNDANCE_RESULT)
+    )
+  
+  species_list <- unique(df[[species_col]])
+  
+  results_by_species <- lapply(species_list, function(sp) {
+    list(
+      stratified_by_set = setRes[setRes[[species_col]] == sp, ],
+      stratified_by_strat = df_strat[df_strat[[species_col]] == sp, ],
+      results_by_year = results_by_year[results_by_year[[species_col]] == sp, ],
+      stratified_summary = overall_results[overall_results[[species_col]] == sp, ]
+    )
+  })
+  
+  # Name the list elements by species code
+  names(results_by_species) <- paste0(species_col, "_", species_list)
+  
+  return(results_by_species)
 }
 
 #' @title stratify_detailed
@@ -368,36 +349,36 @@ overall_results <- df_strat |>
 #' @export
 
 stratify_detailed <- function(
-  tblList,
-  towDist = 1.75,
-  by_sex = FALSE,
-  conf_limits = 95,
-  inc_limits = T,
-  bin_size = 1
+    tblList,
+    towDist = 1.75,
+    by_sex = FALSE,
+    conf_limits = 95,
+    inc_limits = T,
+    bin_size = 1
 ) {
   stratSimp <- stratify_simple(
     tblList = tblList,
     towDist_NM = towDist,
     conf_limits = conf_limits
   )
-
+  
   totals <- standardize_catch_counts(
     tblList,
     towDist = towDist,
     by_sex = by_sex
   )
-
+  
   all_sets <- stratSimp$stratified_by_set |>
     dplyr::select(MISSION, SETNO, STRAT, AREA_KM2) |>
     dplyr::distinct()
-
+  
   spec_only <- stratSimp$stratified_by_set |>
     dplyr::select(SPEC) |>
     dplyr::distinct()
-
+  
   if (inherits(totals$length_total, "data.frame")) {
     length_data <- totals$length_total
-
+    
     if (by_sex) {
       all_combos <- all_sets |>
         tidyr::crossing(spec_only) |>
@@ -405,7 +386,7 @@ stratify_detailed <- function(
           length_data |> dplyr::select(FLEN) |> dplyr::distinct(),
           length_data |> dplyr::select(FSEX) |> dplyr::distinct()
         )
-
+      
       length_complete <- all_combos |>
         dplyr::left_join(
           length_data |>
@@ -424,7 +405,7 @@ stratify_detailed <- function(
           CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
           CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
         )
-
+      
       length_strat <- length_complete |>
         dplyr::group_by(SPEC, STRAT, AREA_KM2, FSEX, FLEN) |>
         dplyr::summarise(
@@ -449,7 +430,7 @@ stratify_detailed <- function(
       all_combos <- all_sets |>
         tidyr::crossing(spec_only) |>
         tidyr::crossing(length_data |> dplyr::select(FLEN) |> dplyr::distinct())
-
+      
       length_complete <- all_combos |>
         dplyr::left_join(
           length_data |>
@@ -467,7 +448,7 @@ stratify_detailed <- function(
           CLEN_TOTAL = ifelse(is.na(CLEN_TOTAL), 0, CLEN_TOTAL),
           CLEN_SQKM_TOTAL = ifelse(is.na(CLEN_SQKM_TOTAL), 0, CLEN_SQKM_TOTAL)
         )
-
+      
       length_strat <- length_complete |>
         dplyr::group_by(SPEC, STRAT, AREA_KM2, FLEN) |>
         dplyr::summarise(
@@ -489,7 +470,7 @@ stratify_detailed <- function(
         ) |>
         dplyr::select(-CLEN_values, -CLEN_SQKM_values)
     }
-
+    
     lenSet_mean <- widen_data(
       length_complete,
       var_col = "FLEN",
@@ -538,9 +519,9 @@ stratify_detailed <- function(
       level = "strat",
       by_sex = by_sex
     )
-
+    
     ###### MEAN ######
-
+    
     mean_df <- lenStrat_mean |>
       dplyr::left_join(
         lenStrat_se |>
@@ -551,13 +532,13 @@ stratify_detailed <- function(
           ),
         by = "STRAT"
       )
-
+    
     # Detect original FLEN columns (no _SE_)
     flen_cols <- grep("FLEN_\\d+$", names(mean_df), value = TRUE)
-
+    
     # Detect SE columns (with _SE_)
     se_flen_cols <- grep("FLEN_SE_\\d+$", names(mean_df), value = TRUE)
-
+    
     LENGTH_MEAN <- dplyr::bind_rows(
       Map(
         function(x, y) {
@@ -577,9 +558,9 @@ stratify_detailed <- function(
         se_flen_cols
       )
     )
-
+    
     ###### SECOND BLOCK ######
-
+    
     total_df <- lenStrat_total |>
       dplyr::left_join(
         lenStrat_total_se |>
@@ -590,10 +571,10 @@ stratify_detailed <- function(
           ),
         by = "STRAT"
       )
-
+    
     flen_cols2 <- grep("FLEN_\\d+$", names(total_df), value = TRUE)
     se_flen_cols2 <- grep("FLEN_SE_\\d+$", names(total_df), value = TRUE)
-
+    
     LENGTH_TOTAL <- dplyr::bind_rows(
       Map(
         function(x, y) {
@@ -613,7 +594,7 @@ stratify_detailed <- function(
         se_flen_cols2
       )
     )
-
+    
     summary_flen <- LENGTH_MEAN |>
       dplyr::left_join(LENGTH_TOTAL, by = "FLEN_col") |>
       dplyr::mutate(
@@ -639,23 +620,23 @@ stratify_detailed <- function(
         LENGTH_TOTAL,
         LENGTH_TOTAL_SE
       )
-
+    
     # handle flen summaries
     flen_mean_vals <- summary_flen |>
       dplyr::select(FLEN_col, LENGTH_MEAN) |>
       tidyr::pivot_wider(names_from = FLEN_col, values_from = LENGTH_MEAN) |>
       as.list()
-
+    
     flen_mean_se_vals <- summary_flen |>
       dplyr::select(FLEN_col, LENGTH_MEAN_SE) |>
       tidyr::pivot_wider(names_from = FLEN_col, values_from = LENGTH_MEAN_SE) |>
       as.list()
-
+    
     flen_total_vals <- summary_flen |>
       dplyr::select(FLEN_col, LENGTH_TOTAL) |>
       tidyr::pivot_wider(names_from = FLEN_col, values_from = LENGTH_TOTAL) |>
       as.list()
-
+    
     flen_total_se_vals <- summary_flen |>
       dplyr::select(FLEN_col, LENGTH_TOTAL_SE) |>
       tidyr::pivot_wider(
@@ -663,7 +644,7 @@ stratify_detailed <- function(
         values_from = LENGTH_TOTAL_SE
       ) |>
       as.list()
-
+    
     lenStrat_mean <- lenStrat_mean |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -671,7 +652,7 @@ stratify_detailed <- function(
         SPEC = NA_integer_,
         !!!flen_mean_vals
       )
-
+    
     lenStrat_se <- lenStrat_se |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -679,7 +660,7 @@ stratify_detailed <- function(
         SPEC = NA_integer_,
         !!!flen_mean_se_vals
       )
-
+    
     lenStrat_total <- lenStrat_total |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -687,7 +668,7 @@ stratify_detailed <- function(
         SPEC = NA_integer_,
         !!!flen_total_vals
       )
-
+    
     lenStrat_total_se <- lenStrat_total_se |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -709,19 +690,19 @@ stratify_detailed <- function(
         by = c("MISSION", "SETNO")
       ) |>
       dplyr::select(FLEN, AGE, STRAT, !!!if (by_sex) rlang::syms("FSEX"))
-
+    
     if (by_sex) {
       agelen <- agelen |>
         dplyr::filter(!is.na(FLEN) & !is.na(AGE) & !is.na(FSEX))
     } else {
       agelen <- agelen |> dplyr::filter(!is.na(FLEN) & !is.na(AGE))
     }
-
+    
     alk_group_vars <- c("FLEN_BIN", "AGE")
     if (by_sex) {
       alk_group_vars <- c(alk_group_vars, "FSEX")
     }
-
+    
     alk <- agelen |>
       binnit(bin_size) |>
       dplyr::count(dplyr::across(dplyr::all_of(alk_group_vars))) |>
@@ -731,7 +712,7 @@ stratify_detailed <- function(
         !!!if (by_sex) dplyr::syms("FSEX"),
         fill = list(n = 0)
       )
-
+    
     if (by_sex) {
       alk <- alk |>
         tidyr::pivot_wider(
@@ -760,7 +741,7 @@ stratify_detailed <- function(
         dplyr::rename(FLEN = FLEN_BIN)
     }
     alk <- alk |> as.data.frame()
-
+    
     alk_wide <- agelen |>
       dplyr::count(STRAT, AGE) |>
       tidyr::pivot_wider(
@@ -769,7 +750,7 @@ stratify_detailed <- function(
         names_glue = "AGE_{AGE}",
         values_fill = 0
       )
-
+    
     alw_group_vars <- c("AGE", "FLEN_BIN")
     if (by_sex) {
       alw_group_vars <- c(alw_group_vars, "FSEX")
@@ -785,7 +766,7 @@ stratify_detailed <- function(
         fill = list(FWT = 0, COUNT = 0)
       ) |>
       dplyr::mutate(FWT = FWT / 1000)
-
+    
     if (by_sex) {
       alw <- alw |>
         dplyr::group_by(FLEN_BIN, FSEX, AGE) |>
@@ -817,9 +798,9 @@ stratify_detailed <- function(
     }
     alw <- alw |>
       as.data.frame()
-
+    
     alk_ap <- alk
-
+    
     x <- prop.table(as.matrix(alk_ap[, setdiff(names(alk_ap), "FLEN")]), 1)
     x <- ifelse(is.nan(x), 0, x)
     ages_prop <- as.data.frame(x) |> dplyr::mutate(FLEN = alk_ap$FLEN)
@@ -828,7 +809,7 @@ stratify_detailed <- function(
     colnames(lengths) = "length_sum"
     lengths$FLEN <- sub("FLEN_", "", rownames(lengths))
     row.names(lengths) <- NULL
-
+    
     age_table <- merge(ages_prop, lengths, by = "FLEN", all.x = T)
     age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))] <- round(
       age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))] *
@@ -837,7 +818,7 @@ stratify_detailed <- function(
     )
     age_table[is.na(age_table)] <- 0
     age_table$length_sum <- NULL
-
+    
     age_cols <- setdiff(names(age_table), "FLEN")
     age_table_avg_lengths <- sapply(age_cols, function(age) {
       x <- age_table[[age]]
@@ -846,7 +827,7 @@ stratify_detailed <- function(
       }
       sum(age_table$FLEN * x) / sum(x)
     })
-
+    
     set_age <- widen_data(
       totals$age_total,
       var_col = "AGE",
@@ -855,13 +836,13 @@ stratify_detailed <- function(
       level = "set",
       by_sex = by_sex
     )
-
+    
     age_complete <- totals$age_total |>
       dplyr::mutate(
         CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
         CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
       )
-
+    
     group_vars <- c("SPEC", "STRAT", "AREA_KM2", "AGE")
     if (by_sex) {
       group_vars <- c(group_vars, "FSEX")
@@ -889,7 +870,7 @@ stratify_detailed <- function(
         }
       ) |>
       dplyr::bind_rows()
-
+    
     strat_age_mean <- widen_data(
       age_strat,
       var_col = "AGE",
@@ -922,7 +903,7 @@ stratify_detailed <- function(
       level = "strat",
       by_sex = by_sex
     )
-
+    
     mean_df <- strat_age_mean |>
       dplyr::left_join(
         strat_age_mean_se |>
@@ -935,7 +916,7 @@ stratify_detailed <- function(
       )
     age_cols <- grep("AGE_\\d+", names(mean_df), value = TRUE)
     se_age_cols <- grep("AGE_SE_\\d+", names(mean_df), value = TRUE)
-
+    
     AGE_MEAN <- dplyr::bind_rows(
       Map(
         function(x, y) {
@@ -955,7 +936,7 @@ stratify_detailed <- function(
         se_age_cols
       )
     )
-
+    
     total_df <- strat_age_total |>
       dplyr::left_join(
         strat_age_total_se |>
@@ -968,7 +949,7 @@ stratify_detailed <- function(
       )
     age_cols2 <- grep("AGE_\\d+", names(total_df), value = TRUE)
     se_age_cols2 <- grep("AGE_SE_\\d+", names(total_df), value = TRUE)
-
+    
     AGE_TOTAL <- dplyr::bind_rows(
       Map(
         function(x, y) {
@@ -988,7 +969,7 @@ stratify_detailed <- function(
         se_age_cols2
       )
     )
-
+    
     summary_age <- AGE_MEAN |>
       dplyr::left_join(AGE_TOTAL, by = "AGE_col") |>
       dplyr::mutate(
@@ -996,34 +977,34 @@ stratify_detailed <- function(
       ) |>
       dplyr::arrange(AGE_NUM) |>
       dplyr::select(AGE_col, AGE_MEAN, AGE_MEAN_SE, AGE_TOTAL, AGE_TOTAL_SE)
-
+    
     # strat_age_mean_se <- strat_age_mean_se |>
     #   mutate(TOTAL_SE = sqrt(rowSums(dplyr::across(matches("AGE_\\d+$"))^2)))
     #
     # strat_age_total_se <- strat_age_total_se |>
     #   mutate(TOTAL_SE = sqrt(rowSums(dplyr::across(matches("AGE_\\d+$"))^2)))
-
+    
     # handle age summaries
     age_mean_vals <- summary_age |>
       dplyr::select(AGE_col, AGE_MEAN) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_MEAN) |>
       as.list()
-
+    
     age_mean_se_vals <- summary_age |>
       dplyr::select(AGE_col, AGE_MEAN_SE) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_MEAN_SE) |>
       as.list()
-
+    
     age_total_vals <- summary_age |>
       dplyr::select(AGE_col, AGE_TOTAL) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_TOTAL) |>
       as.list()
-
+    
     age_total_se_vals <- summary_age |>
       dplyr::select(AGE_col, AGE_TOTAL_SE) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_TOTAL_SE) |>
       as.list()
-
+    
     strat_age_mean <- strat_age_mean |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -1031,7 +1012,7 @@ stratify_detailed <- function(
         SPEC = NA_integer_,
         !!!age_mean_vals
       )
-
+    
     strat_age_mean_se <- strat_age_mean_se |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -1039,7 +1020,7 @@ stratify_detailed <- function(
         SPEC = NA_integer_,
         !!!age_mean_se_vals
       )
-
+    
     ageStrat_total <- strat_age_total |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -1047,7 +1028,7 @@ stratify_detailed <- function(
         SPEC = NA_integer_,
         !!!age_total_vals
       )
-
+    
     ageStrat_total_se <- strat_age_total_se |>
       dplyr::add_row(
         STRAT = "TOTAL",
@@ -1056,11 +1037,11 @@ stratify_detailed <- function(
         !!!age_total_se_vals
       )
   }
-
+  
   results <- list()
   results$summaries$overall <- stratSimp$overall
   results$setLevel$allSets <- stratSimp$set_stratified
-
+  
   if (inherits(totals$length_total, "data.frame")) {
     # results$summaries$flen <- summary_flen
     results$setLevel$flen_mean <- lenSet_mean

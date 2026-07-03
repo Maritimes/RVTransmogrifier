@@ -16,24 +16,48 @@ easyFlatten <- function(tblList = NULL, keep_nullsets = T) {
   }
 
   if ("SPEC" %in% names(theCat)) {
-    theCat$SPEC[is.na(theCat$SPEC)] <- unique(theCat$SPEC[!is.na(theCat$SPEC)])
     theFields <- c(theFields, "SPEC")
+    species_col <- "SPEC"
   } else if ("TAXA_" %in% names(theCat)) {
-    theCat$TAXA_[is.na(theCat$TAXA_)] <- unique(theCat$TAXA_[
-      !is.na(theCat$TAXA_)
-    ])
-    theCat$TAXARANK_[is.na(theCat$TAXARANK_)] <- unique(theCat$TAXARANK_[
-      !is.na(theCat$TAXARANK_)
-    ])
-    theFields <- c(theFields, "TAXA_")
+    theFields <- c(theFields, "TAXA_", "TAXARANK_")
+    species_col <- "TAXA_"
+  }else {
+    stop("Either SPEC or TAXA_ must exist in GSCAT")
   }
-
-  this <- merge(
-    tblList$GSINF, #[,c("MISSION","SETNO","STRAT","SDATE","DIST", "TYPE","GEAR","DEPTH", "SURFACE_TEMPERATURE", "BOTTOM_TEMPERATURE",  "BOTTOM_SALINITY", "SLAT_DD","SLONG_DD","ELAT_DD","ELONG_DD","AREA","AREA_KM2","WINGSPREAD_FT" )],
-    theCat[, theFields],
-    by = c("MISSION", "SETNO"),
-    all.x = keep_nullsets
-  )
+  
+  all_sets <- tblList$GSINF[, c("MISSION", "SETNO", "STRAT", "DIST", 
+                                "TYPE", "GEAR", "DEPTH", "AREA_KM2", 
+                                "WINGSPREAD_FT")]
+  
+  # Get all unique species from GSCAT
+  if (species_col == "SPEC") {
+    all_species <- unique(theCat[!is.na(theCat$SPEC), "SPEC", drop = FALSE])
+  } else {
+    all_species <- unique(theCat[!is.na(theCat$TAXA_), 
+                                 c("TAXA_", "TAXARANK_"), drop = FALSE])
+  }
+  
+  # Create complete grid: every set × every species
+  if (keep_nullsets) {
+    complete_grid <- merge(all_sets, all_species)
+    
+    # Merge with actual catch data
+    this <- merge(
+      complete_grid,
+      theCat[, theFields],
+      by = c("MISSION", "SETNO", species_col),
+      all.x = TRUE
+    )
+  } else {
+    # Just merge what exists
+    this <- merge(
+      tblList$GSINF,
+      theCat[, theFields],
+      by = c("MISSION", "SETNO"),
+      all.x = FALSE
+    )
+  }
+  
   this[is.na(this$DIST), "DIST"] <- 1.75
   this[is.na(this$TOTNO), "TOTNO"] <- 0
   this[is.na(this$TOTWGT), "TOTWGT"] <- 0

@@ -533,6 +533,53 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41) {
   return(res)
 }
 
+#' @title drop_size_class
+#' @description Removes the SIZE_CLASS column from a data frame and aggregates 
+#' specified numeric columns by summing across size classes. This function 
+#' groups by all remaining columns (except SIZE_CLASS and the columns to be 
+#' summed) and calculates totals for weight, count, and sample weight fields. 
+#' Useful for collapsing size-stratified catch data into aggregated totals by 
+#' set and species.
+#' @param df A data frame containing a column named \code{SIZE_CLASS} and one or 
+#' more numeric columns to be summed.
+#' @param sum_cols the default is \code{c("TOTWGT", "TOTNO", "TOTNO_OG", 
+#' "TOTWGT_OG", "SAMPWGT_OG")}. A character vector specifying the names of 
+#' columns to sum across size classes. Only columns present in the data frame 
+#' will be summed.
+#' @return A data frame with SIZE_CLASS removed and the specified numeric 
+#' columns aggregated by sum. If SIZE_CLASS is not found or none of the sum 
+#' columns exist, returns the original data frame with a warning.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
+#' @importFrom dplyr group_by across all_of summarise
+#' @export
+drop_size_class <- function(df, sum_cols = c("TOTWGT", "TOTNO", "TOTNO_OG", "TOTWGT_OG", "SAMPWGT_OG")) {
+  
+  if (!"SIZE_CLASS" %in% names(df)) {
+    warning("SIZE_CLASS column not found. Returning original dataframe.")
+    return(df)
+  }
+  
+  sum_cols_present <- intersect(sum_cols, names(df))
+  
+  if (length(sum_cols_present) == 0) {
+    warning("None of the specified sum columns found. Returning original dataframe.")
+    return(df)
+  }
+  
+  group_cols <- setdiff(names(df), c("SIZE_CLASS", sum_cols_present))
+  
+  result <- df |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(sum_cols_present), 
+                    ~sum(.x, na.rm = TRUE)),
+      .groups = "drop"
+    )
+  
+  return(result)
+}
+
+
 ##### STRATIFY utilities start
 #' @title calcTotalSE_unstratified
 #' @description Calculate the total standard error for unstratified data by taking the square root of the sum of squared standard errors.
@@ -1038,3 +1085,4 @@ summarize_by_age2 <- function(
   names(result) <- ages
   return(result)
 }
+
