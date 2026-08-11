@@ -16,14 +16,14 @@ qc_plot_gscat_sp <- function(
     mutate(
       YEAR = as.integer(substr(MISSION, 4, 7)),
       FROM_VESSEL = case_when(
-                  substr(conv$GSCAT$MISSION, 1,3) == "ATC" ~ "ATC_HAM",
-                  substr(conv$GSCAT$MISSION, 1,3) == "HAM" ~ "ATC_HAM",
-                  substr(conv$GSCAT$MISSION, 1,3) == "CAR" ~ "CAR_CAB",
-                  substr(conv$GSCAT$MISSION, 1,3) == "CAB" ~ "CAR_CAB",
-                  substr(conv$GSCAT$MISSION, 1,3) == "NED" ~ "NED_TEM",
-                  substr(conv$GSCAT$MISSION, 1,3) == "TEM" ~ "NED_TEM",
-                  substr(conv$GSCAT$MISSION, 1,3) == "TEL" ~ "TEL_VEN",
-                  substr(conv$GSCAT$MISSION, 1,3) == "VEN" ~ "TEL_VEN",
+                  substr(MISSION, 1,3) == "ATC" ~ "ATC_HAM",
+                  substr(MISSION, 1,3) == "HAM" ~ "ATC_HAM",
+                  substr(MISSION, 1,3) == "CAR" ~ "CAR_CAB",
+                  substr(MISSION, 1,3) == "CAB" ~ "CAR_CAB",
+                  substr(MISSION, 1,3) == "NED" ~ "NED_TEM",
+                  substr(MISSION, 1,3) == "TEM" ~ "NED_TEM",
+                  substr(MISSION, 1,3) == "TEL" ~ "TEL_VEN",
+                  substr(MISSION, 1,3) == "VEN" ~ "TEL_VEN",
                  .default = NA_character_
                )
       )

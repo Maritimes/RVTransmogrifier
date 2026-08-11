@@ -1,10 +1,10 @@
 #' @title easyFlatten
 #' @description Merge GSINF, GSCAT, and GSSTRATUM tables into a single flat data frame for analysis. If conversion
-#' factors have been applied (i.e. GSCAT_CONV exists), tthey will be used, rather than GSCAT.  This function Handles
+#' factors have been applied (i.e. GSCAT_CONV exists), they will be used, rather than GSCAT.  This function Handles
 #' both species-level (SPEC) and taxa-level (TAXA_) data.
 #' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, and GSSTRATUM.
 #' @param keep_nullsets the default is \code{TRUE}. If TRUE, retains set information even when no catch occurred.
-#' @return A merged data frame containing set, catch, and stratum information with NA values filled appropriately.
+#' @return A merged data frame containing set, catch, and stratum information
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
 easyFlatten <- function(tblList = NULL, keep_nullsets = T) {
@@ -14,7 +14,6 @@ easyFlatten <- function(tblList = NULL, keep_nullsets = T) {
   } else {
     theCat <- tblList$GSCAT
   }
-
   if ("SPEC" %in% names(theCat)) {
     theFields <- c(theFields, "SPEC")
     species_col <- "SPEC"
@@ -24,11 +23,10 @@ easyFlatten <- function(tblList = NULL, keep_nullsets = T) {
   }else {
     stop("Either SPEC or TAXA_ must exist in GSCAT")
   }
-  
+
   all_sets <- tblList$GSINF[, c("MISSION", "SETNO", "STRAT", "DIST", 
                                 "TYPE", "GEAR", "DEPTH", "AREA_KM2", 
                                 "WINGSPREAD_FT")]
-  
   # Get all unique species from GSCAT
   if (species_col == "SPEC") {
     all_species <- unique(theCat[!is.na(theCat$SPEC), "SPEC", drop = FALSE])
@@ -58,9 +56,5 @@ easyFlatten <- function(tblList = NULL, keep_nullsets = T) {
     )
   }
   
-  this[is.na(this$DIST), "DIST"] <- 1.75
-  this[is.na(this$TOTNO), "TOTNO"] <- 0
-  this[is.na(this$TOTWGT), "TOTWGT"] <- 0
-
   return(this)
 }

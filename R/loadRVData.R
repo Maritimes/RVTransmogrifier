@@ -14,7 +14,7 @@
 #' specified survey and years
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
+loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,  applyConversions =T,...) {
   args <- list(...)
   newE <- new.env()
   if (is.null(args$debug)) {
@@ -23,7 +23,7 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
   if (is.null(args$keep_nullsets)) {
     args$keep_nullsets <- TRUE
   }
-
+  
   # Use stock_map if stock argument is provided
   if (!is.null(stock)) {
     if (!exists("stock_map", where = .GlobalEnv)) {
@@ -34,23 +34,23 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
     if (!stock %in% names(stock_map)) {
       stop("Invalid stock name. Use `list_stocks()` to see valid options.")
     }
-
+    
     stock_params <- stock_map[[stock]]
-
+    
     args$survey <- NULL
     args$code <- stock_params$code
     args$months <- stock_params$months
     args$strata <- stock_params$strata
     args$areas <- stock_params$areas
   }
-
+  
   missingTables <- coreTables[
     !file.exists(file.path(
       get_pesd_rvt_dir(),
       paste0("GROUNDFISH.", coreTables, ".RData")
     ))
   ]
-
+  
   if (length(missingTables) == 0 & force.extract == F) {
     # no missing tables, load everything
     invisible(Mar.utils::get_data_tables(
@@ -85,10 +85,10 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
         "Extracting and processing missing tables - this will take a minute (subsequent loads will be WAY faster)"
       )
       allProcessTables <- c("GSINF") #GSSPECIES_NEW
-
+      
       missingProcessTables <- intersect(missingTables, allProcessTables)
       haveTables <- setdiff(coreTables, missingProcessTables)
-
+      
       # load the tables we have
       invisible(Mar.utils::get_data_tables(
         schema = "GROUNDFISH",
@@ -113,7 +113,7 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
         env = newE
       ))
     }
-
+    
     # general processing for specific tables
     if ("GSINF" %in% missingTables | force.extract) {
       message(
@@ -164,7 +164,7 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
       )
     })
   }
-
+  
   curDate <- as.Date(Sys.time())
   dataDate <- as.Date(max(newE$GSINF$SDATE, na.rm = T))
   if (as.integer(difftime(curDate, dataDate)) > 270) {
@@ -172,7 +172,7 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
       "Your most recent data is >9 months old - there's probably new data available.\nConsider updating your data by adding `force.extract=T`. "
     )
   }
-
+  
   df_names <- ls(envir = newE)[sapply(ls(envir = newE), function(x) {
     is.data.frame(get(x, envir = newE, inherits = FALSE))
   })]
@@ -180,42 +180,38 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL, ...) {
     lapply(df_names, get, envir = newE, inherits = FALSE),
     df_names
   )
-
+  aggTaxa <- ifelse (is.null(args$taxa) & applyConversions==T, TRUE, FALSE)
   #only need to propagate changes if we make changes...
-  if (
-    !all(sapply(
-      list(
-        args$stock,
-        args$survey,
-        args$years,
-        args$months,
-        args$missions,
-        args$strata,
-        args$types,
-        args$areas,
-        args$code,
-        args$aphiaid,
-        args$taxa
-      ),
-      is.null
-    ))
-  ) {
-    tblList <- propagateChanges(
-      tblList = tblList,
-      keep_nullsets = args$keep_nullsets,
-      survey = args$survey,
-      years = args$years,
-      months = args$months,
-      missions = args$missions,
-      strata = args$strata,
-      types = args$types,
-      areas = args$areas,
-      code = args$code,
-      aphiaid = args$aphiaid,
-      taxa = args$taxa,
-      debug = args$debug
-    )
-   
+  if (!all(sapply(list(args$stock,
+                       args$survey,
+                       args$years,
+                       args$months,
+                       args$missions,
+                       args$strata,
+                       args$types,
+                       args$areas,
+                       args$code,
+                       args$aphiaid,
+                       args$taxa), is.null))) {
+    
+
+      tblList <- propagateChanges(
+        tblList = tblList,
+        keep_nullsets = args$keep_nullsets,
+        survey = args$survey,
+        years = args$years,
+        months = args$months,
+        missions = args$missions,
+        strata = args$strata,
+        types = args$types,
+        areas = args$areas,
+        code = args$code,
+        aphiaid = args$aphiaid,
+        taxa = args$taxa,
+        debug = args$debug,
+        aggregateTaxa = aggTaxa
+      )
   }
+  if (applyConversions == T) tblList <- applyConversionFactors(tblList=tblList)
   return(tblList)
 }

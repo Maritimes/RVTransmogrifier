@@ -6,58 +6,47 @@
 \usage{
 plotRVSummary(
   tblList = NULL,
-  cxn = NULL,
   code = NULL,
   taxa = NULL,
   aphiaid = NULL,
-  survey = NULL,
-  strata = NULL,
-  types = 1,
-  species_name = NULL,
-  stock = NULL,
-  years = NULL,
-  show_error = FALSE,
-  use_new_areas = FALSE
+  valueField = "BIOMASS",
+  plotUnits = "ton",
+  plotTitle = NULL,
+  minYear = NULL,
+  maxYear = NULL,
+  show_gmean = TRUE,
+  show_ci = TRUE,
+  show_mean = TRUE,
+  legend_position = "right"
 )
 }
 \arguments{
-\item{tblList}{the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.}
+\item{tblList}{the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT (or GSCAT_CONV), GSDET, GSMISSIONS, and GSSTRATUM.}
 
-\item{cxn}{the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
-pass an existing connection, reducing the need to establish a new connection
-within the function. If provided, it takes precedence over the connection-
-related parameters.}
+\item{code}{the default is \code{NULL}. A vector of one or more species codes (SPEC) or taxonomic identifiers (TAXA_) to plot. If NULL, all species found in the data will be plotted. If provided, only the specified species will be plotted.}
 
-\item{code}{the default is \code{NULL}. If data should be limited to a particular species, enter
-the species code here}
+\item{valueField}{the default is \code{"BIOMASS"}. The field to plot on the y-axis. Common options include "BIOMASS", "ABUNDANCE", "TOTWGT_MEAN", "TOTNO_MEAN".}
 
-\item{taxa}{the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
-"PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})}
+\item{plotTitle}{the default is \code{NULL}. Optional custom title for the plots. The species code will be appended to this title for each plot.}
 
-\item{survey}{the default is \code{NULL}. This specifies which survey should be extracted.  Valid
-values are "SPRING", "SUMMER", "FALL", and "4VSW".  A value of NULL will result in products being
-generated for all 4 different surveys.}
+\item{minYear}{the default is \code{NULL}. Minimum year to include in the plot. If NULL, all years are included.}
 
-\item{strata}{the default is \code{NULL}. A vector of 1 or more strata can be passed to this function, and the
-data will be filtered to only that/those strata (via GSSTRATUM$STRAT)}
+\item{maxYear}{the default is \code{NULL}. Maximum year to include in the plot. If NULL, all years are included.}
 
-\item{types}{the default is \code{1}.  A vector of 1 or more set "types" can be passed to this function, and the
-data will be filtered to only that/those set types (via GSINF$TYPE)}
+\item{show_gmean}{the default is \code{TRUE}. If TRUE, adds a horizontal line showing the geometric mean.}
 
-\item{species_name}{the default is \code{NULL}. This will be used in the plot title.}
+\item{show_ci}{the default is \code{TRUE}. If TRUE, adds confidence interval ribbons around the data.}
 
-\item{stock}{the default is \code{NULL}. A valid stock name from `stock_map`. If provided, it overrides
-manually specified parameters like `code`, `months`, `strata`, etc.}
+\item{show_mean}{the default is \code{TRUE}. If TRUE, adds a horizontal line showing the arithmetic mean.}
 
-\item{years}{the default is \code{NULL}.}
-
-\item{show_error}{the default is \code{FALSE}.  If confidence intervals should be shown on the plot, set this to TRUE.}
-
-\item{use_new_areas}{the default is \code{FALSE}. This is a development parameter.  It won't work for most users.}
+\item{legend_position}{the default is \code{"right"}. Position of the legend. Valid ggplot2 legend positions include "right", "left", "top", "bottom", or "none".}
 }
 \value{
-a list including a plot and the stratified biomass/abundance data behind the plot
+A named list of ggplot objects, one per species. List names are formatted as "SPEC_##" or "TAXA_##" depending on the species column used. Returns NULL with a warning if no plots are generated.
 }
 \description{
-plotRVSummary
+Generate time series plots of stratified survey data (biomass or abundance) for one or more species. When multiple species are present in the data, the function creates separate plots for each species and returns them as a named list.
+}
+\author{
+Mike McMahon, \email{Mike.McMahon@dfo-mpo.gc.ca}
 }

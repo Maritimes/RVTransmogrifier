@@ -47,8 +47,10 @@ plotRV <- function(
   title = NULL,
   path = NULL,
   filename = NULL,
+  byYear = FALSE,
   ...
 ) {
+  options(warn = 1)  
   args <- list(...)
   if (dev.cur() == 0) {
     png(filename = "temp.png", width = 800, height = 600)
@@ -67,13 +69,55 @@ plotRV <- function(
     if (inherits(tblList, "numeric")) {
       stop("Requested filter removed all species")
     }
-    tblList <- aggregateByTaxa(tblList = tblList, code = args$code)
+    
+    if (!is.null(args$taxa)) tblList <- aggregateByTaxa(tblList = tblList, taxa = args$taxa)
   }
-
-  # if (!is.null(tblList) & !is.null(plotSets)) {
-  #   #strata are used to set plot bounds (filtered to sampled strata (from GSINF))
-  #   limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
-  # }
+  
+  
+  theseYears <- sort(unique(tblList$GSMISSIONS$YEAR))
+  if (byYear & length(theseYears) > 1) {
+    if (!quiet) message("Generating plots for ", length(theseYears), " years: ", 
+                        paste(theseYears, collapse = ", "))
+    
+    plots_list <- list()
+    for (y in theseYears) {
+      # if (!quiet) message("Processing year: ", y)
+      
+      tblList_y <- propagateChanges(tblList = tblList, years = y)
+      
+      # Update title and filename to include year
+      title_y <- if (!is.null(title)) paste0(title, " - ", y) else paste0("Year ", y)
+      filename_y <- if (!is.null(filename)) paste0(filename, "_", y) else NULL
+      
+      # Recursively call plotRV with byYear = FALSE
+      p <- plotRV(
+        tblList = tblList_y,
+        plotSets = plotSets,
+        plotNullSets = plotNullSets,
+        plotCatchStrata = plotCatchStrata,
+        plotRaw = plotRaw,
+        catchStrataData = catchStrataData,
+        plotStrata = plotStrata,
+        labelStrata = labelStrata,
+        plotBathy = plotBathy,
+        bathyIntervals = bathyIntervals,
+        plotNAFO = plotNAFO,
+        labelNAFO = labelNAFO,
+        title = title_y,
+        path = path,
+        filename = filename_y,
+        byYear = FALSE,  # Important: set to FALSE to avoid infinite recursion
+        ...
+      )
+      
+      plots_list[[as.character(y)]] <- p
+    }
+    
+    # Return the list of plots invisibly
+    return(invisible(plots_list))
+  }
+  
+  # Rest of your existing code continues here (all the plotting logic)
   if (!is.null(tblList)) {
     # Step 1: Start with polygon bounds from sampled strata
     limits1 <- sort(getBbox(filterVals = unique(tblList$GSINF$STRAT)))
@@ -105,6 +149,7 @@ plotRV <- function(
     }
   }
 
+
   if (!is.null(catchStrataData)) {
     if (inherits(catchStrataData, "list") & length(catchStrataData) > 1) {
       message(
@@ -131,6 +176,7 @@ plotRV <- function(
     roundDD2Min(limits1[4], nearestMin = 15, how = "ceiling")
   )
 
+
   #add plot elements to this list.
   ggItems <- list()
   sf::sf_use_s2(FALSE)
@@ -145,16 +191,16 @@ plotRV <- function(
       filter = unique(tblList$GSINF$STRAT)
     )
   })
+  
   ggItems[["bkgdNAFO"]] <- suppressWarnings({
     ggNAFO(plotNAFO = plotNAFO, plotLabels = labelNAFO, filter = NULL)
   })
+
   if (
     !is.null(catchStrataData) &
       plotCatchStrata %in%
         c("TOTNO", "TOTWGT", "MEAN_WGT", "MEAN_NO", "BIOMASS", "ABUNDANCE")
   ) {
-    #if (plotCatchStrata == "BIOMASS")plotCatchStrata="BIOMASS_T"
-    #   #can't plot bkgrd strata if the strata are to be plotted by catch
     ggItems[["bkgdStrata"]] <- NULL
     ggItems[["gg_stratData"]] <- suppressWarnings({
       ggStrataData(
@@ -166,7 +212,7 @@ plotRV <- function(
   } else {
     ggItems[["gg_stratData"]] <- NULL
   }
-
+  
   #ensure specified variables are plottable
   if (!plotRaw) {
     if (is.null(plotSets)) {
@@ -260,17 +306,16 @@ plotRV <- function(
   ggItems[["labels"]] <- suppressWarnings({
     ggplot2::labs(x = "Longitude", y = "Latitude", title = title)
   })
+
   p <- p + ggItems
 
   if (exists("temp_device")) {
     dev.off()
   }
-  # Save to file if `path` and `filename` are specified
+
   if (!is.null(path) && !is.null(filename)) {
     save_path <- file.path(path, paste0(filename, ".png"))
     ggplot2::ggsave(save_path, plot = p, width = 8, height = 6)
   }
-  #
   print(p)
-  # invisible(p)
 }

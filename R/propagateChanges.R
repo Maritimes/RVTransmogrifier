@@ -63,9 +63,11 @@ propagateChanges <- function(
     code = NULL,
     aphiaid = NULL,
     taxa = NULL,
+    aggregateTaxa = FALSE,
     debug = F
 ) {
-
+  
+  message("in propagateChanges()")
   if (!is.null(code) | !is.null(aphiaid) | !is.null(taxa)) {
     tblList <- filterSpecies(
       tblList = tblList,
@@ -133,10 +135,6 @@ propagateChanges <- function(
   # Filter GSINF to only these valid combinations
   
   # Handle AREA filtering based on whether STRATA are also specified]
-  # print(areas)
-  # print(strata)
-  # tblList$GSINF[,c("STRAT", "AREA")] |> unique() |> print()
-  # browser()
   if (!is.null(strata) && !is.null(areas)) {
     dataA <- tblList$GSINF[tblList$GSINF$AREA %in% areas, ]
     validCombos <- unique(dataA[, c("STRAT", "AREA")])
@@ -193,10 +191,14 @@ propagateChanges <- function(
       tblList$STOMACH_DATA_VW <- merge(tblList$STOMACH_DATA_VW, unique(tblList$GSDET[, c("MISSION", "SETNO", "TAXA_", "TAXARANK_", "FSHNO")]))
       
     }
-    tblList <- aggregateByTaxa(tblList = tblList,
-                               taxa = taxa,
-                               code = code,
-                               aphiaid = aphiaid)
+
+    if (aggregateTaxa == TRUE){
+      tblList <- aggregateByTaxa(tblList = tblList,
+                                 taxa = taxa,
+                                 code = code,
+                                 aphiaid = aphiaid)
+    }
+    
     postcnt = sum(sapply(tblList, NROW))
     
     if (nrow(tblList$GSCAT) == 0 | nrow(tblList$GSINF) == 0) {

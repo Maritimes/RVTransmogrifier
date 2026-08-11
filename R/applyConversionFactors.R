@@ -66,7 +66,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     filter(R2 == max(R2)) |>
     ungroup() |>
     rename(FSEX_key = FSEX)
-  
+
+ # message("MMM - must also allow for taxa") 
   tblList$GSCAT <- tblList$GSCAT |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS)
   tblList$GSDET <- tblList$GSDET |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, FWT)
   
@@ -261,11 +262,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
       ),
       FWT = FWT
     ) 
-  # |>
-  #   left_join(
-  #     tblList$GSMISSIONS |> select(MISSION, VESEL, YEAR),
-  #     by = "MISSION"
-  #   ) 
+
   rm(list = c("CATDET_base"))
   
   # from/to logic
@@ -647,7 +644,6 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
             5: For species without length frequency data, both biomass and abundance
             \tconversion factors are applied when available."
   )
-  
   LF_Data_All <- LF_Data_All |>
     mutate(
       # Intermediate variables for conditions
@@ -801,7 +797,7 @@ the preferred CF will result in 0, while the other has a non-zero value."
            FWT_OG = FWT,
            CLEN = TOTNO, 
            FWT = TOTWGT,
-    )
+    ) |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS, FLEN, FWT)
   
   LF_Data_All$SRC <- ifelse(LF_Data_All$SRC=="GSDET: converted;Weight_Derived","GSDET: converted",LF_Data_All$SRC)
   newCat <- LF_Data_All |>
@@ -817,13 +813,9 @@ the preferred CF will result in 0, while the other has a non-zero value."
       TOTWGT = TOTWGT / 1000
     )
   
-  #newDet <- newDet |> #I think we can just delete this since we are carrying over both CLEN and TOTNO and FWT and TOTWGT now
-  #rename(CLEN = TOTNO)
-  #I don't think we need this anymore since we just carry over all the raw values now
-  #newDet <- merge(newDet, ogGSDET, by=c("MISSION", "SETNO", "SPEC", "SIZE_CLASS", "FLEN", "SPECIMEN_ID"))
-  
-  #This one seems fine since it can get merged up easily and we don't need the carryover
+
   newCat <- merge(newCat, ogGSCAT, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS"))
+  newCat <- newCat |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS)
   tblList$GSDET_CONV <-  newDet
   tblList$GSCAT_CONV <- newCat
   return(tblList)

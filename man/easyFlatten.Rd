@@ -12,11 +12,11 @@ easyFlatten(tblList = NULL, keep_nullsets = T)
 \item{keep_nullsets}{the default is \code{TRUE}. If TRUE, retains set information even when no catch occurred.}
 }
 \value{
-A merged data frame containing set, catch, and stratum information with NA values filled appropriately.
+A merged data frame containing set, catch, and stratum information
 }
 \description{
 Merge GSINF, GSCAT, and GSSTRATUM tables into a single flat data frame for analysis. If conversion
-factors have been applied (i.e. GSCAT_CONV exists), tthey will be used, rather than GSCAT.  This function Handles
+factors have been applied (i.e. GSCAT_CONV exists), they will be used, rather than GSCAT.  This function Handles
 both species-level (SPEC) and taxa-level (TAXA_) data.
 }
 \author{

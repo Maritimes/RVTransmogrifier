@@ -11,7 +11,7 @@ stratify_simple(
   areaField = "AREA_KM2",
   areaFieldUnits = c("KM2", "NM2", "M2"),
   conf_limits = 95,
-  totwgt_units = c("kg", "ton"),
+  totwgt_units = "ton",
   debug = F
 )
 }

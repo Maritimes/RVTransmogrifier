@@ -39,12 +39,17 @@ stratify_simple <- function(
     areaField = "AREA_KM2",
     areaFieldUnits = c("KM2", "NM2", "M2"),
     conf_limits = 95,
-    totwgt_units = c("kg", "ton"),
+    totwgt_units = "ton",
     debug = F
 ) {
+
   if (!is.null(tblList)) {
     df <- easyFlatten(tblList)
     df <- df[df$TYPE == 1, ]
+    df[is.na(df$DIST), "DIST"] <- 1.75
+    df[is.na(df$TOTNO), "TOTNO"] <- 0
+    df[is.na(df$TOTWGT), "TOTWGT"] <- 0
+    
   } else {
     # Validation checks
     if (!any(c("SPEC", "TAXA_") %in% names(df))) {
@@ -61,10 +66,9 @@ stratify_simple <- function(
     df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   }
   
-  totwgt_units <- match.arg(totwgt_units)
-  if(totwgt_units=="kgs"){
+ 
+  if(totwgt_units=="ton"){
     df$TOTWGT <- df$TOTWGT/1000
-    message("TOTWGT converted from kg to tons")
   }
   
   species_col <- if ("SPEC" %in% names(df)) {

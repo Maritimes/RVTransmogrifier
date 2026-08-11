@@ -106,6 +106,7 @@ extractOpenData <- function(
     ) |>
     dplyr::rename(DEPTH = DEPTH_M) |>
     dplyr::arrange(substr(MISSION, 4, 7), SETNO)
+  
   this$GSDET <- merge(
     this$GSDET,
     this$GSMATURITY,
@@ -165,14 +166,16 @@ extractOpenData <- function(
         SPEC,
         FSHNO,
         FLEN,
-        FWT,
         AGE,
+        FWT,
         CLEN,
+        FWT_OG,
+        CLEN_OG,
         SPECIMEN_ID,
         MATURITY,
         SEX
       ) |> #, FSHNO, SPECIMEN_ID
-      dplyr::arrange(substr(MISSION, 4, 7), SETNO, SPEC, FLEN, MATURITY, SEX)
+      dplyr::arrange(substr(MISSION, 4, 7), SETNO, SPEC, FLEN, FWT, MATURITY, SEX)
   }
   this$GSCAT <- this$GSCAT |>
     dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO) |>
@@ -180,7 +183,7 @@ extractOpenData <- function(
 
   if ("GSCAT_CONV" %in% names(this)) {
     this$GSCAT_CONV <- this$GSCAT_CONV |>
-      dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO) |>
+      dplyr::select(MISSION, SETNO, SPEC, TOTWGT, TOTNO, TOTWGT_OG, TOTNO_OG) |>
       dplyr::arrange(substr(MISSION, 4, 7), SETNO, SPEC)
   }
 

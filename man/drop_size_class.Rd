@@ -6,7 +6,8 @@
 \usage{
 drop_size_class(
   df,
-  sum_cols = c("TOTWGT", "TOTNO", "TOTNO_OG", "TOTWGT_OG", "SAMPWGT_OG")
+  sum_cols = c("TOTWGT", "TOTNO", "SAMPWGT", "TOTNO_OG", "TOTWGT_OG", "SAMPWGT_OG",
+    "FWT", "CLEN", "FWT_OG", "CLEN_OG")
 )
 }
 \arguments{

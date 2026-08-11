@@ -50,16 +50,24 @@ ggNAFO <- function(plotNAFO = TRUE, plotLabels = TRUE, filter = NULL) {
       color = "#88888833"
     )
     if (plotLabels) {
-      ggItems[["nafo"]] <- c(
-        ggItems[["nafo"]],
-        ggplot2::geom_sf_text(
-          data = nafo,
-          ggplot2::aes(label = NAFO),
-          fun.geometry = sf::st_centroid,
-          fontface = "italic",
-          color = "#88888880",
-          size = 4
-        )
+      nafo_projected <- sf::st_transform(nafo, crs = 32620)
+      nafo_centroids <- sf::st_centroid(nafo_projected)
+      nafo_centroids <- sf::st_transform(nafo_centroids, crs = 4326)
+      
+      # Extract coordinates and convert to regular data frame
+      coords <- sf::st_coordinates(nafo_centroids)
+      label_data <- data.frame(
+        x = coords[, "X"],
+        y = coords[, "Y"],
+        NAFO = nafo_centroids$NAFO
+      )
+      
+      ggItems[["strataLabels"]] <- ggplot2::geom_text(
+        data = label_data,
+        ggplot2::aes(x = x, y = y, label = NAFO),
+        fontface = "italic",
+        color = "#88888880",
+        size = 4
       )
     }
   } else {
@@ -89,17 +97,25 @@ ggStrata <- function(plotStrata = TRUE, plotLabels = TRUE, filter = NULL) {
       color = "#00669933"
     )
     if (plotLabels) {
-      strata <- sf::st_set_geometry(strata, 'centroids')
-      ggItems[["strata"]] <- c(
-        ggItems[["strata"]],
-        ggplot2::geom_sf_text(
-          data = strata,
-          ggplot2::aes(label = StrataID),
-          fontface = "italic",
-          color = "#00669933",
-          size = 4
-        )
-      ) ##00669933
+      strata_projected <- sf::st_transform(strata, crs = 32620)
+      strata_centroids <- sf::st_centroid(strata_projected)
+      strata_centroids <- sf::st_transform(strata_centroids, crs = 4326)
+      
+      # Extract coordinates and convert to regular data frame
+      coords <- sf::st_coordinates(strata_centroids)
+      label_data <- data.frame(
+        x = coords[, "X"],
+        y = coords[, "Y"],
+        StrataID = strata_centroids$StrataID
+      )
+      
+      ggItems[["strataLabels"]] <- ggplot2::geom_text(
+        data = label_data,
+        ggplot2::aes(x = x, y = y, label = StrataID),
+        fontface = "italic",
+        color = "#00669933",
+        size = 4
+      )
     }
   } else {
     ggItems[["strata"]] <- NULL

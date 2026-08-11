@@ -7,15 +7,19 @@
 #' @export
 aggregateByTaxa <- function(tblList = NULL, ...) {
   args <- list(...)
-  # #All data arranged by code, so no need to aggregate if code was specified
-  if (!is.null(args$code)) {
+  message("in aggregateByTaxa()")
+
+  if (is.null(args$taxa) & !"TAXA_" %in% names(tblList$GSCAT)) {
     message("No aggregation to be done")
     return(tblList)
-  }else{
-    message("aggregateByTaxa running")
+  } else{
+    message("aggregating")
   }
+  
   tblList$GSCAT$SPEC <- tblList$GSDET$SPEC <- NULL
+  
   tblList$GSCAT <- tblList$GSCAT |>
+    drop_size_class() |> 
     dplyr::group_by(dplyr::across(c(-TOTNO, -TOTWGT, -SAMPWGT))) |>
     dplyr::summarise(
       SAMPWGT = sum(SAMPWGT),
@@ -26,6 +30,7 @@ aggregateByTaxa <- function(tblList = NULL, ...) {
     as.data.frame()
 
   tblList$GSDET <- tblList$GSDET |>
+    drop_size_class() |> 
     dplyr::group_by(dplyr::across(c(-CLEN, -FWT))) |>
     dplyr::summarise(
       CLEN = sum(CLEN), 
@@ -33,10 +38,14 @@ aggregateByTaxa <- function(tblList = NULL, ...) {
       .groups = "keep") |>
     as.data.frame()
   
-  if ("GSCAT_CONV" %in% names(tblList)) {
+  if (all(c("GSCAT_CONV", "GSDET_CONV") %in% names(tblList)) & 
+       "SPEC" %in% names(tblList$GSCAT_CONV) & 
+      "SPEC" %in% names(tblList$GSDET_CONV)) {
+    
     tblList$GSCAT_CONV$SPEC <- tblList$GSDET_CONV$SPEC <- NULL
     
     tblList$GSCAT_CONV <- tblList$GSCAT_CONV |>
+      drop_size_class() |> 
       dplyr::group_by(dplyr::across(c(-TOTNO, -TOTWGT, -SAMPWGT_OG, -TOTNO_OG, -TOTWGT_OG))) |>
       dplyr::summarise(
         TOTWGT = sum(TOTWGT),
@@ -49,6 +58,7 @@ aggregateByTaxa <- function(tblList = NULL, ...) {
       as.data.frame()
     
     tblList$GSDET_CONV <- tblList$GSDET_CONV |>
+      drop_size_class() |> 
       dplyr::group_by(dplyr::across(c(-CLEN, -FWT, -CLEN_OG, -FWT_OG))) |>
       dplyr::summarise(
         CLEN = sum(CLEN), 

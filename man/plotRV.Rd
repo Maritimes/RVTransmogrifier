@@ -20,6 +20,7 @@ plotRV(
   title = NULL,
   path = NULL,
   filename = NULL,
+  byYear = FALSE,
   ...
 )
 }

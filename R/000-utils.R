@@ -552,8 +552,8 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41) {
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @importFrom dplyr group_by across all_of summarise
 #' @export
-drop_size_class <- function(df, sum_cols = c("TOTWGT", "TOTNO", "TOTNO_OG", "TOTWGT_OG", "SAMPWGT_OG")) {
-  
+drop_size_class <- function(df, sum_cols = c("TOTWGT", "TOTNO", "SAMPWGT", "TOTNO_OG", "TOTWGT_OG", "SAMPWGT_OG", "FWT", "CLEN", "FWT_OG", "CLEN_OG")) {
+  message("in drop_size_class")
   if (!"SIZE_CLASS" %in% names(df)) {
     warning("SIZE_CLASS column not found. Returning original dataframe.")
     return(df)

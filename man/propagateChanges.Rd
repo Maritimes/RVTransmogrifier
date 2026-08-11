@@ -17,6 +17,7 @@ propagateChanges(
   code = NULL,
   aphiaid = NULL,
   taxa = NULL,
+  aggregateTaxa = FALSE,
   debug = F
 )
 }

@@ -4,7 +4,13 @@
 \alias{loadRVData}
 \title{loadRVData}
 \usage{
-loadRVData(cxn = NULL, force.extract = FALSE, stock = NULL, ...)
+loadRVData(
+  cxn = NULL,
+  force.extract = FALSE,
+  stock = NULL,
+  applyConversions = T,
+  ...
+)
 }
 \arguments{
 \item{cxn}{A valid Oracle connection object. This parameter allows you to

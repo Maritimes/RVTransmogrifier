@@ -1,241 +1,214 @@
 #' @title plotRVSummary
-#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT, GSDET, GSMISSIONS, and GSSTRATUM.
-#' @param cxn  the default is \code{NULL}. A valid Oracle connection object. This parameter allows you to
-#' pass an existing connection, reducing the need to establish a new connection
-#' within the function. If provided, it takes precedence over the connection-
-#' related parameters.
-#' @param code  the default is \code{NULL}. If data should be limited to a particular species, enter
-#' the species code here
-#' @param taxa  the default is \code{NULL}. Any value found in any of "SPEC", "KINGDOM",
-#' "PHYLUM", "CLASS", "ORDER", "FAMILY", or "GENUS" can be specified (e.g. \code{taxa=c("GADIDAE")})
-#' @param survey   the default is \code{NULL}. This specifies which survey should be extracted.  Valid
-#' values are "SPRING", "SUMMER", "FALL", and "4VSW".  A value of NULL will result in products being
-#' generated for all 4 different surveys.
-#' @param strata  the default is \code{NULL}. A vector of 1 or more strata can be passed to this function, and the
-#' data will be filtered to only that/those strata (via GSSTRATUM$STRAT)
-#' @param types  the default is \code{1}.  A vector of 1 or more set "types" can be passed to this function, and the
-#' data will be filtered to only that/those set types (via GSINF$TYPE)
-#' @param species_name   the default is \code{NULL}. This will be used in the plot title.
-#' @param stock  the default is \code{NULL}. A valid stock name from `stock_map`. If provided, it overrides
-#' manually specified parameters like `code`, `months`, `strata`, etc.
-#' @param years  the default is \code{NULL}.
-#' @param use_new_areas  the default is \code{FALSE}. This is a development parameter.  It won't work for most users.
-#' @param show_error  the default is \code{FALSE}.  If confidence intervals should be shown on the plot, set this to TRUE.
-#'
-#' @returns a list including a plot and the stratified biomass/abundance data behind the plot
+#' @description Generate time series plots of stratified survey data (biomass or abundance) for one or more species. When multiple species are present in the data, the function creates separate plots for each species and returns them as a named list.
+#' @param tblList the default is \code{NULL}. A list of RV dataframes including GSINF, GSCAT (or GSCAT_CONV), GSDET, GSMISSIONS, and GSSTRATUM.
+#' @param code the default is \code{NULL}. A vector of one or more species codes (SPEC) or taxonomic identifiers (TAXA_) to plot. If NULL, all species found in the data will be plotted. If provided, only the specified species will be plotted.
+#' @param valueField the default is \code{"BIOMASS"}. The field to plot on the y-axis. Common options include "BIOMASS", "ABUNDANCE", "TOTWGT_MEAN", "TOTNO_MEAN".
+#' @param plotTitle the default is \code{NULL}. Optional custom title for the plots. The species code will be appended to this title for each plot.
+#' @param minYear the default is \code{NULL}. Minimum year to include in the plot. If NULL, all years are included.
+#' @param maxYear the default is \code{NULL}. Maximum year to include in the plot. If NULL, all years are included.
+#' @param show_gmean the default is \code{TRUE}. If TRUE, adds a horizontal line showing the geometric mean.
+#' @param show_ci the default is \code{TRUE}. If TRUE, adds confidence interval ribbons around the data.
+#' @param show_mean the default is \code{TRUE}. If TRUE, adds a horizontal line showing the arithmetic mean.
+#' @param legend_position the default is \code{"right"}. Position of the legend. Valid ggplot2 legend positions include "right", "left", "top", "bottom", or "none".
+#' @return A named list of ggplot objects, one per species. List names are formatted as "SPEC_##" or "TAXA_##" depending on the species column used. Returns NULL with a warning if no plots are generated.
+#' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-
 plotRVSummary <- function(
     tblList = NULL,
-    cxn = NULL,
     code = NULL,
     taxa = NULL,
     aphiaid = NULL,
-    survey = NULL,
-    strata = NULL,
-    types = 1,
-    species_name = NULL,
-    stock = NULL,
-    years = NULL,
-    show_error = FALSE,
-    use_new_areas = FALSE
+    valueField = "BIOMASS",
+    plotUnits = "ton",
+    plotTitle = NULL,
+    minYear = NULL,
+    maxYear = NULL,
+    show_gmean = TRUE,
+    show_ci = TRUE,
+    show_mean = TRUE,
+    legend_position = "right"
 ) {
-  if(!is.null(tblList)){
-    tblList <- propagateChanges(
-      tblList = tblList,
-      survey = survey,
-      years = years,
-      strata = strata,
-      types = types,
-      code = code,
-      taxa = taxa,
-      aphiaid = aphiaid
-    )
-    tblList <- aggregateByTaxa(tblList = tblList,
-                               taxa = taxa,
-                               code = code,
-                               aphiaid = aphiaid)
 
-    results_all <- tblList
-
-}else{  
-  if (!is.null(stock)) {
-    if (
-      !is.null(code) || !is.null(taxa) || !is.null(strata) || !is.null(types)
-    ) {
-      warning(
-        "When 'stock' is provided, 'code', 'taxa', 'strata', and 'types' will be ignored."
-      )
-    }
-    code <- NULL
-    taxa <- NULL
-    strata <- NULL
-    types <- NULL
-  }
+  tblList <- filterSpecies(tblList = tblList, code = code, aphiaid = aphiaid, taxa = taxa)
+  tblList <- aggregateByTaxa(tblList = tblList)
+  tblList <- propagateChanges(tblList = tblList)
   
-  # Load data (now includes years parameter)
-  results_all <- loadRVData(
-    cxn = cxn,
-    stock = stock,
-    code = code,
-    taxa = taxa,
-    survey = survey,
-    strata = strata,
-    types = types,
-    years = years # Changed here
-  ) 
-}
-
-  results_all$GSINF <-
-    results_all$GSINF |>
-    dplyr::rename(AREA_KM2_GSSTRATUM = AREA_KM2)
-  
-  results_strat <- stratify_simple(
-    tblList = results_all,
-    towDist_NM = 1.75,
-    areaField = "AREA_KM2_GSSTRATUM",
-    areaFieldUnits = "KM2"
-  )
-
-res <- list()
-# # Calculate long-term geometric mean (1987-2020) for each metric
-geometric_mean <- function(x) exp(mean(log(x[x > 0]), na.rm = TRUE)) # Avoid log(0)
-
-mean_BIOMASS_1987_2020 <- geometric_mean(
-  results_strat$results_by_year |>
-    dplyr::filter(YEAR >= 1987 & YEAR <= 2020) |>
-    dplyr::pull(BIOMASS)
-) |> round(0)
-
-mean_ABUNDANCE_1987_2020 <- geometric_mean(
-  results_strat$results_by_year |>
-    dplyr::filter(YEAR >= 1987 & YEAR <= 2020) |>
-    dplyr::pull(ABUNDANCE)
-) |> round(0)
-
-# Pick an informative default species name if not specified
-if (is.null(species_name)) {
-  if (!is.null(stock)) {
-    species_name <- paste("Stock:", stock)
-  } else if (!is.null(taxa)) {
-    species_name <- taxa
-  } else if (!is.null(code)) {
-    species_name <- paste("Species code", code)
+  # Determine species column name
+  if ("GSCAT_CONV" %in% names(tblList)) {
+    theCat <- tblList$GSCAT_CONV
   } else {
-    species_name <- "Species"
+    theCat <- tblList$GSCAT
   }
-  species_name <- species_name
-}
+  
+  if (!is.null(taxa)) {
+    tblList <- aggregateByTaxa(tblList = tblList, taxa = taxa)
+    # message("aggregated!")
+  }else{
+    # message("did not aggregate!")
+  }
 
-results_strat$results_by_year <- results_strat$results_by_year |>
-  dplyr::mutate(
-    GEO_MEAN_BIOMASS = round(
-      zoo::rollapply(
-        BIOMASS,
-        width = 3,
-        FUN = geometric_mean,
-        fill = NA,
-        align = "center"
-      ),
-      0
-    ),
-    GEO_MEAN_ABUNDANCE = round(
-      zoo::rollapply(
-        ABUNDANCE,
-        width = 3,
-        FUN = geometric_mean,
-        fill = NA,
-        align = "center"
-      ),
-      0
-    )
+  if ("SPEC" %in% names(theCat)) {
+    species_col <- "SPEC"
+  } else if ("TAXA_" %in% names(theCat)) {
+    species_col <- "TAXA_"
+    tblList <- aggregateByTaxa(tblList)
+  } else {
+    stop("Either SPEC or TAXA_ must exist in the data")
+  }
+  
+  # Filter by species if code parameter is provided
+  if (!is.null(code)) {
+    if ("GSCAT_CONV" %in% names(tblList)) {
+      tblList$GSCAT_CONV <- tblList$GSCAT_CONV[tblList$GSCAT_CONV[[species_col]] %in% code, ]
+    } else {
+      tblList$GSCAT <- tblList$GSCAT[tblList$GSCAT[[species_col]] %in% code, ]
+    }
+    
+    # Check if any data remains after filtering
+    remaining_data <- if ("GSCAT_CONV" %in% names(tblList)) {
+      nrow(tblList$GSCAT_CONV)
+    } else {
+      nrow(tblList$GSCAT)
+    }
+    
+    if (remaining_data == 0) {
+      stop("No data found for the specified species: ", paste(code, collapse = ", "))
+    }
+  }
+  
+  # Stratify the data (returns list by species)
+  results_strat <- stratify_simple(
+    tblList = tblList,
+    totwgt_units = plotUnits
   )
+  
+  # Get list of species to plot
+  species_to_plot <- names(results_strat)
+  
+  # Create a list to store plots
+  plot_list <- list()
+  
+  # Loop through each species and create a plot
+  for (sp_name in species_to_plot) {
+    # Extract species code from name (e.g., "SPEC_10" -> "10")
+    sp_code <- sub(paste0(species_col, "_"), "", sp_name)
+    
+    # Extract data for this species
+    sp_data <- results_strat[[sp_name]]$results_by_year
+    
+    # Apply year filters if specified
+    if (!is.null(minYear)) {
+      sp_data <- sp_data[sp_data$YEAR >= minYear, ]
+    }
+    if (!is.null(maxYear)) {
+      sp_data <- sp_data[sp_data$YEAR <= maxYear, ]
+    }
+    
+    # Check if data exists after filtering
+    if (nrow(sp_data) == 0) {
+      warning(paste0("No data for ", sp_name, " after year filtering. Skipping plot."))
+      next
+    }
+    
 
-
-# Make plots
-p_biomass <- ggplot2::ggplot(
-  results_strat$results_by_year,
-  ggplot2::aes(x = YEAR, y = BIOMASS)
-) +
-  {if (show_error) 
-    ggplot2::geom_ribbon(
-      ggplot2::aes(ymin = BIOMASS_LOW, ymax = BIOMASS_HIGH),
-      fill = "blue",
-      alpha = 0.2
-    ) else NULL} +
-  ggplot2::geom_point(size = 2) +
-  ggplot2::geom_line(
-    ggplot2::aes(y = GEO_MEAN_BIOMASS),
-    linewidth = 1,
-    color = "black"
-  ) + # Geometric mean line
-  ggplot2::geom_hline(
-    yintercept = mean_BIOMASS_1987_2020 * 0.8,
-    linetype = "dotted",
-    color = "red"
-  ) + # 80% line
-  ggplot2::geom_hline(
-    yintercept = mean_BIOMASS_1987_2020 * 0.4,
-    linetype = "dotted",
-    color = "red"
-  ) +
-  ggplot2::scale_y_continuous(labels = scales::comma) +
-  ggplot2::labs(
-    title = paste0(
-      "Total Biomass of ",
-      species_name,
-      " by Year (",
-      survey,
-      ")"
-    ),
-    x = "Year",
-    y = "Total Biomass (tons)"
-  ) +
-  ggplot2::theme_minimal() +
-  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1))
-
-# Plot for Total Number
-p_abundance <- ggplot2::ggplot(
-  results_strat$results_by_year,
-  ggplot2::aes(x = YEAR, y = ABUNDANCE)
-) +
-  {if (show_error) 
-    ggplot2::geom_ribbon(
-      ggplot2::aes(
-        ymin = ABUNDANCE_LOW,
-        ymax = ABUNDANCE_HIGH
-      ),
-      fill = "blue",
-      alpha = 0.2
-    ) else NULL} +
-  ggplot2::geom_point(size = 2) +
-  ggplot2::geom_line(
-    ggplot2::aes(y = GEO_MEAN_ABUNDANCE),
-    linewidth = 1,
-    color = "black"
-  ) + # Geometric mean line
-  ggplot2::geom_hline(
-    yintercept = mean_ABUNDANCE_1987_2020 * 0.8,
-    linetype = "dotted",
-    color = "red"
-  ) + # 80% line
-  ggplot2::geom_hline(
-    yintercept = mean_ABUNDANCE_1987_2020 * 0.4,
-    linetype = "dotted",
-    color = "red"
-  ) +
-  ggplot2::scale_y_continuous(labels = scales::comma) +
-  ggplot2::labs(
-    title = paste0("Total Abundance of ", species_name," by Year (", survey, ")"),
-    x = "Year",
-    y = "Total Abundance"
-  ) +
-  ggplot2::theme_minimal() +
-  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 60, hjust = 1))
-
-# Combine plots vertically
-res$results_strat <- results_strat
-res$plot <- cowplot::plot_grid(p_biomass, p_abundance, ncol = 1, align = 'v')
-
-return(res)
+    # Calculate geometric mean if requested
+    if (show_gmean) {
+      non_zero_values <- sp_data[[valueField]][sp_data[[valueField]] > 0]
+      if (length(non_zero_values) > 0) {
+        geometric_mean <- exp(mean(log(non_zero_values)))
+      } else {
+        geometric_mean <- NA
+        warning(paste0("No non-zero values found for geometric mean calculation for ", sp_name))
+      }
+    }
+    
+    if (grepl(pattern="WGT|MASS", x = valueField, ignore.case = T)){
+      plotField = paste0(" (", plotUnits, ")")
+    }else{
+      plotField = ""
+    }
+    
+    # Create the plot (keeping original styling)
+    p <- ggplot2::ggplot(sp_data, ggplot2::aes(x = YEAR, y = .data[[valueField]])) +
+      ggplot2::geom_line() +
+      ggplot2::geom_point() +
+      ggplot2::theme_bw() +
+      ggplot2::labs(
+        x = "Year",
+        y = paste0(valueField, plotField),
+        title = if (!is.null(plotTitle)) {
+          paste0(plotTitle, " - ", species_col, ": ", sp_code)
+        } else {
+          paste0(valueField, " - ", species_col, ": ", sp_code)
+        }
+      ) +
+      ggplot2::theme(legend.position = legend_position)
+    
+    # Add confidence intervals if requested
+    if (show_ci) {
+      ci_low_field <- paste0(valueField, "_LOW")
+      ci_high_field <- paste0(valueField, "_HIGH")
+      
+      if (ci_low_field %in% names(sp_data) && ci_high_field %in% names(sp_data)) {
+        p <- p + ggplot2::geom_ribbon(
+          ggplot2::aes(ymin = .data[[ci_low_field]], ymax = .data[[ci_high_field]]),
+          alpha = 0.3,
+          fill = "blue"
+        )
+      }
+    }
+    
+    # Add mean line if requested
+    if (show_mean) {
+      mean_value <- mean(sp_data[[valueField]], na.rm = TRUE)
+      p <- p + ggplot2::geom_hline(
+        yintercept = mean_value,
+        linetype = "dashed",
+        color = "red",
+        size = 0.8
+      ) +
+        ggplot2::annotate(
+          "text",
+          x = min(sp_data$YEAR),
+          y = mean_value,
+          label = paste0("Mean: ", round(mean_value, 2)),
+          hjust = 0,
+          vjust = -0.5,
+          color = "red",
+          size = 3
+        )
+    }
+    
+    # Add geometric mean line if requested
+    if (show_gmean && !is.na(geometric_mean)) {
+      p <- p + ggplot2::geom_hline(
+        yintercept = geometric_mean,
+        linetype = "dotted",
+        color = "darkgreen",
+        size = 0.8
+      ) +
+        ggplot2::annotate(
+          "text",
+          x = max(sp_data$YEAR),
+          y = geometric_mean,
+          label = paste0("G.Mean: ", round(geometric_mean, 2)),
+          hjust = 1,
+          vjust = -0.5,
+          color = "darkgreen",
+          size = 3
+        )
+    }
+    
+    # Store plot in list with species name as key
+    plot_list[[sp_name]]$plot <- p
+    plot_list[[sp_name]]$data <- sp_data
+  }
+  
+  # Return list of plots
+  if (length(plot_list) == 0) {
+    warning("No plots were generated.")
+    return(NULL)
+  }
+  
+  return(plot_list)
 }

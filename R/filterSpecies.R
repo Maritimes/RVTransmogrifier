@@ -25,12 +25,10 @@ filterSpecies <- function(
   taxa = NULL,
   debug = FALSE
 ) {
+  message("in filterSpecies()")
+  
   if (!is.null(aphiaid)) {
-    if (!is.null(taxa)) {
-      message(
-        "Only one filter type  (i.e. code, taxa, aphiaid) can be done at once. Only 'aphiaid' will be used."
-      )
-    }
+    if (!is.null(taxa)) message("Only one filter type  (i.e. code, taxa, aphiaid) can be done at once. Only 'aphiaid' will be used.")
     req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$APHIA_ID %in% aphiaid),]
     req_Spp$TAXA_ <- req_Spp$SPEC
     req_Spp$TAXARANK_ <- req_Spp$RANK
@@ -75,16 +73,16 @@ filterSpecies <- function(
     req_Spp <- req_Spp_Taxa
   } else if (!is.null(code)) {
     req_Spp <- tblList$GSSPECIES_NEW[which(tblList$GSSPECIES_NEW$CODE %in% code),]
-    req_Spp$TAXA_ <- req_Spp$SPEC
-    req_Spp$TAXARANK_ <- req_Spp$RANK
+    # req_Spp$TAXA_ <- req_Spp$SPEC
+    # req_Spp$TAXARANK_ <- req_Spp$RANK
     if (length(code[!(code %in% tblList$GSSPECIES_NEW$CODE)]) > 0) {
       message("No species with the following codes could be found: ", paste0(code[!(code %in% tblList$GSSPECIES_NEW$CODE)], collapse = ", "))
     }
   } else {
     #if no code/aphia/taxa sent, still need to add taxa and taxarank to the data for other functions
     req_Spp <- tblList$GSSPECIES_NEW
-    req_Spp$TAXA_ <- req_Spp$SPEC
-    req_Spp$TAXARANK_ <- req_Spp$RANK
+    # req_Spp$TAXA_ <- req_Spp$SPEC
+    # req_Spp$TAXARANK_ <- req_Spp$RANK
   }
 
   if (nrow(req_Spp) > 0) {
@@ -99,7 +97,8 @@ filterSpecies <- function(
     return(tblList)
   }
   tblList$GSSPECIES_NEW <- req_Spp
-  if (!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))) {
+
+  if (!is.null(taxa) &!all(c("TAXA_", "TAXARANK_") %in% names(tblList$GSCAT))) {
     tblList$GSCAT <- merge(tblList$GSCAT, dplyr::distinct(tblList$GSSPECIES_NEW[, c("CODE", "TAXA_", "TAXARANK_")]), by.x = "SPEC", by.y = "CODE")
     if ("GSCAT_CONV" %in% names(tblList)) tblList$GSCAT_CONV <- merge(tblList$GSCAT_CONV, dplyr::distinct(tblList$GSSPECIES_NEW[, c("CODE", "TAXA_", "TAXARANK_")]), by.x = "SPEC", by.y = "CODE")
     tblList$GSDET <- merge(tblList$GSDET, dplyr::distinct(tblList$GSSPECIES_NEW[, c("CODE", "TAXA_", "TAXARANK_")]), by.x = "SPEC", by.y = "CODE")
