@@ -212,6 +212,6 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,  applyCo
         aggregateTaxa = aggTaxa
       )
   }
-  if (applyConversions == T) tblList <- applyConversionFactors(tblList=tblList)
+  if (applyConversions == T) tblList <- applyConversionFactors(cxn = cxn, tblList=tblList)
   return(tblList)
 }
