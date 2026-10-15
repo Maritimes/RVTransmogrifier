@@ -816,6 +816,14 @@ the preferred CF will result in 0, while the other has a non-zero value."
 
   newCat <- merge(newCat, ogGSCAT, by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS"))
   newCat <- newCat |> arrange(MISSION, SETNO, SPEC, SIZE_CLASS)
+  
+  #Added these two lines to take the sample ratio out of gsdet convereted as it is not applied in the raw gsdet file and when stratifying thats when it gets applied.
+  newDet<-merge(newDet,raw_GSCAT[c("MISSION","SETNO","SPEC","SIZE_CLASS","SAMPTOT_Ratio")],by=c("MISSION","SETNO","SPEC","SIZE_CLASS"))
+  
+  newDet<- newDet %>%
+    mutate(CLEN=CLEN/SAMPTOT_Ratio,
+           FWT=FWT/SAMPTOT_Ratio)
+  
   tblList$GSDET_CONV <-  newDet
   tblList$GSCAT_CONV <- newCat
   return(tblList)
