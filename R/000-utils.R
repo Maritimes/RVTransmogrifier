@@ -530,7 +530,6 @@ valPerSqKm <- function(theData = NULL, towDist_NM = 1.75, netWidth_ft = 41) {
   sakm2 = (netWidth_ft * ft2m * m2km) *
     (towDist_NM * nmi2mi * mi2ft * ft2m * m2km)
   res = theData / sakm2
-  res = round(res, 4)
   return(res)
 }
 
@@ -691,17 +690,28 @@ calcYearSummary <- function(
 #' @return A list containing three elements: standardized_data (individual-level records), length_total (aggregated by length), and age_total (aggregated by age). Returns NA for length_total or age_total if no length or age data exist.
 #' @author Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
+standardize_catch_counts <- function(tblList, towDist = 1.75,netWidthUnits=netWidthUnits, by_sex = FALSE, Converted_Data = TRUE) {
   if (!"SPEC" %in% names(tblList$GSCAT) | nrow(tblList$GSDET) < 1) {
     stop(
       "Either this is Taxa-level data or GSDET has no records.  Either way, please use stratify_simple() instead"
     )
   }
+  
+  if (Converted_Data) {
+    tblList$GSCAT<-tblList$GSCAT_CONV
+    tblList$GSDET<-tblList$GSDET_CONV
+  }
   weight_data <- tblList$GSCAT |>
-    dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, SAMPWGT, TOTWGT)
+    dplyr::select(MISSION, SETNO, SPEC, SIZE_CLASS, any_of(c("SAMPWGT",  "SAMPWGT_OG")), any_of(c("TOTWGT","TOTWGT_OG")))
 
   dist_data <- tblList$GSINF |>
     dplyr::select(MISSION, SETNO, DIST, AREA_KM2, GEAR, WINGSPREAD_FT)
+  
+  if (netWidthUnits == "NEST") {
+    dist_data$WINGSPREAD_FT <- 42.65
+  } else if (netWidthUnits == "WIIA") {
+    dist_data$WINGSPREAD_FT <- 41
+  } 
 
   all_sets <- tblList$GSINF |>
     dplyr::filter(TYPE == 1) |>
@@ -709,6 +719,8 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
     dplyr::distinct()
 
   #ensure that NA FSEX are changed to 0, and anything recorded as "berried" is interpreted as female
+  if ("SAMPWGT_OG"  %in% names(weight_data)) {
+  
   standardized_data <- tblList$GSDET |>
     dplyr::left_join(
       weight_data,
@@ -717,29 +729,61 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
     dplyr::left_join(dist_data, by = c("MISSION", "SETNO")) |>
     dplyr::mutate(
       weight_ratio = dplyr::case_when(
-        is.na(TOTWGT) | is.na(SAMPWGT) | TOTWGT == 0 | SAMPWGT == 0 ~ 1,
-        TRUE ~ TOTWGT / SAMPWGT
-      ),
+        is.na(TOTWGT_OG) | is.na(SAMPWGT_OG) | TOTWGT_OG == 0 | SAMPWGT_OG == 0 ~ 1,
+        TRUE ~ TOTWGT_OG / SAMPWGT_OG),
       FSEX = dplyr::if_else(is.na(FSEX), 0, dplyr::if_else(FSEX == 3, 2, FSEX)),
-      CLEN = CLEN * weight_ratio,
+      CLEN_RAW = CLEN,
+      CLEN = dplyr::if_else(GEAR==15,CLEN * weight_ratio*(1/DIST),CLEN * weight_ratio*(1.75/DIST)),
       CAGE = dplyr::if_else(!is.na(AGE), CLEN, NA_real_),
       DIST = dplyr::if_else(is.na(DIST), towDist, DIST),
-      CLEN_RAW = CLEN,
       CAGE_RAW = CAGE,
-      CLEN = CLEN ,
       CAGE = dplyr::if_else(!is.na(CAGE), CAGE , NA_real_),
       CLEN_sqkm = dplyr::if_else(
-        !is.na(CLEN),
-        valPerSqKm(CLEN, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT),
+        !is.na(CLEN_RAW),
+        valPerSqKm(CLEN_RAW, towDist_NM = dplyr::if_else(GEAR==15,1,1.75), netWidth_ft = WINGSPREAD_FT),
         NA_real_
       ),
       CAGE_sqkm = dplyr::if_else(
         !is.na(CAGE),
-        valPerSqKm(CAGE, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT),
+        valPerSqKm(CAGE, towDist_NM = dplyr::if_else(GEAR==15,1,1.75), netWidth_ft = WINGSPREAD_FT),
         NA_real_
       )
     ) |>
-    dplyr::select(-weight_ratio, -SAMPWGT, -TOTWGT, -SIZE_CLASS)
+    dplyr::select( -weight_ratio, -SAMPWGT_OG, -TOTWGT, -SIZE_CLASS)
+  } 
+  else {
+    
+    standardized_data <- tblList$GSDET |>
+      dplyr::left_join(
+        weight_data,
+        by = c("MISSION", "SETNO", "SPEC", "SIZE_CLASS")
+      ) |>
+      dplyr::left_join(dist_data, by = c("MISSION", "SETNO")) |>
+      dplyr::mutate(
+        weight_ratio = dplyr::case_when(
+          is.na(TOTWGT) | is.na(SAMPWGT) | TOTWGT == 0 | SAMPWGT == 0 ~ 1,
+          TRUE ~ TOTWGT / SAMPWGT),
+        FSEX = dplyr::if_else(is.na(FSEX), 0, dplyr::if_else(FSEX == 3, 2, FSEX)),
+        CLEN_RAW = CLEN,
+        CLEN = dplyr::if_else(GEAR==15,CLEN * weight_ratio*(1/DIST),CLEN * weight_ratio*(1.75/DIST)),
+        CAGE = dplyr::if_else(!is.na(AGE), CLEN, NA_real_),
+        DIST = dplyr::if_else(is.na(DIST), towDist, DIST),
+        CAGE_RAW = CAGE,
+        CLEN = CLEN ,
+        CAGE = dplyr::if_else(!is.na(CAGE), CAGE , NA_real_),
+        CLEN_sqkm = dplyr::if_else(
+          !is.na(CLEN),
+          valPerSqKm(CLEN, towDist_NM = dplyr::if_else(GEAR==15,1,1.75), netWidth_ft = WINGSPREAD_FT),
+          NA_real_
+        ),
+        CAGE_sqkm = dplyr::if_else(
+          !is.na(CAGE),
+          valPerSqKm(CAGE, towDist_NM = dplyr::if_else(GEAR==15,1,1.75), netWidth_ft = WINGSPREAD_FT),
+          NA_real_
+        )
+      ) |>
+      dplyr::select(-weight_ratio, -SAMPWGT, -TOTWGT, -SIZE_CLASS)
+    }
 
   spec_only <- standardized_data |>
     dplyr::select(SPEC) |>
@@ -919,6 +963,7 @@ widen_data <- function(
 
   if (level == "set") {
     group_vars <- c(
+      "YEAR",
       "MISSION",
       "SETNO",
       "STRAT",
@@ -926,12 +971,12 @@ widen_data <- function(
       "SPEC",
       col_for_wide
     )
-    nesting_vars <- c("MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC")
-    arrange_vars <- c("STRAT", "MISSION", "SETNO")
+    nesting_vars <- c("YEAR","MISSION", "SETNO", "STRAT", "AREA_KM2", "SPEC")
+    arrange_vars <- c("YEAR","STRAT", "MISSION", "SETNO")
   } else {
-    group_vars <- c("STRAT", "AREA_KM2", "SPEC", col_for_wide)
-    nesting_vars <- c("STRAT", "AREA_KM2", "SPEC")
-    arrange_vars <- "STRAT"
+    group_vars <- c("YEAR","STRAT", "AREA_KM2", "SPEC", col_for_wide)
+    nesting_vars <- c("YEAR","STRAT", "AREA_KM2", "SPEC")
+    arrange_vars <- c("YEAR","STRAT")
   }
 
   if (by_sex) {
@@ -982,7 +1027,12 @@ widen_data <- function(
 #' importFrom dplyr mutate
 #' @export
 binnit <- function(data, bin_size = 1) {
+  if(bin_size==1) {
+    FLEN_BIN <- bin_size * floor(data$FLEN / bin_size)
+  }
+  else{
   FLEN_BIN <- 1 + bin_size * floor(data$FLEN / bin_size)
+  }
   dplyr::mutate(data, FLEN_BIN = FLEN_BIN)
 }
 
