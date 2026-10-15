@@ -726,8 +726,8 @@ standardize_catch_counts <- function(tblList, towDist = 1.75, by_sex = FALSE) {
       DIST = dplyr::if_else(is.na(DIST), towDist, DIST),
       CLEN_RAW = CLEN,
       CAGE_RAW = CAGE,
-      CLEN = CLEN * (towDist / DIST),
-      CAGE = dplyr::if_else(!is.na(CAGE), CAGE * (towDist / DIST), NA_real_),
+      CLEN = CLEN ,
+      CAGE = dplyr::if_else(!is.na(CAGE), CAGE , NA_real_),
       CLEN_sqkm = dplyr::if_else(
         !is.na(CLEN),
         valPerSqKm(CLEN, towDist_NM = DIST, netWidth_ft = WINGSPREAD_FT),
