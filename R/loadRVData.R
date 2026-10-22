@@ -14,7 +14,7 @@
 #' specified survey and years
 #' @author  Mike McMahon, \email{Mike.McMahon@@dfo-mpo.gc.ca}
 #' @export
-loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,  applyConversions =T,...) {
+loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,Vessel_Units=NULL,  applyConversions =T,...) {
   args <- list(...)
   newE <- new.env()
   if (is.null(args$debug)) {
@@ -34,6 +34,7 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,  applyCo
     if (!stock %in% names(stock_map)) {
       stop("Invalid stock name. Use `list_stocks()` to see valid options.")
     }
+
     
     stock_params <- stock_map[[stock]]
     
@@ -42,6 +43,16 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,  applyCo
     args$months <- stock_params$months
     args$strata <- stock_params$strata
     args$areas <- stock_params$areas
+  }
+  
+  
+  if (applyConversions==T) {
+    if(missing(Vessel_Units) || length(Vessel_Units)>1 || !Vessel_Units %in% c("CAR_CAB","TEL_VEN","NED_TEM") || is.null(Vessel_Units) ) {
+    stop('When applying conversion factors a single Vessel_Units value is needed.
+           \tFor Cartier and Cabot Units use "CAR_CAB"
+           \tFor Teleost and Venture Units use "TEL_VEN"
+           \tFor Needler and Templeman Units use "NED_TEM"')
+    }
   }
   
   missingTables <- coreTables[
@@ -212,6 +223,6 @@ loadRVData <- function(cxn = NULL, force.extract = FALSE, stock = NULL,  applyCo
         aggregateTaxa = aggTaxa
       )
   }
-  if (applyConversions == T) tblList <- applyConversionFactors(cxn = cxn, tblList=tblList)
+  if (applyConversions == T) tblList <- applyConversionFactors(tblList=tblList,VesselUnits=Vessel_Units)
   return(tblList)
 }

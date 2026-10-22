@@ -36,7 +36,7 @@ stratify_simple <- function(
     tblList = NULL,
     df = NULL,
     towDist_NM = 1.75,
-    netWidthUnits= c("NEST","WIIA"),
+    netWidthUnits= netWidthUnits,
     areaField = "AREA_KM2",
     areaFieldUnits = c("KM2", "NM2", "M2"),
     conf_limits = 95,
@@ -393,12 +393,16 @@ stratify_detailed <- function(
     dplyr::distinct()
   
   totals$length_total$YEAR<-as.numeric(substr(totals$length_total$MISSION, 4, 7))
+  
+  if (inherits(totals$age_total, "data.frame")) {
   totals$age_total$YEAR<-as.numeric(substr(totals$age_total$MISSION, 4, 7))
+  }
+  
   totals$standardized_data$YEAR<-as.numeric(substr(totals$standardized_data$MISSION, 4, 7))
   
   if (inherits(totals$length_total, "data.frame")) {
     length_data <- totals$length_total
-    
+
     if (by_sex) {
       all_combos <- all_sets |>
         tidyr::crossing(spec_only) |>
@@ -448,6 +452,8 @@ stratify_detailed <- function(
         ) |>
         dplyr::select(-CLEN_values, -CLEN_SQKM_values)
     } else {
+      
+      
       all_combos <- all_sets |>
         tidyr::crossing(spec_only) |>
         tidyr::crossing(length_data |> dplyr::select(FLEN) |> dplyr::distinct())
@@ -509,14 +515,32 @@ stratify_detailed <- function(
       level = "strat",
       by_sex = by_sex
     )
-    lenStrat_se <- widen_data(
-      length_strat,
+    
+    lenSet_mean_KM <- widen_data(
+      length_complete,
       var_col = "FLEN",
-      value_col = "CLEN_SE",
+      value_col = "CLEN_SQKM_TOTAL",
       bin_size = bin_size,
-      level = "strat",
+      level = "set",
       by_sex = by_sex
     )
+    
+    
+    lenStrat_se <- lenSet_mean %>%
+      group_by(YEAR,STRAT,AREA_KM2,SPEC) %>%
+      summarise(across(7:ncol(lenSet_mean)-4,~Mar.utils::st_err(.)),.groups = "drop_last") %>%
+      ungroup()
+    
+    lenStrat_total_se <- lenSet_mean_KM %>%
+        mutate(across(7:ncol(lenSet_mean),~.*AREA_KM2))
+    
+    lenStrat_total_se <- lenStrat_total_se %>%
+      group_by(YEAR,STRAT,AREA_KM2,SPEC) %>%
+      summarise(across(7:ncol(lenSet_mean)-4,~Mar.utils::st_err(.)),.groups = "drop_last") %>%
+      ungroup()
+    
+  
+    
     lenStrat_total <- widen_data(
       length_strat,
       var_col = "FLEN",
@@ -531,16 +555,9 @@ stratify_detailed <- function(
       value_col = "CLEN_STRAT_TOTAL",
       bin_size = bin_size,
       level = "strat",
-      by_sex = F
-    )
-    lenStrat_total_se <- widen_data(
-      length_strat,
-      var_col = "FLEN",
-      value_col = "CLEN_STRAT_TOTAL_SE",
-      bin_size = bin_size,
-      level = "strat",
       by_sex = by_sex
     )
+    
     
     ###### MEAN ######
     
@@ -1247,20 +1264,82 @@ stratify_detailed <- function(
         !!!age_mean_se_vals
       )
     
-    ageStrat_total <- strat_age_total |>
+    strat_age_total <- strat_age_total |>
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
         !!!age_total_vals
       )
     
-    ageStrat_total_se <- strat_age_total_se |>
+    strat_age_total_se <- strat_age_total_se |>
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
         !!!age_total_se_vals
       )
   }
+  
+  
+  if (inherits(totals$age_total, "data.frame")) {
+  alk<- alk %>%
+    dplyr::arrange(YEAR,SPEC,FLEN)
+  
+  alw<- alw %>%
+    dplyr::arrange(YEAR,SPEC,FLEN)
+  
+  age_table<- age_table %>%
+    dplyr::arrange(YEAR,SPEC,FLEN)
+  
+  set_age<-set_age %>%
+    select(1:6, stringr::str_sort(names(.)[7:ncol(.)], numeric = TRUE))
+   
+  set_age<- set_age %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+  strat_age_mean<-strat_age_mean %>%
+   select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+ 
+ strat_age_mean <- strat_age_mean %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ strat_age_mean_se<-strat_age_mean_se %>%
+   select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+ 
+ strat_age_mean_se<- strat_age_mean_se %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ strat_age_total<-strat_age_total %>%
+   select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+ 
+ strat_age_total<- strat_age_total %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ strat_age_total_se<-strat_age_total_se %>%
+   select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+ 
+ strat_age_total_se<- strat_age_total_se %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+  }
+  
+  
+  
+  lenSet_mean<- lenSet_mean %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+ lenStrat_mean<- lenStrat_mean %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ lenStrat_se<- lenStrat_se %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ lenStrat_total<- lenStrat_total %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ lenStrat_total_se<- lenStrat_total_se %>%
+   dplyr::arrange(YEAR,SPEC,STRAT)
+ 
+ 
+ 
   
   results <- list()
   results$summaries$overall <- stratSimp$overall

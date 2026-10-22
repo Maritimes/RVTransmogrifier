@@ -358,7 +358,8 @@ stratify_detailed <- function(
     by_sex = FALSE,
     conf_limits = 95,
     inc_limits = T,
-    bin_size = 1
+    bin_size = 1,
+    Converted_Data=TRUE
 ) {
   stratSimp <- stratify_simple(
     tblList = tblList,
@@ -369,14 +370,15 @@ stratify_detailed <- function(
   totals <- standardize_catch_counts(
     tblList,
     towDist = towDist,
-    by_sex = by_sex
+    by_sex = by_sex,
+    Converted_Data = Converted_Data
   )
-  
-  all_sets <- stratSimp$stratified_by_set |>
+  df<-easyFlatten(tblList)
+  all_sets <- df |>
     dplyr::select(MISSION, SETNO, STRAT, AREA_KM2) |>
     dplyr::distinct()
   
-  spec_only <- stratSimp$stratified_by_set |>
+  spec_only <- df |>
     dplyr::select(SPEC) |>
     dplyr::distinct()
   

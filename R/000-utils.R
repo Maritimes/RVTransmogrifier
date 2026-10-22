@@ -737,10 +737,11 @@ standardize_catch_counts <- function(tblList, towDist = 1.75,netWidthUnits=netWi
       CAGE = dplyr::if_else(!is.na(AGE), CLEN, NA_real_),
       DIST = dplyr::if_else(is.na(DIST), towDist, DIST),
       CAGE_RAW = CAGE,
+      CLEN = CLEN ,
       CAGE = dplyr::if_else(!is.na(CAGE), CAGE , NA_real_),
       CLEN_sqkm = dplyr::if_else(
-        !is.na(CLEN_RAW),
-        valPerSqKm(CLEN_RAW, towDist_NM = dplyr::if_else(GEAR==15,1,1.75), netWidth_ft = WINGSPREAD_FT),
+        !is.na(CLEN),
+        valPerSqKm(CLEN, towDist_NM = dplyr::if_else(GEAR==15,1,1.75), netWidth_ft = WINGSPREAD_FT),
         NA_real_
       ),
       CAGE_sqkm = dplyr::if_else(
@@ -951,11 +952,23 @@ widen_data <- function(
 
     data <- binnit(data, bin_size = bin_size)
     col_for_wide <- bin_col
-    seq_vals <- seq(
-      1 + bin_size * floor(min_val / bin_size),
-      1 + bin_size * floor(max_val / bin_size),
-      by = bin_size
-    )
+    
+    
+    if(bin_size==1) {
+      seq_vals <- seq(
+        bin_size * floor(min_val / bin_size),
+        bin_size * floor(max_val / bin_size),
+        by = bin_size)
+    }
+    else{
+      seq_vals <- seq(
+        1 + bin_size * floor(min_val / bin_size),
+        1 + bin_size * floor(max_val / bin_size),
+        by = bin_size)
+      
+    }
+    
+    
   } else {
     col_for_wide <- var_col
     seq_vals <- sort(unique(data[[var_col]]))
