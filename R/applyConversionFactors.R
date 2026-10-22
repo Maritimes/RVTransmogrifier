@@ -42,7 +42,7 @@
 #' @importFrom dplyr case_when
 #' @importFrom Mar.utils get_data_tables
 #' @export
-applyConversionFactors <- function(cxn = NULL, tblList) {
+applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
   season <- unique(tblList$GSMISSIONS$SEASON)
   if (length(season) > 1) {
     stop("The function can only handle a single season of data")
@@ -57,7 +57,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   # retain data for SPECs that have conversion factors based on FLENs for the TEL/VEN to CAR/CAB and the NED/TEM to TEL/VEN
   GSCAT_SPEC_LIST_TELVEN <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "TEL_VEN")
   GSCAT_SPEC_LIST_NEDTEM <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "NED_TEM")
-  
+  GSCAT_SPEC_LIST_ATCHAM<-c(11,40,41,42,43)
   # pull the As and Bs for the selected season (summer or winter).
   # If multiple exist (for the same SPEC/SEX) choose the higher R2 value
   ABs <- GSSPEC2 |>
@@ -141,11 +141,31 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   # put recs that don't need conversions done by FLEN (i.e. GSCAT_SPEC_LIST_*)  
   # If a species requires a conversion factor for the TEL/VEN to CAR/CAB, those species have to have those conversion
   # factors applied to all of the historical vessels used so t[hat's why the NED, TEM, ATC and HAM all get the same treatment here.
+  
+  if(VesselUnits=="CAR_CAB") {
   GSDET_forconv_pre <- raw_GSDET |> filter((grepl("TEL|VEN|NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) |
                                              (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC))  |>  
     filter( !( SPEC %in% c(2212,2214,2415,2555,4521,4536,8500,8601,6411,6500,6511) | 
                  SPEC >= 9400 | 
                  SPEC %in% c(1091,1092) ) )
+  }
+  
+  if(VesselUnits=="TEL_VEN") {
+    GSDET_forconv_pre <- raw_GSDET |> filter((grepl("CAR|CAB", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) |
+                                               (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC))  |>  
+      filter( !( SPEC %in% c(2212,2214,2415,2555,4521,4536,8500,8601,6411,6500,6511) | 
+                   SPEC >= 9400 | 
+                   SPEC %in% c(1091,1092) ) )
+  }
+  
+  if(VesselUnits=="NED_TEM") {
+    GSDET_forconv_pre <- raw_GSDET |> filter((grepl("CAR|CAB", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) |
+                                               (grepl("CAR|CAB|TEL|VEN", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC) | 
+                                               (grepl("ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_ATCHAM))  |>  
+      filter( !( SPEC %in% c(2212,2214,2415,2555,4521,4536,8500,8601,6411,6500,6511) | 
+                   SPEC >= 9400 | 
+                   SPEC %in% c(1091,1092) ) )
+  }
   
   GSDET_unconv <- raw_GSDET |> 
     anti_join(GSDET_forconv_pre, by = c("MISSION", "SETNO", "SPEC", "SRC",  "SPECIMEN_ID", "SIZE_CLASS","FSEX", "FWT", "CLEN")) |> 
@@ -270,7 +290,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   # from cam/hammond -> needler/templeman -> venture/teleost -> cabot/cartier
   # anywhere where the inversions is done, swap the from and to vessels?
   
-  if(F){
+  
     #Mike, I think this is the best spot to start introducing the backup biomass 
     #conversions. Once they get uploaded to the new RAW Table we can really test it 
     #out. but for now I just made some dummy data on the troublesome species.
@@ -288,7 +308,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     #This is all dummy data and can be deleted once we get the tables updated but I 
     #left it here in case you wanted to test some #########################
     Tester<-head(Backup_Biomass_Conversions,4)
-    new_vals<-c(2550, 2513, 2511, 11)
+    new_vals<-c(2550, 2513, 2511, 14)
     
     Tester$SPEC[1:4] <- new_vals
     TesterA<-Tester  
@@ -298,7 +318,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
     
     Backup_Biomass_Conversions<- Backup_Biomass_Conversions[Backup_Biomass_Conversions$SPEC %in% GSCONVERSIONS$SPEC[GSCONVERSIONS$CF_MODEL_TYPE=="LDM"], ]
     GSCONVERSIONS<-rbind(GSCONVERSIONS,Backup_Biomass_Conversions)
-  }
+  
   #round value or we get duplicate conv factors for the same sp and joins start adding rows
   GSCONVERSIONS[!is.na(GSCONVERSIONS$CF_VALUE),"CF_VALUE"]<- round(GSCONVERSIONS[!is.na(GSCONVERSIONS$CF_VALUE),"CF_VALUE"],8)
   GSCONVERSIONS <- GSCONVERSIONS |> unique()
@@ -382,12 +402,92 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   )
   #FIXED THIS SO ATC AND HAM WOULD BE IN LINE WITH OTHER DATA FRAMES
   
+  
+  #This is where I think we can best change the script to handle different vessel units by manually changing the conversion values and from_vessels column
+  if(VesselUnits=="TEL_VEN") {
+    TELVEN_TO_CARCAB_ABUND_CONV <- TELVEN_TO_CARCAB_ABUND_CONV %>%
+      mutate(FROM_VESSEL="CAR_CAB",
+             TELVEN_TO_CARCAB_ABUND=1/TELVEN_TO_CARCAB_ABUND)
+    
+    ATCHAM_TO_CARCAB_ABUND_CONV <- ATCHAM_TO_CARCAB_ABUND_CONV %>%
+      mutate(ATCHAM_TO_CARCAB_ABUND=1)
+    
+    NEDTEM_TO_CARCAB_ABUND_CONV <- NEDTEM_TO_CARCAB_ABUND_CONV %>%
+      mutate(NEDTEM_TO_CARCAB_ABUND=1)
+    
+    
+    
+    TELVEN_TO_CARCAB_BMASS_CONV <- TELVEN_TO_CARCAB_BMASS_CONV %>%
+      mutate(FROM_VESSEL="CAR_CAB",
+             TELVEN_TO_CARCAB_BMASS=1/TELVEN_TO_CARCAB_BMASS)
+    
+    ATCHAM_TO_CARCAB_BMASS_CONV <- ATCHAM_TO_CARCAB_BMASS_CONV %>%
+      mutate(ATCHAM_TO_CARCAB_BMASS=1)
+    
+    NEDTEM_TO_CARCAB_BMASS_CONV <- NEDTEM_TO_CARCAB_BMASS_CONV %>%
+      mutate(NEDTEM_TO_CARCAB_BMASS=1)
+    
+  }
+  
+  if(VesselUnits=="NED_TEM") {
+    TELVEN_TO_CARCAB_ABUND_CONV <- TELVEN_TO_CARCAB_ABUND_CONV %>%
+      mutate(FROM_VESSEL="CAR_CAB",
+             TELVEN_TO_CARCAB_ABUND=1/TELVEN_TO_CARCAB_ABUND)
+    
+    ATCHAM_TO_TELVEN_ABUND_CONV <- ATCHAM_TO_TELVEN_ABUND_CONV %>%
+      mutate(FROM_VESSEL="CAR_CAB",
+             ATCHAM_TO_TELVEN_ABUND=1/ATCHAM_TO_TELVEN_ABUND)
+    
+    
+    NEDTEM_TO_TELVEN_ABUND_CONV <- NEDTEM_TO_TELVEN_ABUND_CONV %>%
+      mutate(FROM_VESSEL="TEL_VEN",
+             NEDTEM_TO_TELVEN_ABUND=1/NEDTEM_TO_TELVEN_ABUND)
+    
+    
+    ATCHAM_TO_CARCAB_ABUND_CONV <- ATCHAM_TO_CARCAB_ABUND_CONV %>%
+      mutate(ATCHAM_TO_CARCAB_ABUND=1)
+    
+    NEDTEM_TO_CARCAB_ABUND_CONV <- NEDTEM_TO_CARCAB_ABUND_CONV %>%
+      mutate(NEDTEM_TO_CARCAB_ABUND=1)
+    
+    
+    
+    
+    TELVEN_TO_CARCAB_BMASS_CONV <- TELVEN_TO_CARCAB_BMASS_CONV %>%
+      mutate(FROM_VESSEL="CAR_CAB",
+             TELVEN_TO_CARCAB_BMASS=1/TELVEN_TO_CARCAB_BMASS)
+    
+    ATCHAM_TO_TELVEN_BMASS_CONV <- ATCHAM_TO_TELVEN_BMASS_CONV %>%
+      mutate(FROM_VESSEL="CAR_CAB",
+             ATCHAM_TO_TELVEN_BMASS=1/ATCHAM_TO_TELVEN_BMASS)
+    
+    
+    NEDTEM_TO_TELVEN_BMASS_CONV <- NEDTEM_TO_TELVEN_BMASS_CONV %>%
+      mutate(FROM_VESSEL="TEL_VEN",
+             NEDTEM_TO_TELVEN_BMASS=1/NEDTEM_TO_TELVEN_BMASS)
+    
+    
+    ATCHAM_TO_CARCAB_BMASS_CONV <- ATCHAM_TO_CARCAB_BMASS_CONV %>%
+      mutate(ATCHAM_TO_CARCAB_BMASS=1)
+    
+    NEDTEM_TO_CARCAB_BMASS_CONV <- NEDTEM_TO_CARCAB_BMASS_CONV %>%
+      mutate(NEDTEM_TO_CARCAB_BMASS=1)
+    
+  }
+  
+
+  
   #First lets do all LDM models
   TELVEN_TO_CARCAB_ABUND_CONV_LDM <- subset(TELVEN_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
   NEDTEM_TO_CARCAB_ABUND_CONV_LDM <- subset(NEDTEM_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
   ATCHAM_TO_CARCAB_ABUND_CONV_LDM <- subset(ATCHAM_TO_CARCAB_ABUND_CONV, !is.na(FLEN))
   NEDTEM_TO_TELVEN_ABUND_CONV_LDM <- subset(NEDTEM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
   ATCHAM_TO_TELVEN_ABUND_CONV_LDM <- subset(ATCHAM_TO_TELVEN_ABUND_CONV, !is.na(FLEN))
+  
+  
+  
+  
+  
   LF_Data_All <- merge(CATDET, TELVEN_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
   LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_CARCAB_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
   LF_Data_All <- merge(LF_Data_All, NEDTEM_TO_TELVEN_ABUND_CONV_LDM, by = c("SPEC", "FLEN", "FROM_VESSEL"), all.x = TRUE)
@@ -489,6 +589,8 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
   
   SpeciesA <- subset(GSCONVERSIONS, CF_METRIC == "ABUNDANCE" & !CF_VALUE == 1 & FROM_VESSEL == "TEL_VEN" & CF_MODEL_TYPE=="LDM" & !is.na(FLEN))
   Species_List_ABUND_TELVEN_LDM <- unique(SpeciesA$SPEC)
+  
+  if(VesselUnits=="CAR_CAB") {
   
   LF_Data_All <- LF_Data_All |>
     mutate(
@@ -624,6 +726,288 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
         )
       )
     )
+  }
+  
+  
+  if(VesselUnits=="TEL_VEN") {
+    
+    LF_Data_All <- LF_Data_All |>
+      mutate(
+        across(c("FWT", "CLEN"), ~ ifelse(is.na(.), 0, .)),
+        across(
+          c(
+            TELVEN_TO_CARCAB_ABUND,
+            NEDTEM_TO_CARCAB_ABUND,
+            NEDTEM_TO_TELVEN_ABUND,
+            ATCHAM_TO_CARCAB_ABUND,
+            ATCHAM_TO_TELVEN_ABUND,
+            TELVEN_TO_CARCAB_ABUND_LAM,
+            NEDTEM_TO_CARCAB_ABUND_LAM,
+            NEDTEM_TO_TELVEN_ABUND_LAM,
+            ATCHAM_TO_CARCAB_ABUND_LAM,
+            ATCHAM_TO_TELVEN_ABUND_LAM,
+            ATCHAM_TO_NEDTEM_ABUND_LAM,
+            TELVEN_TO_CARCAB_BMASS,
+            NEDTEM_TO_CARCAB_BMASS,
+            NEDTEM_TO_TELVEN_BMASS,
+            ATCHAM_TO_CARCAB_BMASS,
+            ATCHAM_TO_TELVEN_BMASS
+          ),
+          ~ ifelse(is.na(.), 1, .)
+        ),
+        across( #New ifelse statement across all these columns. Right now the new backup biomass and abundance conversion factors get applied to all species with them even if the FLEN data is there. This is just an extra step to say if there is FLEN data, change the LAM abundace conversion factors to 1 so when the CLEN column gets converted it isn't doing more conversions then needed
+          c(
+            TELVEN_TO_CARCAB_ABUND_LAM,
+            NEDTEM_TO_CARCAB_ABUND_LAM,
+            ATCHAM_TO_CARCAB_ABUND_LAM,
+          ),
+          ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_TELVEN_LDM , 1, .)
+        ),
+        across(
+          c(
+            NEDTEM_TO_TELVEN_ABUND_LAM,
+            ATCHAM_TO_TELVEN_ABUND_LAM
+          ),
+          ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_NEDTEM_LDM , 1, .)
+        ),
+        TOTNO_RAW = CLEN,
+        TOTWGT_RAW = FWT,
+        CF_USED = NA,
+        TOTNO = ifelse(
+          is.na(FLEN),
+          TOTNO_RAW /
+            TELVEN_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_CARCAB_ABUND_LAM /
+            ATCHAM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_NEDTEM_ABUND_LAM,
+          TOTNO_RAW / #Added TOTNO_RAW here
+            TELVEN_TO_CARCAB_ABUND /
+            NEDTEM_TO_CARCAB_ABUND /
+            NEDTEM_TO_TELVEN_ABUND /
+            ATCHAM_TO_CARCAB_ABUND /
+            ATCHAM_TO_TELVEN_ABUND /
+            TELVEN_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_CARCAB_ABUND_LAM /
+            ATCHAM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_NEDTEM_ABUND_LAM),
+        TOTWGT = ifelse(
+          is.na(FLEN) &
+            SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM),
+          TOTWGT_RAW /
+            TELVEN_TO_CARCAB_BMASS /
+            NEDTEM_TO_CARCAB_BMASS /
+            NEDTEM_TO_TELVEN_BMASS /
+            ATCHAM_TO_CARCAB_BMASS /
+            ATCHAM_TO_TELVEN_BMASS,
+          ifelse(SPEC %in% Species_List_ABUND_TELVEN & substr(SRC, 1, 5) != "GSCAT" & FROM_VESSEL %in% c("CAR_CAB"), TOTNO * TOTWGT_RAW,
+                 ifelse(SPEC %in% Species_List_ABUND_NEDTEM & substr(SRC, 1, 5) != "GSCAT" & FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"), TOTNO * TOTWGT_RAW,
+                        ifelse(SPEC %in% Species_List_BMASS_TELVEN & !SPEC %in% Species_List_ABUND_TELVEN & FROM_VESSEL %in% c("CAR_CAB"),
+                               TOTWGT_RAW /
+                                 TELVEN_TO_CARCAB_BMASS /
+                                 NEDTEM_TO_CARCAB_BMASS /
+                                 NEDTEM_TO_TELVEN_BMASS /
+                                 ATCHAM_TO_CARCAB_BMASS /
+                                 ATCHAM_TO_TELVEN_BMASS,
+                               ifelse(SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM) & !SPEC %in% c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) & FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
+                                      TOTWGT_RAW /
+                                        TELVEN_TO_CARCAB_BMASS /
+                                        NEDTEM_TO_CARCAB_BMASS /
+                                        NEDTEM_TO_TELVEN_BMASS /
+                                        ATCHAM_TO_CARCAB_BMASS /
+                                        ATCHAM_TO_TELVEN_BMASS,
+                                      TOTWGT_RAW
+                               )
+                        )
+                 )
+          )
+        ),
+        CONV_USED = ifelse(
+          FROM_VESSEL %in% c("NONE"),
+          "NONE",
+          ifelse(
+            is.na(FLEN) &
+              SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM),
+            "BIOMASS",
+            ifelse(
+              SPEC %in%
+                Species_List_ABUND_TELVEN &
+                substr(SRC, 1, 5) != "GSCAT"&
+                FROM_VESSEL %in% c("TEL_VEN", "NED_TEM", "ATC_HAM"),
+              "ABUND",
+              ifelse(
+                SPEC %in%
+                  Species_List_ABUND_NEDTEM &
+                  substr(SRC, 1, 5) != "GSCAT" &
+                  FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
+                "ABUND",
+                ifelse(
+                  SPEC %in%
+                    Species_List_BMASS_TELVEN &
+                    !SPEC %in% Species_List_ABUND_TELVEN &
+                    FROM_VESSEL %in% c("TEL_VEN"),
+                  "BIOMASS",
+                  ifelse(
+                    SPEC %in%
+                      c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM) &
+                      !SPEC %in%
+                      c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) &
+                      FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
+                    "BIOMASS",
+                    "NONE"
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+  } 
+  
+  
+  if(VesselUnits=="NED_TEM") {
+    
+    LF_Data_All <- LF_Data_All |>
+      mutate(
+        across(c("FWT", "CLEN"), ~ ifelse(is.na(.), 0, .)),
+        across(
+          c(
+            TELVEN_TO_CARCAB_ABUND,
+            NEDTEM_TO_CARCAB_ABUND,
+            NEDTEM_TO_TELVEN_ABUND,
+            ATCHAM_TO_CARCAB_ABUND,
+            ATCHAM_TO_TELVEN_ABUND,
+            TELVEN_TO_CARCAB_ABUND_LAM,
+            NEDTEM_TO_CARCAB_ABUND_LAM,
+            NEDTEM_TO_TELVEN_ABUND_LAM,
+            ATCHAM_TO_CARCAB_ABUND_LAM,
+            ATCHAM_TO_TELVEN_ABUND_LAM,
+            ATCHAM_TO_NEDTEM_ABUND_LAM,
+            TELVEN_TO_CARCAB_BMASS,
+            NEDTEM_TO_CARCAB_BMASS,
+            NEDTEM_TO_TELVEN_BMASS,
+            ATCHAM_TO_CARCAB_BMASS,
+            ATCHAM_TO_TELVEN_BMASS
+          ),
+          ~ ifelse(is.na(.), 1, .)
+        ),
+        across( #New ifelse statement across all these columns. Right now the new backup biomass and abundance conversion factors get applied to all species with them even if the FLEN data is there. This is just an extra step to say if there is FLEN data, change the LAM abundace conversion factors to 1 so when the CLEN column gets converted it isn't doing more conversions then needed
+          c(
+            TELVEN_TO_CARCAB_ABUND_LAM,
+            NEDTEM_TO_CARCAB_ABUND_LAM,
+            ATCHAM_TO_CARCAB_ABUND_LAM,
+          ),
+          ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_TELVEN_LDM , 1, .)
+        ),
+        across(
+          c(
+            NEDTEM_TO_TELVEN_ABUND_LAM,
+            ATCHAM_TO_TELVEN_ABUND_LAM
+          ),
+          ~ ifelse(!is.na(FLEN) & SPEC %in% Species_List_ABUND_NEDTEM_LDM , 1, .)
+        ),
+        TOTNO_RAW = CLEN,
+        TOTWGT_RAW = FWT,
+        CF_USED = NA,
+        TOTNO = ifelse(
+          is.na(FLEN),
+          TOTNO_RAW /
+            TELVEN_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_CARCAB_ABUND_LAM /
+            ATCHAM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_NEDTEM_ABUND_LAM,
+          TOTNO_RAW / #Added TOTNO_RAW here
+            TELVEN_TO_CARCAB_ABUND /
+            NEDTEM_TO_CARCAB_ABUND /
+            NEDTEM_TO_TELVEN_ABUND /
+            ATCHAM_TO_CARCAB_ABUND /
+            ATCHAM_TO_TELVEN_ABUND /
+            TELVEN_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_CARCAB_ABUND_LAM /
+            NEDTEM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_CARCAB_ABUND_LAM /
+            ATCHAM_TO_TELVEN_ABUND_LAM /
+            ATCHAM_TO_NEDTEM_ABUND_LAM),
+        TOTWGT = ifelse(
+          is.na(FLEN) &
+            SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM),
+          TOTWGT_RAW /
+            TELVEN_TO_CARCAB_BMASS /
+            NEDTEM_TO_CARCAB_BMASS /
+            NEDTEM_TO_TELVEN_BMASS /
+            ATCHAM_TO_CARCAB_BMASS /
+            ATCHAM_TO_TELVEN_BMASS,
+          ifelse(SPEC %in% Species_List_ABUND_TELVEN & substr(SRC, 1, 5) != "GSCAT" & FROM_VESSEL %in% c("CAR_CAB"), TOTNO * TOTWGT_RAW,
+                 ifelse(SPEC %in% Species_List_ABUND_NEDTEM & substr(SRC, 1, 5) != "GSCAT" & FROM_VESSEL %in% c("CAR_CAB", "TEL_VEN"), TOTNO * TOTWGT_RAW,
+                        ifelse(SPEC %in% Species_List_BMASS_TELVEN & !SPEC %in% Species_List_ABUND_TELVEN & FROM_VESSEL %in% c("CAR_CAB"),
+                               TOTWGT_RAW /
+                                 TELVEN_TO_CARCAB_BMASS /
+                                 NEDTEM_TO_CARCAB_BMASS /
+                                 NEDTEM_TO_TELVEN_BMASS /
+                                 ATCHAM_TO_CARCAB_BMASS /
+                                 ATCHAM_TO_TELVEN_BMASS,
+                               ifelse(SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM) & !SPEC %in% c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) & FROM_VESSEL %in% c("CAR_CAB","TEL_VEN"),
+                                      TOTWGT_RAW /
+                                        TELVEN_TO_CARCAB_BMASS /
+                                        NEDTEM_TO_CARCAB_BMASS /
+                                        NEDTEM_TO_TELVEN_BMASS /
+                                        ATCHAM_TO_CARCAB_BMASS /
+                                        ATCHAM_TO_TELVEN_BMASS,
+                                      TOTWGT_RAW
+                               )
+                        )
+                 )
+          )
+        ),
+        CONV_USED = ifelse(
+          FROM_VESSEL %in% c("NONE"),
+          "NONE",
+          ifelse(
+            is.na(FLEN) &
+              SPEC %in% c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM),
+            "BIOMASS",
+            ifelse(
+              SPEC %in%
+                Species_List_ABUND_TELVEN &
+                substr(SRC, 1, 5) != "GSCAT"&
+                FROM_VESSEL %in% c("TEL_VEN", "NED_TEM", "ATC_HAM"),
+              "ABUND",
+              ifelse(
+                SPEC %in%
+                  Species_List_ABUND_NEDTEM &
+                  substr(SRC, 1, 5) != "GSCAT" &
+                  FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
+                "ABUND",
+                ifelse(
+                  SPEC %in%
+                    Species_List_BMASS_TELVEN &
+                    !SPEC %in% Species_List_ABUND_TELVEN &
+                    FROM_VESSEL %in% c("TEL_VEN"),
+                  "BIOMASS",
+                  ifelse(
+                    SPEC %in%
+                      c(Species_List_BMASS_TELVEN, Species_List_BMASS_NEDTEM) &
+                      !SPEC %in%
+                      c(Species_List_ABUND_TELVEN, Species_List_ABUND_NEDTEM) &
+                      FROM_VESSEL %in% c("NED_TEM", "ATC_HAM"),
+                    "BIOMASS",
+                    "NONE"
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+  }   
+  
+  
+  
   
   message(
     "How conversion factors are applied and how biomass is calculated can affect results.
@@ -640,7 +1024,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
             \tequal to 1 and that species has length frequency data, only the abundance
             \tconversion factor is applied to data and biomass is calculated as stated above.
             \tAn exception to this rule is when that species has missing length frequency
-            \tdata for a given set, in which the biomass conversion is used instead.
+            \tdata for a given set, in which an alternative biomass conversion is used instead.
             5: For species without length frequency data, both biomass and abundance
             \tconversion factors are applied when available."
   )
@@ -696,7 +1080,7 @@ applyConversionFactors <- function(cxn = NULL, tblList) {
                                ATCHAM_TO_TELVEN_ABUND_LAM *
                                ATCHAM_TO_NEDTEM_ABUND_LAM !=
                                1) &
-        (substr(SRC, 1, 5) == "GDET"),
+        (substr(SRC, 1, 5) == "GSDET"),
       biomass_condition = (TELVEN_TO_CARCAB_ABUND *
                              NEDTEM_TO_CARCAB_ABUND *
                              NEDTEM_TO_TELVEN_ABUND *
