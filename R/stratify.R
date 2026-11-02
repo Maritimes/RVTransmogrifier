@@ -36,13 +36,14 @@ stratify_simple <- function(
     tblList = NULL,
     df = NULL,
     towDist_NM = 1.75,
+    netWidthUnits= c("NEST","WIIA"),
     areaField = "AREA_KM2",
     areaFieldUnits = c("KM2", "NM2", "M2"),
     conf_limits = 95,
     totwgt_units = "ton",
     debug = F
 ) {
-
+  
   if (!is.null(tblList)) {
     df <- easyFlatten(tblList)
     df <- df[df$TYPE == 1, ]
@@ -66,7 +67,7 @@ stratify_simple <- function(
     df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   }
   
- 
+  
   if(totwgt_units=="ton"){
     df$TOTWGT <- df$TOTWGT/1000
   }
@@ -87,6 +88,12 @@ stratify_simple <- function(
   } else if (areaFieldUnits == "KM2") {
     df$AREA_KM2 <- df[[areaField]]
   }
+  
+  if (netWidthUnits == "NEST") {
+    df$WINGSPREAD_FT <- 42.65
+  } else if (netWidthUnits == "WIIA") {
+    df$WINGSPREAD_FT <- 41
+  } 
   
   df$TOTWGT_sqkm <- valPerSqKm(
     df$TOTWGT,
@@ -355,30 +362,39 @@ stratify_simple <- function(
 stratify_detailed <- function(
     tblList,
     towDist = 1.75,
+    netWidthUnits = "WIIA",
     by_sex = FALSE,
     conf_limits = 95,
     inc_limits = T,
-    bin_size = 1
+    bin_size = 1,
+    Converted_Data=TRUE
 ) {
   stratSimp <- stratify_simple(
     tblList = tblList,
     towDist_NM = towDist,
+    netWidthUnits = netWidthUnits ,
     conf_limits = conf_limits
   )
   
   totals <- standardize_catch_counts(
     tblList,
     towDist = towDist,
-    by_sex = by_sex
+    netWidthUnits = netWidthUnits,
+    by_sex = by_sex,
+    Converted_Data = Converted_Data
   )
-  
-  all_sets <- stratSimp$stratified_by_set |>
+  df<-easyFlatten(tblList)
+  all_sets <- df |>
     dplyr::select(MISSION, SETNO, STRAT, AREA_KM2) |>
     dplyr::distinct()
   
-  spec_only <- stratSimp$stratified_by_set |>
+  spec_only <- df |>
     dplyr::select(SPEC) |>
     dplyr::distinct()
+  
+  totals$length_total$YEAR<-as.numeric(substr(totals$length_total$MISSION, 4, 7))
+  totals$age_total$YEAR<-as.numeric(substr(totals$age_total$MISSION, 4, 7))
+  totals$standardized_data$YEAR<-as.numeric(substr(totals$standardized_data$MISSION, 4, 7))
   
   if (inherits(totals$length_total, "data.frame")) {
     length_data <- totals$length_total
@@ -401,7 +417,8 @@ stratify_detailed <- function(
               FLEN,
               FSEX,
               CLEN_TOTAL,
-              CLEN_SQKM_TOTAL
+              CLEN_SQKM_TOTAL,
+              YEAR
             ),
           by = c("MISSION", "SETNO", "SPEC", "FSEX", "FLEN")
         ) |>
@@ -411,7 +428,7 @@ stratify_detailed <- function(
         )
       
       length_strat <- length_complete |>
-        dplyr::group_by(SPEC, STRAT, AREA_KM2, FSEX, FLEN) |>
+        dplyr::group_by(YEAR, SPEC, STRAT, AREA_KM2, FSEX, FLEN) |>
         dplyr::summarise(
           COUNT = dplyr::n(),
           CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
@@ -444,7 +461,8 @@ stratify_detailed <- function(
               SPEC,
               FLEN,
               CLEN_TOTAL,
-              CLEN_SQKM_TOTAL
+              CLEN_SQKM_TOTAL,
+              YEAR
             ),
           by = c("MISSION", "SETNO", "SPEC", "FLEN")
         ) |>
@@ -454,7 +472,7 @@ stratify_detailed <- function(
         )
       
       length_strat <- length_complete |>
-        dplyr::group_by(SPEC, STRAT, AREA_KM2, FLEN) |>
+        dplyr::group_by(YEAR, SPEC, STRAT, AREA_KM2, FLEN) |>
         dplyr::summarise(
           COUNT = dplyr::n(),
           CLEN_SUM = sum(CLEN_TOTAL, na.rm = TRUE),
@@ -529,12 +547,12 @@ stratify_detailed <- function(
     mean_df <- lenStrat_mean |>
       dplyr::left_join(
         lenStrat_se |>
-          dplyr::select(-AREA_KM2, -SPEC) |>
+          dplyr::select(-AREA_KM2,) |>
           dplyr::rename_with(
             ~ sub("(.*FLEN_)(\\d+)$", "\\1SE_\\2", .), # Insert _SE_ before number
             dplyr::contains("FLEN_")
           ),
-        by = "STRAT"
+        by = c("YEAR","STRAT","SPEC")
       )
     
     # Detect original FLEN columns (no _SE_)
@@ -544,63 +562,89 @@ stratify_detailed <- function(
     se_flen_cols <- grep("FLEN_SE_\\d+$", names(mean_df), value = TRUE)
     
     LENGTH_MEAN <- dplyr::bind_rows(
-      Map(
-        function(x, y) {
-          out <- calcYearSummary(
-            mean_df,
-            valueField = x,
-            seField = y,
-            areaField = "AREA_KM2",
-            is_mean = TRUE
+      lapply(
+        split(mean_df, list(mean_df$YEAR, mean_df$SPEC), drop = TRUE),
+        function(group_df) {
+          
+          yr   <- unique(group_df$YEAR)
+          spec <- unique(group_df$SPEC)
+          
+          
+          dplyr::bind_rows(
+            Map(
+              function(x, y) {
+                out <- calcYearSummary(
+                  group_df,
+                  valueField = x,
+                  seField = y,
+                  areaField = "AREA_KM2",
+                  is_mean = TRUE,
+                )
+                out$YEAR<-yr
+                out$SPEC<-spec
+                out$FLEN_col <- x
+                out |>
+                  dplyr::select(YEAR,SPEC,value, se, FLEN_col) |>
+                  dplyr::rename(LENGTH_MEAN_SE = se, LENGTH_MEAN = value)
+              },
+              flen_cols,
+              se_flen_cols
+            )
           )
-          out$FLEN_col <- x
-          out |>
-            dplyr::select(value, se, FLEN_col) |>
-            dplyr::rename(LENGTH_MEAN_SE = se, LENGTH_MEAN = value)
-        },
-        flen_cols,
-        se_flen_cols
+        }
       )
     )
-    
     ###### SECOND BLOCK ######
     
     total_df <- lenStrat_total |>
       dplyr::left_join(
         lenStrat_total_se |>
-          dplyr::select(-AREA_KM2, -SPEC) |>
+          dplyr::select(-AREA_KM2) |>
           dplyr::rename_with(
             ~ sub("(.*FLEN_)(\\d+)$", "\\1SE_\\2", .),
             dplyr::contains("FLEN_")
           ),
-        by = "STRAT"
+        by = c("STRAT","YEAR","SPEC")
       )
     
     flen_cols2 <- grep("FLEN_\\d+$", names(total_df), value = TRUE)
     se_flen_cols2 <- grep("FLEN_SE_\\d+$", names(total_df), value = TRUE)
     
     LENGTH_TOTAL <- dplyr::bind_rows(
-      Map(
-        function(x, y) {
-          out <- calcYearSummary(
-            total_df,
-            valueField = x,
-            seField = y,
-            areaField = "AREA_KM2",
-            is_mean = FALSE
+      lapply(
+        split(total_df, list(total_df$YEAR, total_df$SPEC), drop = TRUE),
+        function(group_df) {
+          
+          yr   <- unique(group_df$YEAR)
+          spec <- unique(group_df$SPEC)
+          
+          dplyr::bind_rows(
+            Map(
+              function(x, y) {
+                out <- calcYearSummary(
+                  group_df,
+                  valueField = x,
+                  seField = y,
+                  areaField = "AREA_KM2",
+                  is_mean = FALSE
+                )
+                out$YEAR<-yr
+                out$SPEC<-spec
+                out$FLEN_col <- x
+                out |>
+                  dplyr::select(YEAR,SPEC, value, se, FLEN_col) |>
+                  dplyr::rename(LENGTH_TOTAL_SE = se, LENGTH_TOTAL = value)
+              },
+              flen_cols2,
+              se_flen_cols2
+            )
           )
-          out$FLEN_col <- x
-          out |>
-            dplyr::select(value, se, FLEN_col) |>
-            dplyr::rename(LENGTH_TOTAL_SE = se, LENGTH_TOTAL = value)
-        },
-        flen_cols2,
-        se_flen_cols2
+        }
       )
     )
     
     summary_flen <- LENGTH_MEAN |>
-      dplyr::left_join(LENGTH_TOTAL, by = "FLEN_col") |>
+      dplyr::left_join(LENGTH_TOTAL, by = c("YEAR","SPEC","FLEN_col")) |>
       dplyr::mutate(
         # Extract sex prefix if present (U, M, F), else empty string
         SEX = dplyr::if_else(
@@ -618,6 +662,8 @@ stratify_detailed <- function(
       ) |>
       dplyr::arrange(SEX_ORDER, FLEN_NUM) |>
       dplyr::select(
+        YEAR,
+        SPEC,
         FLEN_col,
         LENGTH_MEAN,
         LENGTH_MEAN_SE,
@@ -627,22 +673,22 @@ stratify_detailed <- function(
     
     # handle flen summaries
     flen_mean_vals <- summary_flen |>
-      dplyr::select(FLEN_col, LENGTH_MEAN) |>
+      dplyr::select(YEAR, SPEC, FLEN_col, LENGTH_MEAN) |>
       tidyr::pivot_wider(names_from = FLEN_col, values_from = LENGTH_MEAN) |>
       as.list()
     
     flen_mean_se_vals <- summary_flen |>
-      dplyr::select(FLEN_col, LENGTH_MEAN_SE) |>
+      dplyr::select(YEAR, SPEC, FLEN_col, LENGTH_MEAN_SE) |>
       tidyr::pivot_wider(names_from = FLEN_col, values_from = LENGTH_MEAN_SE) |>
       as.list()
     
     flen_total_vals <- summary_flen |>
-      dplyr::select(FLEN_col, LENGTH_TOTAL) |>
+      dplyr::select(YEAR, SPEC, FLEN_col, LENGTH_TOTAL) |>
       tidyr::pivot_wider(names_from = FLEN_col, values_from = LENGTH_TOTAL) |>
       as.list()
     
     flen_total_se_vals <- summary_flen |>
-      dplyr::select(FLEN_col, LENGTH_TOTAL_SE) |>
+      dplyr::select(YEAR, SPEC, FLEN_col, LENGTH_TOTAL_SE) |>
       tidyr::pivot_wider(
         names_from = FLEN_col,
         values_from = LENGTH_TOTAL_SE
@@ -653,7 +699,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!flen_mean_vals
       )
     
@@ -661,7 +706,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!flen_mean_se_vals
       )
     
@@ -669,7 +713,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!flen_total_vals
       )
     
@@ -677,7 +720,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!flen_total_se_vals
       )
     ###
@@ -693,7 +735,8 @@ stratify_detailed <- function(
         tblList$GSINF[, c("MISSION", "SETNO", "STRAT")],
         by = c("MISSION", "SETNO")
       ) |>
-      dplyr::select(FLEN, AGE, STRAT, !!!if (by_sex) rlang::syms("FSEX"))
+      dplyr::mutate(YEAR=as.numeric(substr(MISSION, 4, 7)))|>
+      dplyr::select(YEAR, SPEC, FLEN, AGE, STRAT, !!!if (by_sex) rlang::syms("FSEX"))
     
     if (by_sex) {
       agelen <- agelen |>
@@ -702,7 +745,7 @@ stratify_detailed <- function(
       agelen <- agelen |> dplyr::filter(!is.na(FLEN) & !is.na(AGE))
     }
     
-    alk_group_vars <- c("FLEN_BIN", "AGE")
+    alk_group_vars <- c("YEAR","SPEC","FLEN_BIN", "AGE")
     if (by_sex) {
       alk_group_vars <- c(alk_group_vars, "FSEX")
     }
@@ -713,6 +756,8 @@ stratify_detailed <- function(
       tidyr::complete(
         FLEN_BIN = seq(min(FLEN_BIN), max(FLEN_BIN), by = bin_size),
         AGE,
+        YEAR,
+        SPEC,
         !!!if (by_sex) dplyr::syms("FSEX"),
         fill = list(n = 0)
       )
@@ -720,18 +765,16 @@ stratify_detailed <- function(
     if (by_sex) {
       alk <- alk |>
         tidyr::pivot_wider(
-          names_from = c("FSEX", "AGE"),
+          names_from = c( "AGE"),
           values_from = n,
-          values_fill = 0,
-          names_glue = "{c(FSEX = c('U','M','F')[FSEX+1])}_{AGE}"
+          values_fill = 0
         ) |>
         dplyr::arrange(FLEN_BIN) |>
         dplyr::rename(FLEN = FLEN_BIN) |>
+        dplyr::mutate(FLEN=ifelse(FSEX==0,paste("U_",FLEN,sep=""),
+                                  ifelse(FSEX==1,paste("M_",FLEN,sep=""),paste("F_",FLEN,sep="")))) %>%
         dplyr::select(
-          FLEN,
-          tidyselect::matches("^U_\\d+$"),
-          tidyselect::matches("^M_\\d+$"),
-          tidyselect::matches("^F_\\d+$")
+          -FSEX
         )
     } else {
       alk <- alk |>
@@ -747,7 +790,7 @@ stratify_detailed <- function(
     alk <- alk |> as.data.frame()
     
     alk_wide <- agelen |>
-      dplyr::count(STRAT, AGE) |>
+      dplyr::count(YEAR, SPEC, STRAT, AGE) |>
       tidyr::pivot_wider(
         names_from = AGE,
         values_from = n,
@@ -755,17 +798,25 @@ stratify_detailed <- function(
         values_fill = 0
       )
     
-    alw_group_vars <- c("AGE", "FLEN_BIN")
+    alw_group_vars <- c("YEAR", "SPEC", "AGE", "FLEN_BIN")
     if (by_sex) {
       alw_group_vars <- c(alw_group_vars, "FSEX")
     }
+    
+    if (!Converted_Data) {
+      totals$standardized_data$FWT_OG<-totals$standardized_data$FWT
+      
+    }
+    
     alw <- totals$standardized_data |>
       binnit(bin_size) |>
       dplyr::group_by(dplyr::across(dplyr::all_of(alw_group_vars))) |>
-      dplyr::summarise(FWT = mean(FWT), COUNT = dplyr::n(), .groups = "drop") |>
+      dplyr::summarise(FWT = mean(FWT_OG), COUNT = dplyr::n(), .groups = "drop") |>
       tidyr::complete(
         FLEN_BIN = tidyr::full_seq(FLEN_BIN, bin_size),
         AGE,
+        YEAR,
+        SPEC,
         !!!if (by_sex) dplyr::syms("FSEX"),
         fill = list(FWT = 0, COUNT = 0)
       ) |>
@@ -773,7 +824,7 @@ stratify_detailed <- function(
     
     if (by_sex) {
       alw <- alw |>
-        dplyr::group_by(FLEN_BIN, FSEX, AGE) |>
+        dplyr::group_by(YEAR, SPEC, FLEN_BIN, FSEX, AGE) |>
         dplyr::summarise(FWT = sum(FWT), .groups = "drop") |>
         tidyr::pivot_wider(
           names_from = c("FSEX", "AGE"),
@@ -782,6 +833,8 @@ stratify_detailed <- function(
         ) |>
         dplyr::rename(FLEN = FLEN_BIN) |>
         dplyr::select(
+          YEAR,
+          SPEC,
           FLEN,
           tidyselect::matches("^U_AGE_\\d+$"),
           tidyselect::matches("^M_AGE_\\d+$"),
@@ -796,6 +849,8 @@ stratify_detailed <- function(
         ) |>
         dplyr::rename(FLEN = FLEN_BIN) |>
         dplyr::select(
+          YEAR,
+          SPEC,
           FLEN,
           tidyselect::matches("^(FWT)_")
         )
@@ -805,25 +860,114 @@ stratify_detailed <- function(
     
     alk_ap <- alk
     
-    x <- prop.table(as.matrix(alk_ap[, setdiff(names(alk_ap), "FLEN")]), 1)
+    x <- prop.table(as.matrix(alk_ap[, setdiff(names(alk_ap), c("YEAR", "SPEC","FLEN"))]), 1)
     x <- ifelse(is.nan(x), 0, x)
-    ages_prop <- as.data.frame(x) |> dplyr::mutate(FLEN = alk_ap$FLEN)
-    lengths = colSums(lenStrat_total_LENGTHS[, 4:ncol(lenStrat_total_LENGTHS)])
-    lengths = as.data.frame(lengths[lengths > 0])
-    colnames(lengths) = "length_sum"
-    lengths$FLEN <- sub("FLEN_", "", rownames(lengths))
-    row.names(lengths) <- NULL
+    ages_prop <- as.data.frame(x) |> dplyr::mutate(FLEN = alk_ap$FLEN,
+                                                   YEAR = alk_ap$YEAR,
+                                                   SPEC = alk_ap$SPEC)
     
-    age_table <- merge(ages_prop, lengths, by = "FLEN", all.x = T)
-    age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))] <- round(
-      age_table[, !(names(age_table) %in% c("FLEN", "length_sum"))] *
+    if (by_sex) {
+      
+      lengths<- lenStrat_total %>%
+        dplyr::group_by(YEAR,SPEC) %>%
+        dplyr::filter(!STRAT=="TOTAL")%>%
+        dplyr::summarise(across(5:ncol(lenStrat_total)-2, sum, na.rm = TRUE), .groups = "drop")
+      
+      lengths<- lengths %>%
+        tidyr::pivot_longer(!c(YEAR,SPEC),names_to="FLEN",values_to ="length_sum") %>%
+        dplyr::mutate(FLEN=gsub("FLEN_","",FLEN))
+      
+      
+      
+      
+      age_table <- merge(ages_prop, lengths, by = c("YEAR","SPEC","FLEN"), all.x = T)
+      
+      age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] <- round(
+        age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] *
+          age_table[["length_sum"]],
+        4
+      )
+      age_table[is.na(age_table)] <- 0
+      age_table$length_sum <- NULL
+      
+      age_cols <- setdiff(names(age_table), c("YEAR","SPEC","FLEN"))
+      age_table_avg_lengths <- sapply(age_cols, function(age) {
+        x <- age_table[[age]]
+        if (sum(x) == 0) {
+          return(NA)
+        }
+        sum(as.numeric(substring(age_table$FLEN, 3)) * x) / sum(x)
+      })
+      
+      
+      AGE_PROP<-age_table %>%
+        group_by(YEAR,SPEC,FLEN) %>%
+        mutate(TOTAL=rowSums(pick(1:(ncol(age_table)-3)))) 
+      
+      AGE_PROP<-AGE_PROP %>%
+        ungroup() %>%
+        mutate(across(4:(ncol(AGE_PROP)-1),~.x/TOTAL))
+      
+      
+      Length_Age<- length_complete %>%
+        binnit(bin_size) %>%
+        mutate(FLEN=FLEN_BIN,
+               FLEN=ifelse(FSEX=="0",paste("U_",FLEN,sep=""),
+                           ifelse(FSEX=="2",paste("F_",FLEN,sep=""),
+                                  ifelse(FSEX=="1",paste("M_",FLEN,sep=""),NA)))) %>%
+        select(-c(FLEN_BIN))
+      
+      Length_Age<- merge(Length_Age,AGE_PROP,by=c("YEAR","SPEC","FLEN"))
+      
+      Length_Age_TOT<-Length_Age %>%
+        mutate(across(10:(ncol(Length_Age)-1),~.x*CLEN_TOTAL))
+      
+      Length_Age_TOT<-  Length_Age_TOT %>% 
+        group_by(MISSION,YEAR, SPEC,FSEX, STRAT,SETNO,AREA_KM2) %>%
+        summarise(across(3:(ncol(Length_Age_TOT)-7),~sum(.x,na.rm = TRUE)),.groups = "drop")
+      
+      Length_Age_SQKM<-Length_Age %>%
+        mutate(across(10:(ncol(Length_Age)-1),~.x*CLEN_SQKM_TOTAL))
+      
+      Length_Age_SQKM<- Length_Age_SQKM %>% 
+        group_by(MISSION,YEAR, SPEC,FSEX, STRAT,SETNO,AREA_KM2) %>%
+        summarise(across(3:(ncol(Length_Age)-7),~sum(.x,na.rm = TRUE)),.groups = "drop")
+      
+      
+      Length_Age_TOT<- Length_Age_TOT %>%
+        tidyr::pivot_longer(!c(MISSION,YEAR,SPEC,FSEX,STRAT,SETNO,AREA_KM2,CLEN_SQKM_TOTAL),names_to="AGE",values_to ="CAGE_TOTAL") %>%
+        dplyr::mutate(AGE=gsub("AGE_","",AGE)) %>%
+        filter(!AGE=="TOTAL")
+      
+      
+      Length_Age_SQKM<- Length_Age_SQKM %>%
+        tidyr::pivot_longer(!c(MISSION,YEAR,SPEC,FSEX,STRAT,SETNO,AREA_KM2,CLEN_SQKM_TOTAL),names_to="AGE",values_to ="CAGE_SQKM_TOTAL") %>%
+        dplyr::mutate(AGE=gsub("AGE_","",AGE)) %>%
+        filter(!AGE=="TOTAL")
+      
+      age_complete<-merge(Length_Age_TOT,Length_Age_SQKM,by=c("MISSION","YEAR","SPEC","FSEX","STRAT","SETNO","AREA_KM2","AGE"))
+    
+    } else {  
+      
+    lengths<- lenStrat_total_LENGTHS %>%
+      dplyr::group_by(YEAR,SPEC) %>%
+      dplyr::filter(!STRAT=="TOTAL")%>%
+      dplyr::summarise(across(5:ncol(lenStrat_total_LENGTHS)-2, sum, na.rm = TRUE), .groups = "drop")
+    
+    lengths<- lengths %>%
+      tidyr::pivot_longer(!c(YEAR,SPEC),names_to="FLEN",values_to ="length_sum") %>%
+      dplyr::mutate(FLEN=gsub("FLEN_","",FLEN))
+    
+    age_table <- merge(ages_prop, lengths, by = c("YEAR","SPEC","FLEN"), all.x = T)
+    age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] <- round(
+      age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] *
         age_table[["length_sum"]],
       4
     )
     age_table[is.na(age_table)] <- 0
     age_table$length_sum <- NULL
     
-    age_cols <- setdiff(names(age_table), "FLEN")
+    age_cols <- setdiff(names(age_table), c("YEAR","SPEC","FLEN"))
     age_table_avg_lengths <- sapply(age_cols, function(age) {
       x <- age_table[[age]]
       if (sum(x) == 0) {
@@ -832,8 +976,56 @@ stratify_detailed <- function(
       sum(age_table$FLEN * x) / sum(x)
     })
     
+    
+    AGE_PROP<-age_table %>%
+      group_by(YEAR,SPEC,FLEN) %>%
+      mutate(TOTAL=rowSums(pick(1:(ncol(age_table)-3)))) 
+    
+    AGE_PROP<-AGE_PROP %>%
+      ungroup() %>%
+      mutate(across(4:(ncol(AGE_PROP)-1),~.x/TOTAL))
+    
+    
+    Length_Age<- length_complete %>%
+      binnit(bin_size) %>%
+      mutate(FLEN=FLEN_BIN) %>%
+      select(-c(FLEN_BIN))
+    
+    Length_Age<- merge(Length_Age,AGE_PROP,by=c("YEAR","SPEC","FLEN"))
+    
+    Length_Age_TOT<-Length_Age %>%
+      mutate(across(10:(ncol(Length_Age)-1),~.x*CLEN_TOTAL))
+    
+    Length_Age_TOT<-  Length_Age_TOT %>% 
+      group_by(MISSION,YEAR, SPEC, STRAT,SETNO,AREA_KM2) %>%
+      summarise(across(4:(ncol(Length_Age_TOT)-6),~sum(.x,na.rm = TRUE)),.groups = "drop")
+    
+    Length_Age_SQKM<-Length_Age %>%
+      mutate(across(10:(ncol(Length_Age)-1),~.x*CLEN_SQKM_TOTAL))
+    
+    Length_Age_SQKM<- Length_Age_SQKM %>% 
+      group_by(MISSION,YEAR, SPEC, STRAT,SETNO,AREA_KM2) %>%
+      summarise(across(4:(ncol(Length_Age)-6),~sum(.x,na.rm = TRUE)),.groups = "drop")
+    
+    
+    Length_Age_TOT<- Length_Age_TOT %>%
+      tidyr::pivot_longer(!c(MISSION,YEAR,SPEC,STRAT,SETNO,AREA_KM2),names_to="AGE",values_to ="CAGE_TOTAL") %>%
+      dplyr::mutate(AGE=gsub("AGE_","",AGE)) %>%
+      filter(!AGE=="TOTAL")
+    
+    
+    Length_Age_SQKM<- Length_Age_SQKM %>%
+      tidyr::pivot_longer(!c(MISSION,YEAR,SPEC,STRAT,SETNO,AREA_KM2),names_to="AGE",values_to ="CAGE_SQKM_TOTAL") %>%
+      dplyr::mutate(AGE=gsub("AGE_","",AGE)) %>%
+      filter(!AGE=="TOTAL")
+    
+    age_complete<-merge(Length_Age_TOT,Length_Age_SQKM,by=c("MISSION","YEAR","SPEC","STRAT","SETNO","AREA_KM2","AGE"))
+    
+    }
+
+    
     set_age <- widen_data(
-      totals$age_total,
+      age_complete,
       var_col = "AGE",
       value_col = "CAGE_TOTAL",
       bin_size = bin_size,
@@ -841,13 +1033,15 @@ stratify_detailed <- function(
       by_sex = by_sex
     )
     
-    age_complete <- totals$age_total |>
+    age_complete <- age_complete |>
       dplyr::mutate(
         CAGE_TOTAL = ifelse(is.na(CAGE_TOTAL), 0, CAGE_TOTAL),
         CAGE_SQKM_TOTAL = ifelse(is.na(CAGE_SQKM_TOTAL), 0, CAGE_SQKM_TOTAL)
       )
     
-    group_vars <- c("SPEC", "STRAT", "AREA_KM2", "AGE")
+    
+    
+    group_vars <- c("YEAR","SPEC", "STRAT", "AREA_KM2", "AGE")
     if (by_sex) {
       group_vars <- c(group_vars, "FSEX")
     }
@@ -856,6 +1050,7 @@ stratify_detailed <- function(
       dplyr::group_map(
         ~ {
           tibble::tibble(
+            YEAR = .y$YEAR,
             SPEC = .y$SPEC,
             STRAT = .y$STRAT,
             AREA_KM2 = .y$AREA_KM2,
@@ -911,76 +1106,105 @@ stratify_detailed <- function(
     mean_df <- strat_age_mean |>
       dplyr::left_join(
         strat_age_mean_se |>
-          dplyr::select(-AREA_KM2, -SPEC) |>
+          dplyr::select(-AREA_KM2) |>
           dplyr::rename_with(
             ~ sub("(.*AGE_)(\\d+)$", "\\1SE_\\2", .),
             dplyr::contains("AGE_")
           ),
-        by = "STRAT"
+        by = c("YEAR","SPEC","STRAT")
       )
     age_cols <- grep("AGE_\\d+", names(mean_df), value = TRUE)
     se_age_cols <- grep("AGE_SE_\\d+", names(mean_df), value = TRUE)
     
     AGE_MEAN <- dplyr::bind_rows(
+      lapply(
+        split(mean_df, list(mean_df$YEAR, mean_df$SPEC), drop = TRUE),
+        function(group_df) {
+          
+          yr   <- unique(group_df$YEAR)
+          spec <- unique(group_df$SPEC)
+          
+          dplyr::bind_rows(
       Map(
         function(x, y) {
           out <- calcYearSummary(
-            mean_df,
+            group_df,
             valueField = x,
             seField = y,
             areaField = "AREA_KM2",
             is_mean = TRUE
           )
+          out$YEAR<-yr
+          out$SPEC<-spec
           out$AGE_col <- x
           out |>
-            dplyr::select(value, se, AGE_col) |>
+            dplyr::select(YEAR,SPEC,value, se, AGE_col) |>
             dplyr::rename(AGE_MEAN_SE = se, AGE_MEAN = value)
         },
         age_cols,
         se_age_cols
       )
+          )
+        }
+      )
     )
+    
+   
     
     total_df <- strat_age_total |>
       dplyr::left_join(
         strat_age_total_se |>
-          dplyr::select(-AREA_KM2, -SPEC) |>
+          dplyr::select(-AREA_KM2) |>
           dplyr::rename_with(
             ~ sub("(.*AGE_)(\\d+)$", "\\1SE_\\2", .),
             dplyr::contains("AGE_")
           ),
-        by = "STRAT"
+        by = c("YEAR","SPEC","STRAT")
       )
     age_cols2 <- grep("AGE_\\d+", names(total_df), value = TRUE)
     se_age_cols2 <- grep("AGE_SE_\\d+", names(total_df), value = TRUE)
     
     AGE_TOTAL <- dplyr::bind_rows(
+      lapply(
+        split(total_df, list(total_df$YEAR, total_df$SPEC), drop = TRUE),
+        function(group_df) {
+          
+          yr   <- unique(group_df$YEAR)
+          spec <- unique(group_df$SPEC)
+          
+          dplyr::bind_rows(
       Map(
         function(x, y) {
           out <- calcYearSummary(
-            total_df,
+            group_df,
             valueField = x,
             seField = y,
             areaField = "AREA_KM2",
             is_mean = FALSE
           )
+          out$YEAR<-yr
+          out$SPEC<-spec
           out$AGE_col <- x
           out |>
-            dplyr::select(value, se, AGE_col) |>
+            dplyr::select(YEAR,SPEC,value, se, AGE_col) |>
             dplyr::rename(AGE_TOTAL_SE = se, AGE_TOTAL = value)
         },
         age_cols2,
         se_age_cols2
       )
+          )
+        }
+      )
     )
     
+    
     summary_age <- AGE_MEAN |>
-      dplyr::left_join(AGE_TOTAL, by = "AGE_col") |>
+      dplyr::left_join(AGE_TOTAL, by = c("YEAR","SPEC","AGE_col")) |>
       dplyr::mutate(
         AGE_NUM = as.integer(sub(".*_(\\d+)$", "\\1", AGE_col))
       ) |>
       dplyr::arrange(AGE_NUM) |>
-      dplyr::select(AGE_col, AGE_MEAN, AGE_MEAN_SE, AGE_TOTAL, AGE_TOTAL_SE)
+      dplyr::select(YEAR, SPEC, AGE_col, AGE_MEAN, AGE_MEAN_SE, AGE_TOTAL, AGE_TOTAL_SE)
     
     # strat_age_mean_se <- strat_age_mean_se |>
     #   mutate(TOTAL_SE = sqrt(rowSums(dplyr::across(matches("AGE_\\d+$"))^2)))
@@ -990,22 +1214,22 @@ stratify_detailed <- function(
     
     # handle age summaries
     age_mean_vals <- summary_age |>
-      dplyr::select(AGE_col, AGE_MEAN) |>
+      dplyr::select(YEAR, SPEC, AGE_col, AGE_MEAN) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_MEAN) |>
       as.list()
     
     age_mean_se_vals <- summary_age |>
-      dplyr::select(AGE_col, AGE_MEAN_SE) |>
+      dplyr::select(YEAR, SPEC, AGE_col, AGE_MEAN_SE) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_MEAN_SE) |>
       as.list()
     
     age_total_vals <- summary_age |>
-      dplyr::select(AGE_col, AGE_TOTAL) |>
+      dplyr::select(YEAR, SPEC, AGE_col, AGE_TOTAL) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_TOTAL) |>
       as.list()
     
     age_total_se_vals <- summary_age |>
-      dplyr::select(AGE_col, AGE_TOTAL_SE) |>
+      dplyr::select(YEAR, SPEC, AGE_col, AGE_TOTAL_SE) |>
       tidyr::pivot_wider(names_from = AGE_col, values_from = AGE_TOTAL_SE) |>
       as.list()
     
@@ -1013,7 +1237,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!age_mean_vals
       )
     
@@ -1021,7 +1244,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!age_mean_se_vals
       )
     
@@ -1029,7 +1251,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!age_total_vals
       )
     
@@ -1037,7 +1258,6 @@ stratify_detailed <- function(
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
-        SPEC = NA_integer_,
         !!!age_total_se_vals
       )
   }
