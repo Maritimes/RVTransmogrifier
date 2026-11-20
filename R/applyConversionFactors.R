@@ -43,6 +43,11 @@
 #' @importFrom Mar.utils get_data_tables
 #' @export
 applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
+  
+  if(nrow(tblList$GSCAT)==0) {
+    stop("There is no data to convert")
+  }
+  
   season <- unique(tblList$GSMISSIONS$SEASON)
   if (length(season) > 1) {
     stop("The function can only handle a single season of data")
@@ -51,13 +56,57 @@ applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
     stop("This function can only handle SUMMER or SPRING/GEORGES")
   }
   
+  
+  STRATA<- unique(tblList$GSINF$STRAT)
+  
+  if (season %in% c('SPRING') & any(!STRATA %in% c("5Z1","5Z2","5Z3","5Z31","5Z32","5Z33","5Z34","5Z4","5Z41","5Z42","5Z9"))){
+    message("
+Spring survey conversion factors were developed for use in strata normally covered for the spring survey (5Z1-5Z4, 5Z9). 
+          
+Within the data, there are strata that may not neccessarily be appropriate for conversion factors due to limited/inconsistent yearly coverage or outside the geographical range that conversion factors were developed for.")
+    
+    # Prompt the user for input
+    user_input <- readline(prompt = "Do you wish to proceed with applying conversion factors to these strata? (y/n): ")
+    
+    # Convert input to lowercase to catch "Y" or "y"
+    if (tolower(user_input) != "y") {
+      stop("Conversion aborted.")
+    }
+  }
+  
+  if (season %in% c('SUMMER') & any(!STRATA %in% c(440:495,"5Z1","5Z2","5Z9"))){
+    message("
+Summer survey conversion factors were developed for use in strata normally covered during the summer survey (440-495,5Z1,5Z2,5Z9). 
+          
+Within the data, there are strata that may not neccessarily be appropriate for conversion factors due to limited/inconsistent yearly coverage or outside the geographical range that conversion factors were developed for.")
+    
+    # Prompt the user for input
+    user_input <- readline(prompt = "Do you wish to proceed with applying conversion factors to these strata? (y/n): ")
+    
+    # Convert input to lowercase to catch "Y" or "y"
+    if (tolower(user_input) != "y") {
+      stop("Conversion aborted.")
+    }
+  }
+  
   # get a few extra tables we'll need
   get_data_tables('groundfish', cxn = cxn, data.dir = get_pesd_rvt_dir(), tables = c("GSCONVERSIONS", "GSSPEC2","GSCONVERSIONS_RAW"), force.extract = F)
   
+  GSCONVERSIONS<-subset(GSCONVERSIONS, SEASON %in% season)
+  GSCONVERSIONS_RAW<-subset(GSCONVERSIONS_RAW, SEASON %in% season)
   # retain data for SPECs that have conversion factors based on FLENs for the TEL/VEN to CAR/CAB and the NED/TEM to TEL/VEN
   GSCAT_SPEC_LIST_TELVEN <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "TEL_VEN")
   GSCAT_SPEC_LIST_NEDTEM <- subset(GSCONVERSIONS, !CF_VALUE == 1 & CF_METRIC == "ABUNDANCE" & FROM_VESSEL == "NED_TEM")
-  GSCAT_SPEC_LIST_ATCHAM<-c(11,40,41,42,43)
+  
+  if (season %in% c('SUMMER')) {
+    GSCAT_SPEC_LIST_ATCHAM<-c(11,40,41,42,43)
+  }
+  
+  if (season %in% c('SPRING')) {
+    GSCAT_SPEC_LIST_ATCHAM<-c(0)
+  }
+  
+  
   # pull the As and Bs for the selected season (summer or winter).
   # If multiple exist (for the same SPEC/SEX) choose the higher R2 value
   ABs <- GSSPEC2 |>
@@ -152,10 +201,12 @@ applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
   
   if(VesselUnits=="TEL_VEN") {
     GSDET_forconv_pre <- raw_GSDET |> filter((grepl("CAR|CAB", MISSION) & SPEC %in% GSCAT_SPEC_LIST_TELVEN$SPEC) |
-                                               (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC))  |>  
+                                               (grepl("NED|TEM|ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_NEDTEM$SPEC) | 
+                                               (grepl("ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_ATCHAM)) |>  
       filter( !( SPEC %in% c(2212,2214,2415,2555,4521,4536,8500,8601,6411,6500,6511) | 
                    SPEC >= 9400 | 
-                   SPEC %in% c(1091,1092) ) )
+                   SPEC %in% c(1091,1092) ) ) |> 
+      filter(!(SPEC==11 & VESEL=="H"))
   }
   
   if(VesselUnits=="NED_TEM") {
@@ -164,7 +215,8 @@ applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
                                                (grepl("ATC|HAM", MISSION) & SPEC %in% GSCAT_SPEC_LIST_ATCHAM))  |>  
       filter( !( SPEC %in% c(2212,2214,2415,2555,4521,4536,8500,8601,6411,6500,6511) | 
                    SPEC >= 9400 | 
-                   SPEC %in% c(1091,1092) ) )
+                   SPEC %in% c(1091,1092) ) ) |> 
+      filter(!(SPEC==11 & VESEL=="H"))
   }
   
   GSDET_unconv <- raw_GSDET |> 
@@ -395,11 +447,23 @@ applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
     mutate(FROM_VESSEL = "ATC_HAM")
   
   # These are just the conversion factors for the few species for ATC/HAM to NED/TEM
-  ATCHAM_TO_NEDTEM_ABUND_CONV <- data.frame(
-    SPEC = c(11, 40, 41, 42, 43),
-    ATCHAM_TO_NEDTEM_ABUND_LAM = c(0.83333, 1.25, 1.25, 1.25, 1.25),
-    FROM_VESSEL = c("ATC_HAM", "ATC_HAM", "ATC_HAM", "ATC_HAM", "ATC_HAM")
-  )
+  
+  if (season %in% c('SUMMER')) {
+    ATCHAM_TO_NEDTEM_ABUND_CONV <- data.frame(
+      SPEC = c(11, 40, 41, 42, 43),
+      ATCHAM_TO_NEDTEM_ABUND_LAM = c(0.83333, 1.25, 1.25, 1.25, 1.25),
+      FROM_VESSEL = c("ATC_HAM", "ATC_HAM", "ATC_HAM", "ATC_HAM", "ATC_HAM")
+    )
+  }
+  
+  if (season %in% c('SPRING')) {
+    ATCHAM_TO_NEDTEM_ABUND_CONV <- data.frame(
+      SPEC = c(0),
+      ATCHAM_TO_NEDTEM_ABUND_LAM = c(1),
+      FROM_VESSEL = c("ATC_HAM")
+    )
+  }
+  
   #FIXED THIS SO ATC AND HAM WOULD BE IN LINE WITH OTHER DATA FRAMES
   
   
@@ -531,6 +595,11 @@ applyConversionFactors <- function(cxn = NULL, tblList, VesselUnits) {
   LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_CARCAB_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
   LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_TELVEN_ABUND_CONV_LAM, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
   LF_Data_All <- merge(LF_Data_All, ATCHAM_TO_NEDTEM_ABUND_CONV, by = c("SPEC", "FROM_VESSEL"), all.x = TRUE  )
+  
+  
+  #Hammond data does not get converted for Haddock. This is the easest way to fix it.
+  LF_Data_All$ATCHAM_TO_NEDTEM_ABUND_LAM<-ifelse(LF_Data_All$VESEL=="H" & LF_Data_All$SPEC==11,1,LF_Data_All$ATCHAM_TO_NEDTEM_ABUND_LAM)
+  
   
   #Third all biomass
   TELVEN_TO_CARCAB_BMASS_CONV <- TELVEN_TO_CARCAB_BMASS_CONV |> select(c(-FLEN)) |> unique()

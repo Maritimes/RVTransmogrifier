@@ -36,7 +36,7 @@ stratify_simple <- function(
     tblList = NULL,
     df = NULL,
     towDist_NM = 1.75,
-    netWidthUnits= c("NEST","WIIA"),
+    netWidthUnits= netWidthUnits,
     areaField = "AREA_KM2",
     areaFieldUnits = c("KM2", "NM2", "M2"),
     conf_limits = 95,
@@ -67,7 +67,92 @@ stratify_simple <- function(
     df[is.na(df$TOTWGT), "TOTWGT"] <- 0
   }
   
+  sets_N<- merge(tblList$GSINF,tblList$GSMISSIONS,by="MISSION")
+  sets_N<- sets_N %>%
+    group_by(YEAR,STRAT,SEASON) %>%
+    summarise(N=length(SETNO),.groups = "drop_last") %>%
+    filter(N<2)
   
+  if (nrow(sets_N)>0){
+    message("
+Stratification requires a minimum of 2 sets within a strata for a given survey year to calculate an average estimate.
+
+One or more of the strata/year/survey combinations in the data do not meet this threshold.
+
+Stratification can continue but results will be based off a single set's data and should be interpreted with caution.")
+    print(sets_N)
+    
+    # Prompt the user for input
+    user_input <- readline(prompt = "Do you wish to proceed with proceed with stratification? (y/n): ")
+    
+    # Convert input to lowercase to catch "Y" or "y"
+    if (tolower(user_input) != "y") {
+      stop("Stratification aborted.")
+    }
+  }
+  
+  
+  season <- unique(tblList$GSMISSIONS$SEASON)
+  STRATA<- unique(tblList$GSINF$STRAT)
+  YEAR<-unique(tblList$GSMISSIONS$YEAR)
+  if (season %in% c('SUMMER') & any(STRATA %in% c(440:470)) & any(YEAR %in% c(2018,2021,2022))){
+    message("
+In 2018, 2021 and 2022 the summer survey had incomplete coverage for strata falling within the 4W and 4V areas.
+
+Therefore total estimates of biomass and abundance for these years and strata/areas will not be comparable to years where full coverage was achieved.")
+    
+    # Prompt the user for input
+    user_input <- readline(prompt = "Do you wish to proceed with stratification? (y/n): ")
+    
+    # Convert input to lowercase to catch "Y" or "y"
+    if (tolower(user_input) != "y") {
+      stop("Stratification aborted.")
+    }
+  }
+  
+  
+  if (season %in% c('SUMMER') & any(!STRATA %in% c(440:495))){
+    message("
+The summer survey has consistently covered strata 440-495 since 1970.
+
+Within the data, there are strata/year combinations that have inconsistently been covered throughout the time series.
+
+Therefore, total estimates of biomass and abundance for these strata/areas will not be comparable to years when full coverage was achieved.
+
+For example:
+\tPrior to 2019 the summer survey did not normally sample strata 5Z1, 5Z2 and 5Z9, however since 2019 these strata have consistently been sampled.")
+    
+    # Prompt the user for input
+    user_input <- readline(prompt = "Do you wish to proceed with stratification? (y/n): ")
+    
+    # Convert input to lowercase to catch "Y" or "y"
+    if (tolower(user_input) != "y") {
+      stop("Stratification aborted.")
+    }
+  }
+  
+  if (season %in% c('SPRING') & any(!STRATA %in% c("5Z1","5Z2","5Z3","5Z31","5Z32","5Z33","5Z34","5Z4","5Z41","5Z42"))|| season %in% c('SPRING') & any(YEAR %in% c(1970:1986))){
+    message("
+The spring survey has consistently covered strata 5Z1-5Z4 since 1987.
+
+Within the data, there are strata/year combinations that have inconsistently been covered throughout the time series or one of the years falls outside of the normal spring survey timeframe of 1987 to present.
+
+Therefore, total estimates of biomass and abundance for these strata/areas will not be comparable to years when full coverage was achieved.
+    
+For example:
+\t1. Prior to 2011 the spring survey covered portions of 4VW, however since 2011 4VW had not been sampled.
+\t2. Sampling within 4X has been inconsistently sampled throughout the time series.
+\t3. Sampling within strata 5Z5-5Z7 has not occured since 2019.")
+    
+    # Prompt the user for input
+    user_input <- readline(prompt = "Do you wish to proceed with stratification? (y/n): ")
+    
+    # Convert input to lowercase to catch "Y" or "y"
+    if (tolower(user_input) != "y") {
+      stop("Stratification aborted.")
+    }
+  }
+ 
   if(totwgt_units=="ton"){
     df$TOTWGT <- df$TOTWGT/1000
   }
@@ -362,7 +447,7 @@ stratify_simple <- function(
 stratify_detailed <- function(
     tblList,
     towDist = 1.75,
-    netWidthUnits = "WIIA",
+    netWidthUnits = netWidthUnits,
     by_sex = FALSE,
     conf_limits = 95,
     inc_limits = T,
@@ -393,12 +478,16 @@ stratify_detailed <- function(
     dplyr::distinct()
   
   totals$length_total$YEAR<-as.numeric(substr(totals$length_total$MISSION, 4, 7))
+  
+  if (inherits(totals$age_total, "data.frame")) {
   totals$age_total$YEAR<-as.numeric(substr(totals$age_total$MISSION, 4, 7))
+  }
+  
   totals$standardized_data$YEAR<-as.numeric(substr(totals$standardized_data$MISSION, 4, 7))
   
   if (inherits(totals$length_total, "data.frame")) {
     length_data <- totals$length_total
-    
+
     if (by_sex) {
       all_combos <- all_sets |>
         tidyr::crossing(spec_only) |>
@@ -448,6 +537,8 @@ stratify_detailed <- function(
         ) |>
         dplyr::select(-CLEN_values, -CLEN_SQKM_values)
     } else {
+      
+      
       all_combos <- all_sets |>
         tidyr::crossing(spec_only) |>
         tidyr::crossing(length_data |> dplyr::select(FLEN) |> dplyr::distinct())
@@ -509,14 +600,32 @@ stratify_detailed <- function(
       level = "strat",
       by_sex = by_sex
     )
-    lenStrat_se <- widen_data(
-      length_strat,
+    
+    lenSet_mean_KM <- widen_data(
+      length_complete,
       var_col = "FLEN",
-      value_col = "CLEN_SE",
+      value_col = "CLEN_SQKM_TOTAL",
       bin_size = bin_size,
-      level = "strat",
+      level = "set",
       by_sex = by_sex
     )
+    
+    
+    lenStrat_se <- lenSet_mean %>%
+      group_by(YEAR,STRAT,AREA_KM2,SPEC) %>%
+      summarise(across(7:ncol(lenSet_mean)-4,~Mar.utils::st_err(.)),.groups = "drop_last") %>%
+      ungroup()
+    
+    lenStrat_total_se <- lenSet_mean_KM %>%
+        mutate(across(7:ncol(lenSet_mean),~.*AREA_KM2))
+    
+    lenStrat_total_se <- lenStrat_total_se %>%
+      group_by(YEAR,STRAT,AREA_KM2,SPEC) %>%
+      summarise(across(7:ncol(lenSet_mean)-4,~Mar.utils::st_err(.)),.groups = "drop_last") %>%
+      ungroup()
+    
+  
+    
     lenStrat_total <- widen_data(
       length_strat,
       var_col = "FLEN",
@@ -531,23 +640,16 @@ stratify_detailed <- function(
       value_col = "CLEN_STRAT_TOTAL",
       bin_size = bin_size,
       level = "strat",
-      by_sex = F
-    )
-    lenStrat_total_se <- widen_data(
-      length_strat,
-      var_col = "FLEN",
-      value_col = "CLEN_STRAT_TOTAL_SE",
-      bin_size = bin_size,
-      level = "strat",
       by_sex = by_sex
     )
+    
     
     ###### MEAN ######
     
     mean_df <- lenStrat_mean |>
       dplyr::left_join(
         lenStrat_se |>
-          dplyr::select(-AREA_KM2,) |>
+          dplyr::select(-AREA_KM2) |>
           dplyr::rename_with(
             ~ sub("(.*FLEN_)(\\d+)$", "\\1SE_\\2", .), # Insert _SE_ before number
             dplyr::contains("FLEN_")
@@ -960,7 +1062,7 @@ stratify_detailed <- function(
     
     age_table <- merge(ages_prop, lengths, by = c("YEAR","SPEC","FLEN"), all.x = T)
     age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] <- round(
-      age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] *
+        age_table[, !(names(age_table) %in% c("YEAR","SPEC","FLEN", "length_sum"))] *
         age_table[["length_sum"]],
       4
     )
@@ -975,7 +1077,6 @@ stratify_detailed <- function(
       }
       sum(age_table$FLEN * x) / sum(x)
     })
-    
     
     AGE_PROP<-age_table %>%
       group_by(YEAR,SPEC,FLEN) %>%
@@ -1022,7 +1123,8 @@ stratify_detailed <- function(
     age_complete<-merge(Length_Age_TOT,Length_Age_SQKM,by=c("MISSION","YEAR","SPEC","STRAT","SETNO","AREA_KM2","AGE"))
     
     }
-
+    
+    
     
     set_age <- widen_data(
       age_complete,
@@ -1042,6 +1144,7 @@ stratify_detailed <- function(
     
     
     group_vars <- c("YEAR","SPEC", "STRAT", "AREA_KM2", "AGE")
+    
     if (by_sex) {
       group_vars <- c(group_vars, "FSEX")
     }
@@ -1149,7 +1252,7 @@ stratify_detailed <- function(
       )
     )
     
-   
+    
     
     total_df <- strat_age_total |>
       dplyr::left_join(
@@ -1247,20 +1350,81 @@ stratify_detailed <- function(
         !!!age_mean_se_vals
       )
     
-    ageStrat_total <- strat_age_total |>
+    strat_age_total <- strat_age_total |>
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
         !!!age_total_vals
       )
     
-    ageStrat_total_se <- strat_age_total_se |>
+    strat_age_total_se <- strat_age_total_se |>
       dplyr::add_row(
         STRAT = "TOTAL",
         AREA_KM2 = NA_real_,
         !!!age_total_se_vals
       )
   }
+  
+  if (inherits(totals$age_total, "data.frame")) {
+    alk<- alk %>%
+      dplyr::arrange(YEAR,SPEC,FLEN)
+    
+    alw<- alw %>%
+      dplyr::arrange(YEAR,SPEC,FLEN)
+    
+    age_table<- age_table %>%
+      dplyr::arrange(YEAR,SPEC,FLEN)
+    
+    set_age<-set_age %>%
+      select(1:6, stringr::str_sort(names(.)[7:ncol(.)], numeric = TRUE))
+    
+    set_age<- set_age %>%
+      dplyr::arrange(YEAR,SPEC,STRAT)
+    
+    strat_age_mean<-strat_age_mean %>%
+      select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+    
+    strat_age_mean <- strat_age_mean %>%
+      dplyr::arrange(YEAR,SPEC,STRAT)
+    
+    strat_age_mean_se<-strat_age_mean_se %>%
+      select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+    
+    strat_age_mean_se<- strat_age_mean_se %>%
+      dplyr::arrange(YEAR,SPEC,STRAT)
+    
+    strat_age_total<-strat_age_total %>%
+      select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+    
+    strat_age_total<- strat_age_total %>%
+      dplyr::arrange(YEAR,SPEC,STRAT)
+    
+    strat_age_total_se<-strat_age_total_se %>%
+      select(1:4, stringr::str_sort(names(.)[5:ncol(.)], numeric = TRUE))
+    
+    strat_age_total_se<- strat_age_total_se %>%
+      dplyr::arrange(YEAR,SPEC,STRAT)
+  }
+  
+  
+  
+  lenSet_mean<- lenSet_mean %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+  lenStrat_mean<- lenStrat_mean %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+  lenStrat_se<- lenStrat_se %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+  lenStrat_total<- lenStrat_total %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+  lenStrat_total_se<- lenStrat_total_se %>%
+    dplyr::arrange(YEAR,SPEC,STRAT)
+  
+  
+  
   
   results <- list()
   results$summaries$overall <- stratSimp$overall
